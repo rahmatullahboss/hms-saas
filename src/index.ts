@@ -33,6 +33,7 @@ import commissionRoutes from './routes/tenant/commissions';
 import registerRoutes from './routes/register';
 import publicInviteRoutes from './routes/public-invite';
 import invitationRoutes from './routes/tenant/invitations';
+import notificationRoutes from './routes/tenant/notifications';
 
 import type { Env } from './types';
 
@@ -134,6 +135,7 @@ app.route('/api/visits', visitRoutes);
 app.route('/api/lab', labRoutes);
 app.route('/api/commissions', commissionRoutes);
 app.route('/api/invitations', invitationRoutes);
+app.route('/api/notifications', notificationRoutes);
 
 
 // ─── Not Found handler ──────────────────────────────────────────────
