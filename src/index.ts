@@ -29,6 +29,8 @@ import doctorRoutes from './routes/tenant/doctors';
 import visitRoutes from './routes/tenant/visits';
 import labRoutes from './routes/tenant/lab';
 import commissionRoutes from './routes/tenant/commissions';
+import registerRoutes from './routes/register';
+import invitationRoutes from './routes/tenant/invitations';
 
 import type { Env } from './types';
 
@@ -70,6 +72,15 @@ app.use('/api/init/*', async (c, next) => {
 
 app.route('/api/seed', seedRoutes);
 app.route('/api/init', initRoutes);
+
+// ─── Public: Hospital self-signup ──────────────────────────────────────
+app.route('/api/register', registerRoutes);
+
+// ─── Public: Invitation validation + acceptance (no auth needed) ────────
+// These routes are registered BEFORE the auth middleware block below so they
+// are accessible without a JWT. Tenant is identified from the invite token.
+app.use('/api/invitations/:token', tenantMiddleware);
+app.use('/api/invitations/:token/accept', tenantMiddleware);
 
 // ─── Admin routes ─────────────────────────────────────────────────────
 // Admin login is public (no auth needed)
@@ -116,6 +127,8 @@ app.route('/api/doctors', doctorRoutes);
 app.route('/api/visits', visitRoutes);
 app.route('/api/lab', labRoutes);
 app.route('/api/commissions', commissionRoutes);
+app.route('/api/invitations', invitationRoutes);
+
 
 // ─── Not Found handler ──────────────────────────────────────────────
 // For API routes: return JSON 404
