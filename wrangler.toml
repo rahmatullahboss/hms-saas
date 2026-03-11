@@ -31,7 +31,7 @@ database_id = "7f8c376f-c6b9-40fc-841f-76600782c151"
 
 [[kv_namespaces]]
 binding = "KV"
-id = "5fcbd3dfeb3a478cad7510d068c68a2f"
+id = "ed8650b9af6549ecbaf5cc90b187d53b"
 
 [[r2_buckets]]
 binding = "UPLOADS"
@@ -67,7 +67,7 @@ database_id = "6b8ce45d-024e-4561-8a51-880d971274d2"
 
 [[env.staging.kv_namespaces]]
 binding = "KV"
-id = "6a162b46d16647d5a4d9b63902f78530"
+id = "ed8650b9af6549ecbaf5cc90b187d53b"
 
 [[env.staging.r2_buckets]]
 binding = "UPLOADS"
@@ -94,7 +94,7 @@ database_id = "72d398a3-a087-4d0f-a13c-472217dbfc45"
 
 [[env.production.kv_namespaces]]
 binding = "KV"
-id = "38f7792edf9b48ff8dd5d6b27bd012bc"
+id = "ed8650b9af6549ecbaf5cc90b187d53b"
 
 [[env.production.r2_buckets]]
 binding = "UPLOADS"
