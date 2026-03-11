@@ -3,31 +3,46 @@ import { zValidator } from '@hono/zod-validator';
 import { HTTPException } from 'hono/http-exception';
 import { createPatientSchema, updatePatientSchema } from '../../schemas/patient';
 import { getNextSequence } from '../../lib/sequence';
+import { createAuditLog } from '../../lib/accounting-helpers';
+import type { Env, Variables } from '../../types';
 
 const patientRoutes = new Hono<{
-  Bindings: { DB: D1Database };
-  Variables: { tenantId?: string; userId?: string };
+  Bindings: Env;
+  Variables: Variables;
 }>();
 
-// GET /api/patients — list patients with search
+// GET /api/patients — list patients with search + cursor pagination
 patientRoutes.get('/', async (c) => {
   const tenantId = c.get('tenantId');
-  const search = c.req.query('search') || '';
+  const search  = c.req.query('search') || '';
+  const limit   = Math.min(parseInt(c.req.query('limit') || '50', 10), 200);
+  const cursor  = c.req.query('cursor'); // last seen id for cursor pagination
 
   try {
     let query = 'SELECT * FROM patients WHERE tenant_id = ?';
     const params: (string | number)[] = [tenantId!];
 
     if (search) {
-      query += ' AND (name LIKE ? OR mobile LIKE ? OR patient_code LIKE ? OR id = ?)';
+      query += ' AND (name LIKE ? OR mobile LIKE ? OR patient_code LIKE ? OR CAST(id AS TEXT) = ?)';
       const searchPattern = `%${search}%`;
       params.push(searchPattern, searchPattern, searchPattern, search);
     }
 
-    query += ' ORDER BY created_at DESC LIMIT 100';
+    if (cursor) {
+      query += ' AND id < ?';
+      params.push(parseInt(cursor, 10));
+    }
+
+    query += ' ORDER BY id DESC LIMIT ?';
+    params.push(limit + 1); // fetch one extra to determine hasMore
 
     const patients = await c.env.DB.prepare(query).bind(...params).all();
-    return c.json({ patients: patients.results });
+    const results  = patients.results as Array<{ id: number }>;
+    const hasMore  = results.length > limit;
+    const items    = hasMore ? results.slice(0, limit) : results;
+    const nextCursor = hasMore ? String(items[items.length - 1].id) : null;
+
+    return c.json({ patients: items, nextCursor, hasMore });
   } catch (error) {
     console.error('patients fetch error:', error);
     throw new HTTPException(500, { message: 'Failed to fetch patients' });
@@ -101,6 +116,9 @@ patientRoutes.post('/', zValidator('json', createPatientSchema), async (c) => {
       .bind(result.meta.last_row_id, serialNumber, today, 'waiting', tenantId)
       .run();
 
+    // Audit log
+    void createAuditLog(c.env, tenantId!, c.get('userId') ?? '', 'create', 'patients', result.meta.last_row_id, null, data);
+
     return c.json(
       {
         message: 'Patient registered',
@@ -153,6 +171,9 @@ patientRoutes.put('/:id', zValidator('json', updatePatientSchema), async (c) => 
         tenantId,
       )
       .run();
+
+    // Audit log
+    void createAuditLog(c.env, tenantId!, c.get('userId') ?? '', 'update', 'patients', Number(id), existing, data);
 
     return c.json({ message: 'Patient updated' });
   } catch (error) {

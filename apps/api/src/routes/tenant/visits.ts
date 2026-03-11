@@ -3,6 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { HTTPException } from 'hono/http-exception';
 import { createVisitSchema, updateVisitSchema, dischargeSchema } from '../../schemas/visit';
 import { getNextSequence } from '../../lib/sequence';
+import { createAuditLog } from '../../lib/accounting-helpers';
 import type { Env, Variables } from '../../types';
 
 const visitRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -88,7 +89,8 @@ visitRoutes.post('/', zValidator('json', createVisitSchema), async (c) => {
       userId,
     ).run();
 
-    // TODO: audit log when audit module is available
+    // Audit log
+    void createAuditLog(c.env, tenantId!, userId!, 'create', 'visits', result.meta.last_row_id, null, { visitType: data.visitType, visitNo });
     return c.json({ message: 'Visit created', id: result.meta.last_row_id, visitNo }, 201);
   } catch {
     throw new HTTPException(500, { message: 'Failed to create visit' });
@@ -145,7 +147,8 @@ visitRoutes.post('/:id/discharge', zValidator('json', dischargeSchema), async (c
       WHERE id = ? AND tenant_id = ?
     `).bind(data.dischargeDate, data.notes ?? null, id, tenantId).run();
 
-    // TODO: audit log when audit module is available
+    // Audit log
+    void createAuditLog(c.env, tenantId!, userId!, 'discharge', 'visits', Number(id), null, { dischargeDate: data.dischargeDate });
     return c.json({ message: 'Patient discharged', dischargeDate: data.dischargeDate });
   } catch (error) {
     if (error instanceof HTTPException) throw error;

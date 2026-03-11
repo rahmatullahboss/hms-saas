@@ -77,38 +77,34 @@ setInterval(cleanupCache, 60 * 1000);
  * Cache middleware
  * Caches GET request responses
  */
-export function cacheMiddleware(c: Context, next: Next, options: CacheOptions = {}) {
+export async function cacheMiddleware(c: Context, next: Next, options: CacheOptions = {}): Promise<void> {
   const ttl = options.ttl ?? DEFAULT_TTL;
   const key = options.key ?? `cache:${c.req.method}:${c.req.url}`;
-  
+
   // Only cache GET requests
   if (c.req.method !== 'GET') {
     return next();
   }
-  
-  // Check cache first
+
+  // Return cached response if available
   const cached = getCache(key);
   if (cached !== null) {
-    return c.json(cached);
+    c.res = c.json(cached) as unknown as Response;
+    return;
   }
-  
-  // Execute the handler
-  const response = next();
-  
-  // Cache the response
-  response.then((res) => {
-    // Only cache successful responses
-    if (res.status === 200) {
-      // Clone the response to read the body
-      res.clone().json().then((body) => {
-        setCache(key, body, ttl);
-      }).catch(() => {
-        // Ignore JSON parse errors
-      });
+
+  // Let the handler run
+  await next();
+
+  // Try to cache the response body if it was a 200
+  try {
+    if (c.res.status === 200) {
+      const body = await c.res.clone().json();
+      setCache(key, body, ttl);
     }
-  });
-  
-  return response;
+  } catch {
+    // Ignore clone/parse errors — cache miss is non-fatal
+  }
 }
 
 /**

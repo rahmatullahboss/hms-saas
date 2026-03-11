@@ -57,15 +57,6 @@ async function processRecurringExpenses(env: Env): Promise<void> {
             UPDATE recurring_expenses SET next_run_date = ? WHERE id = ? AND tenant_id = ?
           `).bind(nextRunDate.toISOString().split('T')[0], recurring.id, tenantId).run();
 
-          // Notify dashboard
-          try {
-            const doId = env.DASHBOARD_DO.idFromName(tenantId);
-            const doStub = env.DASHBOARD_DO.get(doId);
-            await doStub.updateExpense(recurring.amount, true, true);
-          } catch (doError) {
-            console.error('Error notifying dashboard:', doError);
-          }
-
           console.log(`Created recurring expense ${expenseResult.meta.last_row_id} for tenant ${tenantId}`);
         } catch (expenseError) {
           console.error(`Error creating expense for recurring ${recurring.id}:`, expenseError);

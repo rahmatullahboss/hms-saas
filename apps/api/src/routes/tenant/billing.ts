@@ -3,6 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { HTTPException } from 'hono/http-exception';
 import { createBillSchema, paymentSchema } from '../../schemas/billing';
 import { getNextSequence } from '../../lib/sequence';
+import { createAuditLog } from '../../lib/accounting-helpers';
 import type { Env, Variables } from '../../types';
 
 const billingRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -136,6 +137,9 @@ billingRoutes.post('/', zValidator('json', createBillSchema), async (c) => {
       INSERT INTO income (date, source, amount, description, ref_id, tenant_id) VALUES (?, ?, ?, ?, ?, ?)
     `).bind(new Date().toISOString().split('T')[0], 'billing', total, `Invoice ${invoiceNo}`, billId, tenantId).run();
 
+    // Audit log
+    void createAuditLog(c.env, tenantId!, userId!, 'create', 'bills', billId, null, { patientId: data.patientId, invoiceNo, total });
+
     return c.json({ message: 'Bill created', billId, invoiceNo, total }, 201);
   } catch (error) {
     if (error instanceof HTTPException) throw error;
@@ -179,6 +183,9 @@ billingRoutes.post('/pay', zValidator('json', paymentSchema), async (c) => {
     await c.env.DB.prepare(
       `UPDATE bills SET paid_amount = ?, status = ? WHERE id = ? AND tenant_id = ?`,
     ).bind(newPaid, status, data.billId, tenantId).run();
+
+    // Audit log
+    void createAuditLog(c.env, tenantId!, userId!, 'payment', 'bills', data.billId, { paidBefore: bill.paid_amount }, { newPaid, status, receiptNo });
 
     return c.json({
       message: 'Payment recorded',

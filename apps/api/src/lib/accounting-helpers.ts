@@ -1,5 +1,4 @@
-import { Hono } from 'hono';
-import { DashboardDO } from '../../do/dashboard-state';
+// accounting-helpers.ts — shared audit + dashboard notification utilities
 
 export interface Env {
   DB: D1Database;
@@ -17,13 +16,17 @@ export async function notifyDashboard(
   isToday: boolean = true,
   isMTD: boolean = true
 ): Promise<void> {
+  // Fire-and-forget: dashboard notification failures must never break the main flow
   try {
     const doId = env.DASHBOARD_DO.idFromName(tenantId);
-    const doStub = env.DASHBOARD_DO.get(doId);
-    
-    if (type === 'income') {
+    const doStub = env.DASHBOARD_DO.get(doId) as DurableObjectStub & {
+      updateIncome?: (amount: number, isToday: boolean, isMTD: boolean) => Promise<void>;
+      updateExpense?: (amount: number, isToday: boolean, isMTD: boolean) => Promise<void>;
+    };
+
+    if (type === 'income' && doStub.updateIncome) {
       await doStub.updateIncome(amount, isToday, isMTD);
-    } else {
+    } else if (type === 'expense' && doStub.updateExpense) {
       await doStub.updateExpense(amount, isToday, isMTD);
     }
   } catch (error) {

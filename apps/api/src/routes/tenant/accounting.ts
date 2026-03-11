@@ -1,6 +1,4 @@
 import { Hono } from 'hono';
-import { getCookie } from 'hono/cookie';
-import { DashboardDO } from '../do/dashboard-state';
 
 const dashboardRoutes = new Hono<{
   Bindings: {
