@@ -56,8 +56,10 @@ SMS_PROVIDER = "stub"
 # wrangler secret put BKASH_PASSWORD
 # wrangler secret put NAGAD_MERCHANT_ID
 # wrangler secret put NAGAD_MERCHANT_PRIVATE_KEY
-# wrangler secret put DAILY_API_KEY
-# Without secrets, stub providers are automatically used.
+# — Telemedicine: Cloudflare Realtime SFU (Dashboard → Realtime SFU → Create App)
+# wrangler secret put CF_REALTIME_APP_ID
+# wrangler secret put CF_REALTIME_APP_SECRET
+# Without secrets, Jitsi free fallback is used automatically.
 
 # ─── Staging environment ──────────────────────────────────────────────
 [env.staging]

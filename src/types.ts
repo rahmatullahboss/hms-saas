@@ -28,8 +28,11 @@ export interface Env {
   NAGAD_MERCHANT_ID?: string;
   NAGAD_MERCHANT_PRIVATE_KEY?: string;
   NAGAD_BASE_URL?: string;        // default: sandbox URL
-  // ─── Telemedicine (Daily.co) ─────────────────────────────────────────
-  DAILY_API_KEY?: string;         // if set, uses Daily.co; otherwise Jitsi fallback
+  // ─── Telemedicine (Cloudflare Realtime SFU) ─────────────────────────
+  // Dashboard → Realtime SFU → Create App → copy App ID + Secret
+  CF_REALTIME_APP_ID?:     string;  // wrangler secret put CF_REALTIME_APP_ID
+  CF_REALTIME_APP_SECRET?: string;  // wrangler secret put CF_REALTIME_APP_SECRET
+  CF_ACCOUNT_ID?:          string;  // your Cloudflare account ID (optional, for admin APIs)
 }
 
 /**

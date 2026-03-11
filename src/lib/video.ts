@@ -1,18 +1,24 @@
 /**
- * Video Provider Abstraction — Daily.co and Jitsi fallback
+ * Video Provider — Cloudflare Realtime SFU (primary) + Jitsi fallback
  *
- * Daily.co: paid service, excellent quality, HIPAA-compliant plan available.
- *           Creates rooms via REST API, rooms can be set to auto-delete after meeting.
+ * Cloudflare Realtime SFU:
+ *   - Previously known as "Cloudflare Calls"
+ *   - Runs on Cloudflare's global network (Dhaka PoP → lowest BD latency)
+ *   - Free: 1,000 participant-minutes/day; then $0.05/1,000 min
+ *   - Setup: Dashboard → Realtime SFU → Create App → get App ID + App Secret
  *
- * Jitsi (stub): free, no account needed. We just generate a random room name
- *               and use meet.jit.si. Good for development and small clinics.
+ * Jitsi (fallback):
+ *   - Free, no account needed
+ *   - Used when CF_REALTIME_APP_ID is not set
+ *
+ * API docs: https://developers.cloudflare.com/realtime/sfu/
  */
 
 export interface VideoRoom {
-  roomName: string;
-  roomUrl:  string;
-  provider: 'daily' | 'jitsi';
-  expiresAt?: string;  // ISO datetime when room auto-deletes
+  roomName:  string;
+  roomUrl:   string;           // URL to send to patient/doctor
+  sessionId?: string;          // Cloudflare session ID (for admin tracking)
+  provider:  'cloudflare' | 'jitsi';
 }
 
 export interface VideoProvider {
@@ -20,69 +26,72 @@ export interface VideoProvider {
   deleteRoom(roomName: string): Promise<void>;
 }
 
-// ─── Environment interface ────────────────────────────────────────────────────
+// ─── Env interface ────────────────────────────────────────────────────────────
 export interface VideoEnv {
-  DAILY_API_KEY?: string;
+  CF_REALTIME_APP_ID?:     string;  // from Cloudflare dashboard → Realtime SFU
+  CF_REALTIME_APP_SECRET?: string;  // from Cloudflare dashboard → Realtime SFU
+  CF_ACCOUNT_ID?:          string;  // your Cloudflare account ID
 }
 
-// ─── Daily.co Provider ────────────────────────────────────────────────────────
-class DailyProvider implements VideoProvider {
-  private readonly apiKey: string;
-  private readonly baseUrl = 'https://api.daily.co/v1';
+// ─── Cloudflare Realtime SFU Provider ────────────────────────────────────────
+class CloudflareRealtimeProvider implements VideoProvider {
+  private readonly appId:     string;
+  private readonly appSecret: string;
+  private readonly accountId: string;
 
-  constructor(apiKey: string) {
-    this.apiKey = apiKey;
+  constructor(env: VideoEnv) {
+    this.appId     = env.CF_REALTIME_APP_ID!;
+    this.appSecret = env.CF_REALTIME_APP_SECRET!;
+    this.accountId = env.CF_ACCOUNT_ID!;
   }
 
-  async createRoom({ name, durationMin }: { name: string; durationMin: number }): Promise<VideoRoom> {
-    const expiresAt = Math.floor(Date.now() / 1000) + durationMin * 60 + 300; // room live for duration + 5 min buffer
-    const roomName = `hms-${name}-${Date.now()}`.toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 60);
-
-    const res = await fetch(`${this.baseUrl}/rooms`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.apiKey}`,
-      },
-      body: JSON.stringify({
-        name: roomName,
-        properties: {
-          exp: expiresAt,
-          enable_screenshare: true,
-          enable_chat: true,
-          max_participants: 4, // doctor + patient + optional assistant/family
+  async createRoom({ name }: { name: string; durationMin: number }): Promise<VideoRoom> {
+    // Create a new SFU session — this is the "room"
+    const res = await fetch(
+      `https://rtc.live.cloudflare.com/v1/apps/${this.appId}/sessions/new`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.appSecret}`,
+          'Content-Type': 'application/json',
         },
-      }),
-    });
-    if (!res.ok) throw new Error(`Daily.co room creation failed: ${res.status}`);
-    const data = await res.json() as { name: string; url: string };
+        body: JSON.stringify({}),
+      },
+    );
+
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Cloudflare Realtime session create failed (${res.status}): ${err}`);
+    }
+
+    const data = await res.json() as { sessionId: string };
+
+    // Build a join URL — this is the URL we embed in our frontend consultation page
+    // Frontend uses @cloudflare/calls-sdk to connect to this session
+    const roomName = `hms-${name}-${Date.now()}`.replace(/[^a-z0-9-]/gi, '-').toLowerCase();
+    const roomUrl  = `/consultation/join?sessionId=${data.sessionId}&appId=${this.appId}`;
+
     return {
-      roomName: data.name,
-      roomUrl: data.url,
-      provider: 'daily',
-      expiresAt: new Date(expiresAt * 1000).toISOString(),
+      roomName,
+      roomUrl,
+      sessionId: data.sessionId,
+      provider: 'cloudflare',
     };
   }
 
-  async deleteRoom(roomName: string): Promise<void> {
-    await fetch(`${this.baseUrl}/rooms/${roomName}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${this.apiKey}` },
-    });
+  async deleteRoom(_roomName: string): Promise<void> {
+    // Cloudflare SFU sessions auto-expire when all participants disconnect.
+    // No explicit delete needed.
   }
 }
 
-// ─── Jitsi (Free / Stub) Provider ────────────────────────────────────────────
+// ─── Jitsi Fallback Provider ──────────────────────────────────────────────────
 class JitsiProvider implements VideoProvider {
   async createRoom({ name }: { name: string }): Promise<VideoRoom> {
-    const slug = `HMS-${name}-${Math.random().toString(36).slice(2, 8)}`.replace(/[^A-Za-z0-9-]/g, '');
+    const slug    = `HMS${name}${Math.random().toString(36).slice(2, 8)}`.replace(/[^A-Za-z0-9]/g, '');
     const roomUrl = `https://meet.jit.si/${slug}`;
-    console.log(`[VIDEO] Created Jitsi room: ${roomUrl}`);
-    return {
-      roomName: slug,
-      roomUrl,
-      provider: 'jitsi',
-    };
+    console.log(`[VIDEO] Using Jitsi fallback: ${roomUrl}`);
+    return { roomName: slug, roomUrl, provider: 'jitsi' };
   }
 
   async deleteRoom(_roomName: string): Promise<void> {
@@ -92,9 +101,10 @@ class JitsiProvider implements VideoProvider {
 
 // ─── Factory ──────────────────────────────────────────────────────────────────
 export function createVideoProvider(env: VideoEnv): VideoProvider {
-  if (env.DAILY_API_KEY) {
-    return new DailyProvider(env.DAILY_API_KEY);
+  if (env.CF_REALTIME_APP_ID && env.CF_REALTIME_APP_SECRET) {
+    console.log('[VIDEO] Using Cloudflare Realtime SFU');
+    return new CloudflareRealtimeProvider(env);
   }
-  console.log('[VIDEO] DAILY_API_KEY not set — using Jitsi (free) fallback');
+  console.log('[VIDEO] CF_REALTIME_APP_ID not set — using Jitsi fallback');
   return new JitsiProvider();
 }
