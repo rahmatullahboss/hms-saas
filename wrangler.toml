@@ -1,0 +1,90 @@
+name = "hms-saas"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# ─── Static Assets (React SPA) ────────────────────────────────────────
+# Vite builds to web/dist/ — served free, without invoking the Worker
+[assets]
+directory = "./web/dist/"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+# Only /api/* runs the Worker; everything else served as static asset
+run_worker_first = ["/api/*"]
+
+# ─── Cloudflare Bindings ──────────────────────────────────────────────
+[[d1_databases]]
+binding = "DB"
+database_name = "danphe-meta"
+database_id = "7f8c376f-c6b9-40fc-841f-76600782c151"
+
+[[kv_namespaces]]
+binding = "KV"
+id = "5fcbd3dfeb3a478cad7510d068c68a2f"
+
+[[r2_buckets]]
+binding = "UPLOADS"
+bucket_name = "hms-uploads"
+
+# ─── Default (development) vars ───────────────────────────────────────
+# JWT_SECRET must be set as a Wrangler secret (never in vars!):
+#   wrangler secret put JWT_SECRET
+[vars]
+ENVIRONMENT = "development"
+# CORS is no longer needed — same origin. Kept for backwards compat with
+# any external tooling that reads this var.
+ALLOWED_ORIGINS = "http://localhost:5174,http://localhost:5173"
+
+# ─── Staging environment ──────────────────────────────────────────────
+[env.staging]
+name = "hms-saas-staging"
+
+[env.staging.vars]
+ENVIRONMENT = "staging"
+ALLOWED_ORIGINS = "https://staging.yourdomain.com"
+
+[env.staging.assets]
+directory = "./web/dist/"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "hms-super-admin-staging"
+database_id = "6b8ce45d-024e-4561-8a51-880d971274d2"
+
+[[env.staging.kv_namespaces]]
+binding = "KV"
+id = "6a162b46d16647d5a4d9b63902f78530"
+
+[[env.staging.r2_buckets]]
+binding = "UPLOADS"
+bucket_name = "hms-uploads-staging"
+
+# ─── Production environment ───────────────────────────────────────────
+[env.production]
+name = "hms-saas-production"
+
+[env.production.vars]
+ENVIRONMENT = "production"
+ALLOWED_ORIGINS = "https://yourdomain.com,https://www.yourdomain.com"
+
+[env.production.assets]
+directory = "./web/dist/"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "hms-super-admin-production"
+database_id = "72d398a3-a087-4d0f-a13c-472217dbfc45"
+
+[[env.production.kv_namespaces]]
+binding = "KV"
+id = "38f7792edf9b48ff8dd5d6b27bd012bc"
+
+[[env.production.r2_buckets]]
+binding = "UPLOADS"
+bucket_name = "hms-uploads-production"

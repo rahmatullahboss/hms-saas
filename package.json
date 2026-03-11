@@ -2,14 +2,36 @@
   "name": "hms-saas",
   "version": "1.0.0",
   "private": true,
-  "description": "Multi-tenant Hospital Management System SaaS",
+  "type": "module",
+  "description": "Multi-tenant Hospital Management System SaaS — Single Worker",
   "scripts": {
-    "dev:api": "pnpm --filter api dev",
-    "dev:web": "pnpm --filter web dev",
+    "dev:api": "wrangler dev",
+    "dev:web": "pnpm --filter web vite",
+    "dev": "concurrently \"wrangler dev\" \"pnpm --filter web vite\"",
     "build": "pnpm --filter web build",
-    "deploy": "pnpm --filter api deploy"
+    "build:web": "pnpm --filter web build",
+    "deploy": "pnpm --filter web build && wrangler deploy",
+    "deploy:staging": "pnpm --filter web build && wrangler deploy --env staging",
+    "deploy:production": "pnpm --filter web build && wrangler deploy --env production",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "types": "wrangler types"
+  },
+  "dependencies": {
+    "@hono/zod-validator": "^0.2.0",
+    "bcryptjs": "^2.4.3",
+    "hono": "^4.0.0",
+    "jsonwebtoken": "^9.0.0",
+    "zod": "^3.22.0"
   },
   "devDependencies": {
-    "typescript": "^5.3.0"
+    "@cloudflare/workers-types": "^4.20240000.0",
+    "@types/bcryptjs": "^3.0.0",
+    "@types/jsonwebtoken": "^9.0.10",
+    "concurrently": "^9.0.0",
+    "esbuild": "^0.27.3",
+    "typescript": "^5.3.0",
+    "vitest": "^1.0.0",
+    "wrangler": "^4.71.0"
   }
 }
