@@ -26,6 +26,10 @@ import profitRoutes from './routes/tenant/profit';
 import journalRoutes from './routes/tenant/journal';
 import recurringRoutes from './routes/tenant/recurring';
 import scheduledHandler from './scheduled';
+import doctorRoutes from './routes/tenant/doctors';
+import visitRoutes from './routes/tenant/visits';
+import labRoutes from './routes/tenant/lab';
+import commissionRoutes from './routes/tenant/commissions';
 
 import type { Env } from './types';
 
@@ -128,13 +132,20 @@ app.route('/api/audit', auditRoutes);
 app.route('/api/profit', profitRoutes);
 app.route('/api/journal', journalRoutes);
 app.route('/api/recurring', recurringRoutes);
+app.route('/api/doctors', doctorRoutes);
+app.route('/api/visits', visitRoutes);
+app.route('/api/lab', labRoutes);
+app.route('/api/commissions', commissionRoutes);
 
 // 404 handler
 app.notFound((c) => c.json({ error: 'Not found' }, 404));
 
-// Global error handler
+// Global error handler — handles HTTPException & unknown errors
 app.onError((err, c) => {
-  console.error('Unhandled error:', err);
+  console.error(`[ERROR] ${err.message}`, err);
+  if (err instanceof Error && 'getResponse' in err && typeof (err as { getResponse?: () => Response }).getResponse === 'function') {
+    return (err as { getResponse: () => Response }).getResponse();
+  }
   return c.json({ error: 'Internal server error' }, 500);
 });
 

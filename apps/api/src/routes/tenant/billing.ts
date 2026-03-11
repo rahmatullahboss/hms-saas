@@ -1,189 +1,187 @@
 import { Hono } from 'hono';
-import { notifyDashboard } from '../../lib/accounting-helpers';
+import { zValidator } from '@hono/zod-validator';
+import { HTTPException } from 'hono/http-exception';
+import { createBillSchema, paymentSchema } from '../../schemas/billing';
+import { getNextSequence } from '../../lib/sequence';
+import type { Env, Variables } from '../../types';
 
-const billingRoutes = new Hono<{
-  Bindings: {
-    DB: D1Database;
-    KV: KVNamespace;
-    UPLOADS: R2Bucket;
-    DASHBOARD_DO: DurableObjectNamespace;
-    ENVIRONMENT: string;
-  };
-  Variables: {
-    tenantId?: string;
-    userId?: string;
-  };
-}>();
+const billingRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-// Get all bills
+// GET /api/billing — list all bills
 billingRoutes.get('/', async (c) => {
   const tenantId = c.get('tenantId');
-  
+  const { status, from, to, search } = c.req.query();
+
   try {
-    const bills = await c.env.DB.prepare(
-      'SELECT * FROM bills WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 100'
-    ).bind(tenantId).all();
-    
-    return c.json({ bills: bills.results || [] });
-  } catch (error) {
-    return c.json({ error: 'Failed to fetch bills' }, 500);
+    let query = `
+      SELECT b.*, p.name as patient_name, p.patient_code, p.mobile as patient_mobile
+      FROM bills b
+      JOIN patients p ON b.patient_id = p.id
+      WHERE b.tenant_id = ?`;
+    const params: (string | number)[] = [tenantId!];
+
+    if (status) { query += ' AND b.status = ?'; params.push(status); }
+    if (from)   { query += ' AND date(b.created_at) >= ?'; params.push(from); }
+    if (to)     { query += ' AND date(b.created_at) <= ?'; params.push(to); }
+    if (search) { query += ' AND (p.name LIKE ? OR b.invoice_no LIKE ? OR p.patient_code LIKE ?)'; params.push(`%${search}%`, `%${search}%`, `%${search}%`); }
+
+    query += ' ORDER BY b.created_at DESC LIMIT 100';
+    const bills = await c.env.DB.prepare(query).bind(...params).all();
+    return c.json({ bills: bills.results });
+  } catch {
+    throw new HTTPException(500, { message: 'Failed to fetch bills' });
   }
 });
 
-// Get bill for patient
+// GET /api/billing/due — outstanding dues
+billingRoutes.get('/due', async (c) => {
+  const tenantId = c.get('tenantId');
+
+  try {
+    const bills = await c.env.DB.prepare(`
+      SELECT b.*, p.name as patient_name, p.patient_code, p.mobile as patient_mobile,
+             (b.total_amount - b.paid_amount) as outstanding
+      FROM bills b
+      JOIN patients p ON b.patient_id = p.id
+      WHERE b.tenant_id = ? AND b.status IN ('open', 'partially_paid')
+        AND b.total_amount > b.paid_amount
+      ORDER BY b.created_at ASC
+    `).bind(tenantId).all();
+    return c.json({ bills: bills.results });
+  } catch {
+    throw new HTTPException(500, { message: 'Failed to fetch dues' });
+  }
+});
+
+// GET /api/billing/patient/:patientId — all bills for a patient
 billingRoutes.get('/patient/:patientId', async (c) => {
+  const tenantId = c.get('tenantId');
   const patientId = c.req.param('patientId');
-  const tenantId = c.get('tenantId');
-  
+
   try {
-    const bill = await c.env.DB.prepare(
-      'SELECT * FROM bills WHERE patient_id = ? AND tenant_id = ? ORDER BY created_at DESC LIMIT 1'
-    ).bind(patientId, tenantId).first();
-    
-    return c.json({ bill });
-  } catch (error) {
-    return c.json({ error: 'Failed to fetch bill' }, 500);
+    const bills = await c.env.DB.prepare(`
+      SELECT b.*, (b.total_amount - b.paid_amount) as outstanding
+      FROM bills b
+      WHERE b.patient_id = ? AND b.tenant_id = ?
+      ORDER BY b.created_at DESC
+    `).bind(patientId, tenantId).all();
+    return c.json({ bills: bills.results });
+  } catch {
+    throw new HTTPException(500, { message: 'Failed to fetch patient bills' });
   }
 });
 
-// Create/update bill
-billingRoutes.post('/', async (c) => {
+// GET /api/billing/:id — single bill with items
+billingRoutes.get('/:id', async (c) => {
   const tenantId = c.get('tenantId');
-  const { patientId, testBill = 0, admissionBill = 0, doctorVisitBill = 0, operationBill = 0, medicineBill = 0, discount = 0 } = await c.req.json();
-  
-  const total = testBill + admissionBill + doctorVisitBill + operationBill + medicineBill - discount;
-  const fireServiceCharge = (await c.env.DB.prepare('SELECT value FROM settings WHERE key = ? AND tenant_id = ?').bind('fire_service_charge', tenantId).first<{value: string}>())?.value || '50';
-  const totalWithFire = total + parseFloat(fireServiceCharge);
-  
+  const id = c.req.param('id');
+
   try {
-    // Check existing bill
-    const existing = await c.env.DB.prepare(
-      'SELECT id, total, paid FROM bills WHERE patient_id = ? AND tenant_id = ? AND due > 0 ORDER BY created_at DESC LIMIT 1'
-    ).bind(patientId, tenantId).first<{id: number; total: number; paid: number}>();
-    
-    if (existing) {
-      // Update existing bill
-      const newTotal = existing.total + totalWithFire;
-      await c.env.DB.prepare(
-        'UPDATE bills SET test_bill = test_bill + ?, admission_bill = admission_bill + ?, doctor_visit_bill = doctor_visit_bill + ?, operation_bill = operation_bill + ?, medicine_bill = medicine_bill + ?, discount = discount + ?, total = ?, updated_at = datetime("now") WHERE id = ? AND tenant_id = ?'
-      ).bind(testBill, admissionBill, doctorVisitBill, operationBill, medicineBill, discount, newTotal, existing.id, tenantId);
-    } else {
-      // Create new bill
-      await c.env.DB.prepare(
-        'INSERT INTO bills (patient_id, test_bill, admission_bill, doctor_visit_bill, operation_bill, medicine_bill, discount, total, due, tenant_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime("now"))'
-      ).bind(patientId, testBill, admissionBill, doctorVisitBill, operationBill, medicineBill, discount, totalWithFire, totalWithFire, tenantId);
-    }
-    
-    return c.json({ message: 'Bill updated', total: totalWithFire });
+    const bill = await c.env.DB.prepare(`
+      SELECT b.*, p.name as patient_name, p.patient_code, p.mobile, p.address
+      FROM bills b JOIN patients p ON b.patient_id = p.id
+      WHERE b.id = ? AND b.tenant_id = ?
+    `).bind(id, tenantId).first();
+    if (!bill) throw new HTTPException(404, { message: 'Bill not found' });
+
+    const items = await c.env.DB.prepare(
+      'SELECT * FROM invoice_items WHERE bill_id = ? AND tenant_id = ?',
+    ).bind(id, tenantId).all();
+
+    const payments = await c.env.DB.prepare(
+      'SELECT * FROM payments WHERE bill_id = ? AND tenant_id = ?',
+    ).bind(id, tenantId).all();
+
+    return c.json({ bill, items: items.results, payments: payments.results });
   } catch (error) {
-    console.error('Error:', error);
-    return c.json({ error: 'Failed to create bill' }, 500);
+    if (error instanceof HTTPException) throw error;
+    throw new HTTPException(500, { message: 'Failed to fetch bill' });
   }
 });
 
-// Make payment
-billingRoutes.post('/pay', async (c) => {
+// POST /api/billing — create itemized bill
+billingRoutes.post('/', zValidator('json', createBillSchema), async (c) => {
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
-  const { billId, amount, type = 'current' } = await c.req.json();
-  
+  const data = c.req.valid('json');
+
   try {
-    // Get current bill
-    const bill = await c.env.DB.prepare(
-      'SELECT * FROM bills WHERE id = ? AND tenant_id = ?'
-    ).bind(billId, tenantId).first<{id: number; total: number; paid: number; due: number; test_bill: number; admission_bill: number; doctor_visit_bill: number; operation_bill: number; medicine_bill: number}>();
-    
-    if (!bill) {
-      return c.json({ error: 'Bill not found' }, 404);
+    // Calculate totals from line items
+    const subtotal = data.items.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
+    const discount = data.discount;
+    const total = Math.max(0, subtotal - discount);
+
+    const invoiceNo = await getNextSequence(c.env.DB, tenantId!, 'invoice', 'INV');
+
+    const billResult = await c.env.DB.prepare(`
+      INSERT INTO bills
+        (patient_id, visit_id, invoice_no, subtotal, discount, total_amount, paid_amount, status, tenant_id, created_by, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, 0, 'open', ?, ?, datetime('now'))
+    `).bind(data.patientId, data.visitId ?? null, invoiceNo, subtotal, discount, total, tenantId, userId).run();
+
+    const billId = billResult.meta.last_row_id;
+
+    // Insert invoice line items
+    for (const item of data.items) {
+      const lineTotal = item.quantity * item.unitPrice;
+      await c.env.DB.prepare(`
+        INSERT INTO invoice_items
+          (bill_id, item_category, description, quantity, unit_price, line_total, reference_id, tenant_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(billId, item.itemCategory, item.description ?? null, item.quantity, item.unitPrice, lineTotal, item.referenceId ?? null, tenantId).run();
     }
-    
-    const newPaid = bill.paid + amount;
-    const newDue = Math.max(0, bill.total - newPaid);
-    
-    // Record payment
-    await c.env.DB.prepare(
-      'INSERT INTO payments (bill_id, amount, payment_type, tenant_id, date) VALUES (?, ?, ?, ?, datetime("now"))'
-    ).bind(billId, amount, type, tenantId);
-    
-    // Update bill
-    await c.env.DB.prepare(
-      'UPDATE bills SET paid = ?, due = ?, updated_at = datetime("now") WHERE id = ? AND tenant_id = ?'
-    ).bind(newPaid, newDue, billId, tenantId);
-    
-    // Record income based on bill components (proportional to payment)
-    const today = new Date().toISOString().split('T')[0];
-    const paymentRatio = bill.total > 0 ? amount / bill.total : 0;
-    
-    // Record income for each service that was billed
-    if (bill.test_bill > 0) {
-      const incomeAmount = Math.round(bill.test_bill * paymentRatio);
-      if (incomeAmount > 0) {
-        await c.env.DB.prepare(
-          'INSERT INTO income (date, source, amount, description, bill_id, tenant_id, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)'
-        ).bind(today, 'laboratory', incomeAmount, 'Lab test payment', billId, tenantId, userId);
-        await notifyDashboard(c.env, tenantId!, 'income', incomeAmount);
-      }
-    }
-    
-    if (bill.admission_bill > 0) {
-      const incomeAmount = Math.round(bill.admission_bill * paymentRatio);
-      if (incomeAmount > 0) {
-        await c.env.DB.prepare(
-          'INSERT INTO income (date, source, amount, description, bill_id, tenant_id, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)'
-        ).bind(today, 'admission', incomeAmount, 'Admission payment', billId, tenantId, userId);
-        await notifyDashboard(c.env, tenantId!, 'income', incomeAmount);
-      }
-    }
-    
-    if (bill.doctor_visit_bill > 0) {
-      const incomeAmount = Math.round(bill.doctor_visit_bill * paymentRatio);
-      if (incomeAmount > 0) {
-        await c.env.DB.prepare(
-          'INSERT INTO income (date, source, amount, description, bill_id, tenant_id, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)'
-        ).bind(today, 'doctor_visit', incomeAmount, 'Doctor visit payment', billId, tenantId, userId);
-        await notifyDashboard(c.env, tenantId!, 'income', incomeAmount);
-      }
-    }
-    
-    if (bill.operation_bill > 0) {
-      const incomeAmount = Math.round(bill.operation_bill * paymentRatio);
-      if (incomeAmount > 0) {
-        await c.env.DB.prepare(
-          'INSERT INTO income (date, source, amount, description, bill_id, tenant_id, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)'
-        ).bind(today, 'operation', incomeAmount, 'Operation payment', billId, tenantId, userId);
-        await notifyDashboard(c.env, tenantId!, 'income', incomeAmount);
-      }
-    }
-    
-    if (bill.medicine_bill > 0) {
-      const incomeAmount = Math.round(bill.medicine_bill * paymentRatio);
-      if (incomeAmount > 0) {
-        await c.env.DB.prepare(
-          'INSERT INTO income (date, source, amount, description, bill_id, tenant_id, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)'
-        ).bind(today, 'pharmacy', incomeAmount, 'Medicine payment', billId, tenantId, userId);
-        await notifyDashboard(c.env, tenantId!, 'income', incomeAmount);
-      }
-    }
-    
-    return c.json({ message: 'Payment recorded', paid: newPaid, due: newDue });
+
+    // Record income for accounting (split or flat)
+    await c.env.DB.prepare(`
+      INSERT INTO income (date, source, amount, description, ref_id, tenant_id) VALUES (?, ?, ?, ?, ?, ?)
+    `).bind(new Date().toISOString().split('T')[0], 'billing', total, `Invoice ${invoiceNo}`, billId, tenantId).run();
+
+    return c.json({ message: 'Bill created', billId, invoiceNo, total }, 201);
   } catch (error) {
-    return c.json({ error: 'Payment failed' }, 500);
+    if (error instanceof HTTPException) throw error;
+    throw new HTTPException(500, { message: 'Failed to create bill' });
   }
 });
 
-// Get bill history
-billingRoutes.get('/history/:patientId', async (c) => {
-  const patientId = c.req.param('patientId');
+// POST /api/billing/pay — collect payment on a bill
+billingRoutes.post('/pay', zValidator('json', paymentSchema), async (c) => {
   const tenantId = c.get('tenantId');
-  
+  const userId = c.get('userId');
+  const data = c.req.valid('json');
+
   try {
-    const bills = await c.env.DB.prepare(
-      'SELECT * FROM bills WHERE patient_id = ? AND tenant_id = ? ORDER BY created_at DESC'
-    ).bind(patientId, tenantId).all();
-    
-    return c.json({ bills: bills.results });
+    const bill = await c.env.DB.prepare(
+      'SELECT * FROM bills WHERE id = ? AND tenant_id = ?',
+    ).bind(data.billId, tenantId).first<{
+      id: number; total_amount: number; paid_amount: number; status: string;
+    }>();
+    if (!bill) throw new HTTPException(404, { message: 'Bill not found' });
+
+    const newPaid = bill.paid_amount + data.amount;
+    const status = newPaid >= bill.total_amount ? 'paid' : 'partially_paid';
+
+    const receiptNo = await getNextSequence(c.env.DB, tenantId!, 'receipt', 'RCP');
+
+    await c.env.DB.prepare(`
+      INSERT INTO payments
+        (bill_id, amount, type, receipt_no, payment_method, received_by, tenant_id, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    `).bind(data.billId, data.amount, data.type, receiptNo, data.paymentMethod ?? null, userId, tenantId).run();
+
+    await c.env.DB.prepare(
+      `UPDATE bills SET paid_amount = ?, status = ? WHERE id = ? AND tenant_id = ?`,
+    ).bind(newPaid, status, data.billId, tenantId).run();
+
+    return c.json({
+      message: 'Payment recorded',
+      receiptNo,
+      paidAmount: newPaid,
+      outstanding: Math.max(0, bill.total_amount - newPaid),
+      status,
+    });
   } catch (error) {
-    return c.json({ error: 'Failed to fetch history' }, 500);
+    if (error instanceof HTTPException) throw error;
+    throw new HTTPException(500, { message: 'Failed to record payment' });
   }
 });
 

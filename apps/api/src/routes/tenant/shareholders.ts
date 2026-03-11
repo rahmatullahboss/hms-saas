@@ -1,165 +1,288 @@
 import { Hono } from 'hono';
+import { zValidator } from '@hono/zod-validator';
+import { HTTPException } from 'hono/http-exception';
+import { createShareholderSchema, updateShareholderSchema, distributeMonthlyProfitSchema } from '../../schemas/shareholder';
+import type { Env, Variables } from '../../types';
 
-const shareholderRoutes = new Hono<{
-  Bindings: { DB: D1Database };
-  Variables: { tenantId?: string; userId?: string };
-}>();
+const shareholderRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-// Get all shareholders
+// GET /api/shareholders — list shareholders with totals
 shareholderRoutes.get('/', async (c) => {
   const tenantId = c.get('tenantId');
   const type = c.req.query('type');
-  
+
   try {
     let query = 'SELECT * FROM shareholders WHERE tenant_id = ?';
-    const params: string[] = [tenantId!];
-    
-    if (type) {
-      query += ' AND type = ?';
-      params.push(type);
-    }
-    
-    query += ' ORDER BY created_at DESC';
-    
+    const params: (string | number)[] = [tenantId!];
+
+    if (type) { query += ' AND type = ?'; params.push(type); }
+    query += ' ORDER BY type, name';
+
     const shareholders = await c.env.DB.prepare(query).bind(...params).all();
-    
-    // Get totals
     const totals = await c.env.DB.prepare(
-      `SELECT type, SUM(share_count) as shares, SUM(investment) as investment 
-       FROM shareholders WHERE tenant_id = ? GROUP BY type`
+      `SELECT type, SUM(share_count) as shares, SUM(investment) as investment
+       FROM shareholders WHERE tenant_id = ? GROUP BY type`,
     ).bind(tenantId).all();
-    
+
     return c.json({ shareholders: shareholders.results, totals: totals.results });
-  } catch (error) {
-    return c.json({ error: 'Failed to fetch shareholders' }, 500);
+  } catch {
+    throw new HTTPException(500, { message: 'Failed to fetch shareholders' });
   }
 });
 
-// Add shareholder
-shareholderRoutes.post('/', async (c) => {
+// POST /api/shareholders — add shareholder with Zod validation
+shareholderRoutes.post('/', zValidator('json', createShareholderSchema), async (c) => {
   const tenantId = c.get('tenantId');
-  const { name, address, phone, shareCount, type, investment } = await c.req.json();
-  
-  if (!name || !shareCount || !type) {
-    return c.json({ error: 'Required fields missing' }, 400);
-  }
-  
+  const data = c.req.valid('json');
+
   try {
-    // Check total shares limit
     const settings = await c.env.DB.prepare(
-      'SELECT value FROM settings WHERE key = ? AND tenant_id = ?'
-    ).bind('total_shares', tenantId).first<{value: string}>();
-    
-    const totalShares = parseInt(settings?.value || '300');
-    
+      'SELECT value FROM settings WHERE key = ? AND tenant_id = ?',
+    ).bind('total_shares', tenantId).first<{ value: string }>();
+    const maxShares = parseInt(settings?.value || '300');
+
     const currentTotal = await c.env.DB.prepare(
-      'SELECT SUM(share_count) as total FROM shareholders WHERE tenant_id = ?'
-    ).bind(tenantId).first<{total: number}>();
-    
-    if ((currentTotal?.total || 0) + shareCount > totalShares) {
-      return c.json({ error: 'Exceeds total shares limit' }, 400);
+      'SELECT SUM(share_count) as total FROM shareholders WHERE tenant_id = ?',
+    ).bind(tenantId).first<{ total: number }>();
+
+    if ((currentTotal?.total || 0) + data.shareCount > maxShares) {
+      throw new HTTPException(400, { message: `Exceeds total shares limit of ${maxShares}` });
     }
-    
+
     const result = await c.env.DB.prepare(
-      'INSERT INTO shareholders (name, address, phone, share_count, type, investment, tenant_id) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    ).bind(name, address, phone, shareCount, type, investment || 0, tenantId).run();
-    
+      `INSERT INTO shareholders (name, address, phone, share_count, type, investment, start_date, tenant_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(
+      data.name, data.address ?? null, data.phone ?? null,
+      data.shareCount, data.type, data.investment ?? 0,
+      data.startDate ?? null, tenantId,
+    ).run();
     return c.json({ message: 'Shareholder added', id: result.meta.last_row_id }, 201);
   } catch (error) {
-    return c.json({ error: 'Failed to add shareholder' }, 500);
+    if (error instanceof HTTPException) throw error;
+    throw new HTTPException(500, { message: 'Failed to add shareholder' });
   }
 });
 
-// Calculate profit distribution
+// PUT /api/shareholders/:id
+shareholderRoutes.put('/:id', zValidator('json', updateShareholderSchema), async (c) => {
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+  const data = c.req.valid('json');
+
+  try {
+    const existing = await c.env.DB.prepare(
+      'SELECT * FROM shareholders WHERE id = ? AND tenant_id = ?',
+    ).bind(id, tenantId).first<Record<string, unknown>>();
+    if (!existing) throw new HTTPException(404, { message: 'Shareholder not found' });
+
+    await c.env.DB.prepare(
+      `UPDATE shareholders SET name = ?, address = ?, phone = ?, share_count = ?, investment = ?
+       WHERE id = ? AND tenant_id = ?`,
+    ).bind(
+      data.name       ?? existing['name'],
+      data.address    !== undefined ? data.address    : existing['address'],
+      data.phone      !== undefined ? data.phone      : existing['phone'],
+      data.shareCount !== undefined ? data.shareCount : existing['share_count'],
+      data.investment !== undefined ? data.investment : existing['investment'],
+      id, tenantId,
+    ).run();
+    return c.json({ message: 'Shareholder updated' });
+  } catch (error) {
+    if (error instanceof HTTPException) throw error;
+    throw new HTTPException(500, { message: 'Failed to update shareholder' });
+  }
+});
+
+// GET /api/shareholders/calculate?month=YYYY-MM
 shareholderRoutes.get('/calculate', async (c) => {
   const tenantId = c.get('tenantId');
   const month = c.req.query('month') || new Date().toISOString().slice(0, 7);
-  
+
   try {
-    // Get settings
     const settings: Record<string, string> = {};
-    const settingsResult = await c.env.DB.prepare(
-      'SELECT key, value FROM settings WHERE tenant_id = ?'
-    ).bind(tenantId).all();
-    
-    for (const row of settingsResult.results as any[]) {
+    const sResult = await c.env.DB.prepare('SELECT key, value FROM settings WHERE tenant_id = ?').bind(tenantId).all();
+    for (const row of sResult.results as Array<{ key: string; value: string }>) {
       settings[row.key] = row.value;
     }
-    
-    const profitPercentage = parseFloat(settings.profit_percentage || '30');
-    const profitPartnerCount = parseInt(settings.profit_partner_count || '100');
-    
-    // Get monthly profit
-    const incomeResult = await c.env.DB.prepare(
-      `SELECT SUM(amount) as total FROM income WHERE strftime('%Y-%m', date) = ? AND tenant_id = ?`
-    ).bind(month, tenantId).first<{total: number}>();
-    
-    const expenseResult = await c.env.DB.prepare(
-      `SELECT SUM(amount) as total FROM expenses WHERE strftime('%Y-%m', date) = ? AND tenant_id = ?`
-    ).bind(month, tenantId).first<{total: number}>();
-    
-    const totalIncome = incomeResult?.total || 0;
-    const totalExpenses = expenseResult?.total || 0;
+
+    const profitPct = parseFloat(settings['profit_percentage'] || '30');
+
+    const income = await c.env.DB.prepare(
+      `SELECT SUM(amount) as total FROM income WHERE strftime('%Y-%m', date) = ? AND tenant_id = ?`,
+    ).bind(month, tenantId).first<{ total: number }>();
+
+    const expenses = await c.env.DB.prepare(
+      `SELECT SUM(amount) as total FROM expenses WHERE strftime('%Y-%m', date) = ? AND tenant_id = ?`,
+    ).bind(month, tenantId).first<{ total: number }>();
+
+    const totalIncome = income?.total || 0;
+    const totalExpenses = expenses?.total || 0;
     const profit = totalIncome - totalExpenses;
-    const distributableProfit = profit * (profitPercentage / 100);
-    const profitPerPartner = distributableProfit / profitPartnerCount;
-    
-    return c.json({
-      month,
-      totalIncome,
-      totalExpenses,
-      profit,
-      profitPercentage,
-      distributableProfit,
-      profitPartnerCount,
-      profitPerPartner: profitPerPartner.toFixed(2)
-    });
-  } catch (error) {
-    console.error('Error:', error);
-    return c.json({ error: 'Failed to calculate' }, 500);
+    const distributable = Math.max(0, Math.round(profit * (profitPct / 100)));
+
+    // Calculate per-shareholder breakdown
+    const shareholders = await c.env.DB.prepare(
+      'SELECT id, name, share_count, type FROM shareholders WHERE tenant_id = ? ORDER BY type, name',
+    ).bind(tenantId).all<{ id: number; name: string; share_count: number; type: string }>();
+
+    const totalShares = shareholders.results.reduce((s, sh) => s + sh.share_count, 0);
+    const perShare = totalShares > 0 ? Math.round(distributable / totalShares) : 0;
+
+    const breakdown = shareholders.results.map((sh) => ({
+      id: sh.id,
+      name: sh.name,
+      type: sh.type,
+      shareCount: sh.share_count,
+      amount: sh.share_count * perShare,
+    }));
+
+    return c.json({ month, totalIncome, totalExpenses, profit, profitPct, distributable, perShare, totalShares, breakdown });
+  } catch {
+    throw new HTTPException(500, { message: 'Failed to calculate profit distribution' });
   }
 });
 
-// Approve profit distribution
-shareholderRoutes.post('/approve', async (c) => {
+// POST /api/shareholders/distribute — approve + create per-person distribution records
+shareholderRoutes.post('/distribute', zValidator('json', distributeMonthlyProfitSchema), async (c) => {
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
-  const { month } = await c.req.json();
-  
+  const data = c.req.valid('json');
+  const month = data.month;
+
   try {
-    // Get settings
+    // Prevent double distribution for same month
+    const existing = await c.env.DB.prepare(
+      'SELECT id FROM profit_distributions WHERE month = ? AND tenant_id = ?',
+    ).bind(month, tenantId).first();
+    if (existing) throw new HTTPException(409, { message: `Profit already distributed for ${month}` });
+
     const settings: Record<string, string> = {};
-    const settingsResult = await c.env.DB.prepare(
-      'SELECT key, value FROM settings WHERE tenant_id = ?'
-    ).bind(tenantId).all();
-    
-    for (const row of settingsResult.results as any[]) {
+    const sResult = await c.env.DB.prepare('SELECT key, value FROM settings WHERE tenant_id = ?').bind(tenantId).all();
+    for (const row of sResult.results as Array<{ key: string; value: string }>) {
       settings[row.key] = row.value;
     }
-    
-    const profitPercentage = parseFloat(settings.profit_percentage || '30');
-    
-    // Calculate profit
-    const incomeResult = await c.env.DB.prepare(
-      `SELECT SUM(amount) as total FROM income WHERE strftime('%Y-%m', date) = ? AND tenant_id = ?`
-    ).bind(month, tenantId).first<{total: number}>();
-    
-    const expenseResult = await c.env.DB.prepare(
-      `SELECT SUM(amount) as total FROM expenses WHERE strftime('%Y-%m', date) = ? AND tenant_id = ?`
-    ).bind(month, tenantId).first<{total: number}>();
-    
-    const profit = (incomeResult?.total || 0) - (expenseResult?.total || 0);
-    const distributable = profit * (profitPercentage / 100);
-    
-    // Record distribution
-    await c.env.DB.prepare(
-      'INSERT INTO profit_distributions (month, total_profit, distributable_profit, profit_percentage, approved_by, approved_at, tenant_id) VALUES (?, ?, ?, ?, ?, datetime("now"), ?)'
-    ).bind(month, profit, distributable, profitPercentage, userId, tenantId).run();
-    
-    return c.json({ message: 'Distribution approved', distributable });
+    const profitPct = parseFloat(settings['profit_percentage'] || '30');
+
+    const income = await c.env.DB.prepare(
+      `SELECT SUM(amount) as total FROM income WHERE strftime('%Y-%m', date) = ? AND tenant_id = ?`,
+    ).bind(month, tenantId).first<{ total: number }>();
+    const expenses = await c.env.DB.prepare(
+      `SELECT SUM(amount) as total FROM expenses WHERE strftime('%Y-%m', date) = ? AND tenant_id = ?`,
+    ).bind(month, tenantId).first<{ total: number }>();
+
+    const profit = (income?.total || 0) - (expenses?.total || 0);
+    const distributable = Math.max(0, Math.round(profit * (profitPct / 100)));
+
+    // Create distribution header
+    const distResult = await c.env.DB.prepare(
+      `INSERT INTO profit_distributions (month, total_profit, distributable_profit, profit_percentage, approved_by, approved_at, tenant_id)
+       VALUES (?, ?, ?, ?, ?, datetime('now'), ?)`,
+    ).bind(month, profit, distributable, profitPct, userId, tenantId).run();
+    const distributionId = distResult.meta.last_row_id;
+
+    // Create per-shareholder distribution records
+    const shareholders = await c.env.DB.prepare(
+      'SELECT id, name, share_count FROM shareholders WHERE tenant_id = ?',
+    ).bind(tenantId).all<{ id: number; name: string; share_count: number }>();
+
+    const totalShares = shareholders.results.reduce((s, sh) => s + sh.share_count, 0);
+    const perShare = totalShares > 0 ? Math.round(distributable / totalShares) : 0;
+
+    for (const sh of shareholders.results) {
+      const amount = sh.share_count * perShare;
+      await c.env.DB.prepare(
+        `INSERT INTO shareholder_distributions
+           (distribution_id, shareholder_id, share_count, per_share_amount, distribution_amount, paid_status, tenant_id)
+         VALUES (?, ?, ?, ?, ?, 'unpaid', ?)`,
+      ).bind(distributionId, sh.id, sh.share_count, perShare, amount, tenantId).run();
+    }
+
+    return c.json({
+      message: 'Profit distributed',
+      distributionId,
+      distributable,
+      perShare,
+      shareholderCount: shareholders.results.length,
+    }, 201);
   } catch (error) {
-    return c.json({ error: 'Failed to approve' }, 500);
+    if (error instanceof HTTPException) throw error;
+    throw new HTTPException(500, { message: 'Failed to distribute profit' });
   }
+});
+
+// GET /api/shareholders/distributions — list all distribution periods
+shareholderRoutes.get('/distributions', async (c) => {
+  const tenantId = c.get('tenantId');
+  try {
+    const distributions = await c.env.DB.prepare(
+      'SELECT * FROM profit_distributions WHERE tenant_id = ? ORDER BY month DESC',
+    ).bind(tenantId).all();
+    return c.json({ distributions: distributions.results });
+  } catch {
+    throw new HTTPException(500, { message: 'Failed to fetch distributions' });
+  }
+});
+
+// GET /api/shareholders/distributions/:id — per-person breakdown for one distribution
+shareholderRoutes.get('/distributions/:id', async (c) => {
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+
+  try {
+    const distribution = await c.env.DB.prepare(
+      'SELECT * FROM profit_distributions WHERE id = ? AND tenant_id = ?',
+    ).bind(id, tenantId).first();
+    if (!distribution) throw new HTTPException(404, { message: 'Distribution not found' });
+
+    const details = await c.env.DB.prepare(
+      `SELECT sd.*, s.name as shareholder_name, s.type
+       FROM shareholder_distributions sd
+       JOIN shareholders s ON sd.shareholder_id = s.id
+       WHERE sd.distribution_id = ? AND sd.tenant_id = ?
+       ORDER BY s.type, s.name`,
+    ).bind(id, tenantId).all();
+
+    return c.json({ distribution, details: details.results });
+  } catch (error) {
+    if (error instanceof HTTPException) throw error;
+    throw new HTTPException(500, { message: 'Failed to fetch distribution details' });
+  }
+});
+
+// POST /api/shareholders/distributions/:id/pay/:shareholderId
+shareholderRoutes.post('/distributions/:id/pay/:shareholderId', async (c) => {
+  const tenantId = c.get('tenantId');
+  const { id, shareholderId } = c.req.param();
+
+  try {
+    const record = await c.env.DB.prepare(
+      `SELECT sd.* FROM shareholder_distributions sd
+       JOIN profit_distributions pd ON sd.distribution_id = pd.id
+       WHERE sd.distribution_id = ? AND sd.shareholder_id = ? AND pd.tenant_id = ?`,
+    ).bind(id, shareholderId, tenantId).first();
+    if (!record) throw new HTTPException(404, { message: 'Distribution record not found' });
+
+    await c.env.DB.prepare(
+      `UPDATE shareholder_distributions SET paid_status = 'paid', paid_date = date('now')
+       WHERE distribution_id = ? AND shareholder_id = ?`,
+    ).bind(id, shareholderId).run();
+
+    return c.json({ message: 'Marked as paid' });
+  } catch (error) {
+    if (error instanceof HTTPException) throw error;
+    throw new HTTPException(500, { message: 'Failed to mark as paid' });
+  }
+});
+
+// Keep backward-compatible calculate endpoint
+shareholderRoutes.get('/calculate-legacy', async (c) => {
+  return c.redirect('/api/shareholders/calculate', 301);
+});
+
+// Keep backward-compatible approve endpoint
+shareholderRoutes.post('/approve', zValidator('json', distributeMonthlyProfitSchema), async (c) => {
+  return c.redirect('/api/shareholders/distribute', 308);
 });
 
 export default shareholderRoutes;

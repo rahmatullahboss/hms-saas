@@ -1,108 +1,163 @@
 import { Hono } from 'hono';
+import { zValidator } from '@hono/zod-validator';
+import { HTTPException } from 'hono/http-exception';
+import { createPatientSchema, updatePatientSchema } from '../../schemas/patient';
+import { getNextSequence } from '../../lib/sequence';
 
 const patientRoutes = new Hono<{
   Bindings: { DB: D1Database };
   Variables: { tenantId?: string; userId?: string };
 }>();
 
-// Get all patients
+// GET /api/patients — list patients with search
 patientRoutes.get('/', async (c) => {
   const tenantId = c.get('tenantId');
   const search = c.req.query('search') || '';
-  
+
   try {
     let query = 'SELECT * FROM patients WHERE tenant_id = ?';
-    const params: string[] = [tenantId!];
-    
+    const params: (string | number)[] = [tenantId!];
+
     if (search) {
-      query += ' AND (name LIKE ? OR mobile LIKE ? OR id = ?)';
+      query += ' AND (name LIKE ? OR mobile LIKE ? OR patient_code LIKE ? OR id = ?)';
       const searchPattern = `%${search}%`;
-      params.push(searchPattern, searchPattern, search);
+      params.push(searchPattern, searchPattern, searchPattern, search);
     }
-    
+
     query += ' ORDER BY created_at DESC LIMIT 100';
-    
+
     const patients = await c.env.DB.prepare(query).bind(...params).all();
     return c.json({ patients: patients.results });
   } catch (error) {
-    console.error('Error:', error);
-    return c.json({ error: 'Failed to fetch patients' }, 500);
+    console.error('patients fetch error:', error);
+    throw new HTTPException(500, { message: 'Failed to fetch patients' });
   }
 });
 
-// Get single patient
+// GET /api/patients/:id — single patient
 patientRoutes.get('/:id', async (c) => {
   const id = c.req.param('id');
   const tenantId = c.get('tenantId');
-  
+
   try {
     const patient = await c.env.DB.prepare(
-      'SELECT * FROM patients WHERE id = ? AND tenant_id = ?'
-    ).bind(id, tenantId).first();
-    
+      'SELECT * FROM patients WHERE id = ? AND tenant_id = ?',
+    )
+      .bind(id, tenantId)
+      .first();
+
     if (!patient) {
-      return c.json({ error: 'Patient not found' }, 404);
+      throw new HTTPException(404, { message: 'Patient not found' });
     }
-    
+
     return c.json({ patient });
   } catch (error) {
-    return c.json({ error: 'Failed to fetch patient' }, 500);
+    if (error instanceof HTTPException) throw error;
+    throw new HTTPException(500, { message: 'Failed to fetch patient' });
   }
 });
 
-// Create patient
-patientRoutes.post('/', async (c) => {
+// POST /api/patients — create patient with Zod validation
+patientRoutes.post('/', zValidator('json', createPatientSchema), async (c) => {
   const tenantId = c.get('tenantId');
-  const { name, fatherHusband, address, mobile, guardianMobile, age, gender, bloodGroup } = await c.req.json();
-  
-  if (!name || !fatherHusband || !address || !mobile) {
-    return c.json({ error: 'Required fields missing' }, 400);
-  }
-  
+  const data = c.req.valid('json');
+
   try {
+    // Generate unique patient code: P-000001
+    const patientCode = await getNextSequence(c.env.DB, tenantId!, 'patient', 'P');
+
     const result = await c.env.DB.prepare(
-      `INSERT INTO patients (name, father_husband, address, mobile, guardian_mobile, age, gender, blood_group, tenant_id, created_at) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime("now"))`
-    ).bind(name, fatherHusband, address, mobile, guardianMobile, age, gender, bloodGroup, tenantId).run();
-    
-    // Generate serial for today
+      `INSERT INTO patients
+         (name, father_husband, address, mobile, guardian_mobile, age, gender, blood_group, patient_code, tenant_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+    )
+      .bind(
+        data.name,
+        data.fatherHusband,
+        data.address,
+        data.mobile,
+        data.guardianMobile ?? null,
+        data.age ?? null,
+        data.gender ?? null,
+        data.bloodGroup ?? null,
+        patientCode,
+        tenantId,
+      )
+      .run();
+
+    // Generate daily serial for queue management
     const today = new Date().toISOString().split('T')[0];
-    const serialResult = await c.env.DB.prepare(
-      'SELECT COUNT(*) as count FROM serials WHERE tenant_id = ? AND date = ?'
-    ).bind(tenantId, today).first<{ count: number }>();
-    
-    const serialNumber = `${today.replace(/-/g, '')}-${String((serialResult?.count || 0) + 1).padStart(3, '0')}`;
-    
+    const serialCount = await c.env.DB.prepare(
+      'SELECT COUNT(*) as count FROM serials WHERE tenant_id = ? AND date = ?',
+    )
+      .bind(tenantId, today)
+      .first<{ count: number }>();
+
+    const serialNumber = `${today.replace(/-/g, '')}-${String((serialCount?.count ?? 0) + 1).padStart(3, '0')}`;
+
     await c.env.DB.prepare(
-      'INSERT INTO serials (patient_id, serial_number, date, status, tenant_id) VALUES (?, ?, ?, ?, ?)'
-    ).bind(result.meta.last_row_id, serialNumber, today, 'waiting', tenantId).run();
-    
-    return c.json({ 
-      message: 'Patient registered',
-      patientId: result.meta.last_row_id,
-      serial: serialNumber
-    }, 201);
+      'INSERT INTO serials (patient_id, serial_number, date, status, tenant_id) VALUES (?, ?, ?, ?, ?)',
+    )
+      .bind(result.meta.last_row_id, serialNumber, today, 'waiting', tenantId)
+      .run();
+
+    return c.json(
+      {
+        message: 'Patient registered',
+        patientId: result.meta.last_row_id,
+        patientCode,
+        serial: serialNumber,
+      },
+      201,
+    );
   } catch (error) {
-    console.error('Error:', error);
-    return c.json({ error: 'Failed to create patient' }, 500);
+    console.error('patient create error:', error);
+    throw new HTTPException(500, { message: 'Failed to create patient' });
   }
 });
 
-// Update patient
-patientRoutes.put('/:id', async (c) => {
+// PUT /api/patients/:id — update patient with Zod validation
+patientRoutes.put('/:id', zValidator('json', updatePatientSchema), async (c) => {
   const id = c.req.param('id');
   const tenantId = c.get('tenantId');
-  const { name, fatherHusband, address, mobile, guardianMobile, age, gender, bloodGroup } = await c.req.json();
-  
+  const data = c.req.valid('json');
+
   try {
+    const existing = await c.env.DB.prepare(
+      'SELECT * FROM patients WHERE id = ? AND tenant_id = ?',
+    )
+      .bind(id, tenantId)
+      .first<Record<string, unknown>>();
+
+    if (!existing) {
+      throw new HTTPException(404, { message: 'Patient not found' });
+    }
+
     await c.env.DB.prepare(
-      `UPDATE patients SET name = ?, father_husband = ?, address = ?, mobile = ?, guardian_mobile = ?, age = ?, gender = ?, blood_group = ?, updated_at = datetime("now") 
-       WHERE id = ? AND tenant_id = ?`
-    ).bind(name, fatherHusband, address, mobile, guardianMobile, age, gender, bloodGroup, id, tenantId);
-    
+      `UPDATE patients
+       SET name = ?, father_husband = ?, address = ?, mobile = ?,
+           guardian_mobile = ?, age = ?, gender = ?, blood_group = ?,
+           updated_at = datetime('now')
+       WHERE id = ? AND tenant_id = ?`,
+    )
+      .bind(
+        data.name          ?? existing['name'],
+        data.fatherHusband ?? existing['father_husband'],
+        data.address       ?? existing['address'],
+        data.mobile        ?? existing['mobile'],
+        data.guardianMobile !== undefined ? data.guardianMobile : existing['guardian_mobile'],
+        data.age           !== undefined ? data.age : existing['age'],
+        data.gender        ?? existing['gender'],
+        data.bloodGroup    ?? existing['blood_group'],
+        id,
+        tenantId,
+      )
+      .run();
+
     return c.json({ message: 'Patient updated' });
   } catch (error) {
-    return c.json({ error: 'Failed to update patient' }, 500);
+    if (error instanceof HTTPException) throw error;
+    throw new HTTPException(500, { message: 'Failed to update patient' });
   }
 });
 
