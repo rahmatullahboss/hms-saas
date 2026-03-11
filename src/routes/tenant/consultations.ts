@@ -9,19 +9,25 @@ import type { Env, Variables } from '../../types';
 
 const consultationRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
+// Roles authorized for consultation management
+const CONSULTATION_STAFF_ROLES = ['hospital_admin', 'reception', 'doctor', 'nurse'];
+const DOCTOR_ROLES = ['doctor', 'hospital_admin'];
+
 // ─── GET /api/consultations — list consultations with filters ─────────────────
 consultationRoutes.get('/', async (c) => {
   const tenantId = c.get('tenantId');
   const { doctorId, patientId, status, from, to } = c.req.query();
 
   let query = `
-    SELECT con.*,
+    SELECT con.id, con.doctor_id, con.patient_id, con.scheduled_at, con.duration_min,
+           con.status, con.chief_complaint, con.notes, con.created_at, con.updated_at,
            d.name as doctor_name, d.specialty as doctor_specialty,
            p.name as patient_name, p.patient_code, p.mobile as patient_mobile
     FROM consultations con
     JOIN doctors  d ON con.doctor_id  = d.id
     JOIN patients p ON con.patient_id = p.id
     WHERE con.tenant_id = ?`;
+  // Note: room_url intentionally excluded from list — available in detail endpoint only
   const params: (string | number)[] = [tenantId!];
 
   if (doctorId) { query += ' AND con.doctor_id = ?';  params.push(doctorId); }
@@ -67,6 +73,10 @@ consultationRoutes.get('/:id', async (c) => {
 consultationRoutes.post('/', zValidator('json', createConsultationSchema), async (c) => {
   const tenantId = c.get('tenantId');
   const userId   = c.get('userId');
+  const role     = c.get('role');
+  if (!role || !CONSULTATION_STAFF_ROLES.includes(role)) {
+    throw new HTTPException(403, { message: 'Only authorized staff can book consultations' });
+  }
   const data     = c.req.valid('json');
 
   // Validate doctor and patient exist under this tenant
@@ -183,6 +193,10 @@ consultationRoutes.put('/:id', zValidator('json', updateConsultationSchema), asy
 consultationRoutes.put('/:id/end', zValidator('json', endConsultationSchema), async (c) => {
   const tenantId = c.get('tenantId');
   const id = c.req.param('id');
+  const role = c.get('role');
+  if (!role || !DOCTOR_ROLES.includes(role)) {
+    throw new HTTPException(403, { message: 'Only doctors can end consultations and write prescriptions' });
+  }
   const data = c.req.valid('json');
 
   try {

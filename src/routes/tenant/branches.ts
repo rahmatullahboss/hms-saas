@@ -66,7 +66,9 @@ branchRoutes.get('/:id', async (c) => {
 // GET /api/branches/:id/report — detailed monthly income/expense breakdown
 branchRoutes.get('/:id/report', async (c) => {
   const tenantId = c.get('tenantId');
+  const role     = c.get('role');
   const id = c.req.param('id');
+  if (role !== 'hospital_admin') throw new HTTPException(403, { message: 'Only admins can view financial reports' });
   const { from, to } = c.req.query();
 
   const dateFrom = from ?? new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);

@@ -7,11 +7,18 @@ import type { Env, Variables } from '../../types';
 
 const paymentRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
+// Staff roles allowed to initiate payments
+const PAYMENT_STAFF_ROLES = ['hospital_admin', 'reception', 'accountant'];
+
 // ─── POST /api/payments/initiate ─────────────────────────────────────────────
 // Initiates bKash or Nagad payment, returns redirect URL for the patient.
 paymentRoutes.post('/initiate', zValidator('json', initiatePaymentSchema), async (c) => {
   const tenantId = c.get('tenantId');
   const userId   = c.get('userId');
+  const role     = c.get('role');
+  if (!role || !PAYMENT_STAFF_ROLES.includes(role)) {
+    throw new HTTPException(403, { message: 'Only authorized staff can initiate payments' });
+  }
   const data     = c.req.valid('json');
 
   // Verify bill belongs to this tenant and isn't already paid
@@ -54,28 +61,49 @@ paymentRoutes.post('/initiate', zValidator('json', initiatePaymentSchema), async
   }
 });
 
-// ─── GET /api/payments/callback ───────────────────────────────────────────────
-// Called by bKash/Nagad after payment. Verifies and marks bill paid.
-// Query params: paymentId, gateway, status (gateway-specific)
-paymentRoutes.get('/callback', async (c) => {
+// ─── POST /api/payments/verify ────────────────────────────────────────────────
+// Server-side verification endpoint. After gateway callback redirect,
+// staff verifies the payment from dashboard (OR patient lands on a page that auto-calls this).
+// This is a POST (not GET) to prevent accidental replays.
+const VALID_GATEWAYS = ['bkash', 'nagad'];
+
+paymentRoutes.post('/verify', async (c) => {
   const tenantId = c.get('tenantId');
   const userId   = c.get('userId');
-  const { paymentId, gateway } = c.req.query();
 
+  let body: { paymentId?: string; gateway?: string };
+  try {
+    body = await c.req.json();
+  } catch {
+    throw new HTTPException(400, { message: 'Invalid JSON body' });
+  }
+
+  const { paymentId, gateway } = body;
   if (!paymentId || !gateway) {
     throw new HTTPException(400, { message: 'paymentId and gateway are required' });
+  }
+  if (!VALID_GATEWAYS.includes(gateway)) {
+    throw new HTTPException(400, { message: `Invalid gateway: ${gateway}` });
   }
 
   // Find the log entry
   const log = await c.env.DB.prepare(
     'SELECT * FROM payment_gateway_logs WHERE gateway = ? AND payment_id = ? AND tenant_id = ?',
   ).bind(gateway, paymentId, tenantId).first<{
-    id: number; bill_id: number; amount: number; status: string;
+    id: number; bill_id: number; amount: number; status: string; tenant_id: string;
   }>();
 
   if (!log) throw new HTTPException(404, { message: 'Payment session not found' });
   if (log.status === 'success') {
     return c.json({ message: 'Already processed', paymentId });
+  }
+
+  // Atomic idempotency: UPDATE ... WHERE status = 'pending' — only ONE request can flip it
+  const lockResult = await c.env.DB.prepare(
+    `UPDATE payment_gateway_logs SET status = 'verifying', updated_at = datetime('now') WHERE id = ? AND status = 'pending'`,
+  ).bind(log.id).run();
+  if (!lockResult.meta.changes || lockResult.meta.changes === 0) {
+    return c.json({ message: 'Payment already being processed or completed', paymentId });
   }
 
   // Verify with gateway
@@ -97,10 +125,10 @@ paymentRoutes.get('/callback', async (c) => {
     return c.json({ success: false, message: verifyResult.message ?? 'Payment not completed' }, 200);
   }
 
-  // Payment confirmed — record the payment on the bill (mirror billing.ts /pay logic)
+  // Payment confirmed — record the payment on the bill (atomic batch)
   const bill = await c.env.DB.prepare(
     'SELECT total_amount, paid_amount FROM bills WHERE id = ? AND tenant_id = ?',
-  ).bind(log.bill_id, tenantId).first<{ total_amount: number; paid_amount: number }>();
+  ).bind(log.bill_id, log.tenant_id).first<{ total_amount: number; paid_amount: number }>();
 
   if (bill) {
     const newPaid = bill.paid_amount + log.amount;
@@ -111,10 +139,10 @@ paymentRoutes.get('/callback', async (c) => {
       c.env.DB.prepare(`
         INSERT INTO payments (bill_id, amount, type, receipt_no, payment_method, received_by, tenant_id, created_at)
         VALUES (?, ?, 'received', ?, ?, ?, ?, datetime('now'))
-      `).bind(log.bill_id, log.amount, receiptNo, gateway, userId, tenantId),
+      `).bind(log.bill_id, log.amount, receiptNo, gateway, userId, log.tenant_id),
       c.env.DB.prepare(
         `UPDATE bills SET paid_amount = ?, status = ? WHERE id = ? AND tenant_id = ?`,
-      ).bind(newPaid, status, log.bill_id, tenantId),
+      ).bind(newPaid, status, log.bill_id, log.tenant_id),
       c.env.DB.prepare(
         `UPDATE payment_gateway_logs SET status = 'success', raw_response = ?, updated_at = datetime('now') WHERE id = ?`,
       ).bind(JSON.stringify(verifyResult), log.id),

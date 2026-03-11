@@ -37,12 +37,10 @@ export interface VideoEnv {
 class CloudflareRealtimeProvider implements VideoProvider {
   private readonly appId:     string;
   private readonly appSecret: string;
-  private readonly accountId: string;
 
   constructor(env: VideoEnv) {
     this.appId     = env.CF_REALTIME_APP_ID!;
     this.appSecret = env.CF_REALTIME_APP_SECRET!;
-    this.accountId = env.CF_ACCOUNT_ID!;
   }
 
   async createRoom({ name }: { name: string; durationMin: number }): Promise<VideoRoom> {
