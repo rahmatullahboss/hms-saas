@@ -1,0 +1,72 @@
+name = "hms-api"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+[build]
+  command = "pnpm run build"
+  watch_dir = "src"
+
+# ─── Cloudflare Bindings ──────────────────────────────────────────────
+[[d1_databases]]
+binding = "DB"
+database_name = "hms-super-admin"
+database_id = "your-d1-database-id"   # ← replace with actual ID: wrangler d1 list
+
+[[kv_namespaces]]
+binding = "KV"
+id = "your-kv-namespace-id"           # ← replace with actual ID: wrangler kv namespace list
+
+[[r2_buckets]]
+binding = "UPLOADS"
+bucket_name = "hms-uploads"
+
+# ─── Default (development) vars ───────────────────────────────────────
+# JWT_SECRET must be set as a Wrangler secret (never in vars!):
+#   wrangler secret put JWT_SECRET
+# 
+[vars]
+ENVIRONMENT = "development"
+ALLOWED_ORIGINS = "http://localhost:5174,http://localhost:5173"
+
+# ─── Staging environment ──────────────────────────────────────────────
+[env.staging]
+name = "hms-api-staging"
+
+[env.staging.vars]
+ENVIRONMENT = "staging"
+ALLOWED_ORIGINS = "https://staging.yourdomain.com"
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "hms-super-admin-staging"
+database_id = "your-staging-d1-id"   # ← replace
+
+[[env.staging.kv_namespaces]]
+binding = "KV"
+id = "your-staging-kv-id"            # ← replace
+
+[[env.staging.r2_buckets]]
+binding = "UPLOADS"
+bucket_name = "hms-uploads-staging"
+
+# ─── Production environment ───────────────────────────────────────────
+[env.production]
+name = "hms-api-production"
+
+[env.production.vars]
+ENVIRONMENT = "production"
+ALLOWED_ORIGINS = "https://yourdomain.com,https://www.yourdomain.com"
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "hms-super-admin-production"
+database_id = "your-production-d1-id"  # ← replace
+
+[[env.production.kv_namespaces]]
+binding = "KV"
+id = "your-production-kv-id"           # ← replace
+
+[[env.production.r2_buckets]]
+binding = "UPLOADS"
+bucket_name = "hms-uploads-production"
