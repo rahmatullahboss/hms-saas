@@ -1,7 +1,18 @@
 name = "hms-saas"
 main = "src/index.ts"
-compatibility_date = "2024-09-23"
+compatibility_date = "2026-02-17"
 compatibility_flags = ["nodejs_compat"]
+
+# ─── Observability (Worker Logs + Traces) ─────────────────────────────
+[observability]
+enabled = true
+
+[observability.logs]
+head_sampling_rate = 1
+
+[observability.traces]
+enabled = true
+head_sampling_rate = 1
 
 # ─── Static Assets (React SPA) ────────────────────────────────────────
 # Vite builds to web/dist/ — served free, without invoking the Worker
@@ -41,7 +52,7 @@ name = "hms-saas-staging"
 
 [env.staging.vars]
 ENVIRONMENT = "staging"
-ALLOWED_ORIGINS = "https://staging.yourdomain.com"
+ALLOWED_ORIGINS = "https://hms-saas-staging.rahmatullahzisan.workers.dev"
 
 [env.staging.assets]
 directory = "./web/dist/"
@@ -68,7 +79,7 @@ name = "hms-saas-production"
 
 [env.production.vars]
 ENVIRONMENT = "production"
-ALLOWED_ORIGINS = "https://yourdomain.com,https://www.yourdomain.com"
+ALLOWED_ORIGINS = "https://hms-saas.rahmatullahzisan.workers.dev"
 
 [env.production.assets]
 directory = "./web/dist/"
