@@ -45,7 +45,7 @@ export default function AcceptInvite() {
     (async () => {
       try {
         const data = await api.get<InviteInfo & { valid: boolean }>(
-          `/api/invitations/${token}`,
+          `/api/invite/${token}`,
           { 'X-Tenant-Subdomain': slug ?? '' }
         );
         setInvite(data);
@@ -66,7 +66,7 @@ export default function AcceptInvite() {
     setSubmitting(true);
     try {
       const res = await api.post<{ token: string; user: { role: string } }>(
-        `/api/invitations/${token}/accept`,
+        `/api/invite/${token}/accept`,
         { name, password }
       );
       saveToken(res.token);

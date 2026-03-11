@@ -39,9 +39,9 @@ registerRoutes.post('/', zValidator('json', registerSchema), async (c) => {
       return c.json({ error: 'This slug is already taken. Please choose another.' }, 409);
     }
 
-    // Check admin email uniqueness (global)
+    // Check admin email uniqueness (global — same email cannot register twice)
     const existingEmail = await c.env.DB.prepare(
-      'SELECT id FROM users WHERE email = ? AND tenant_id IS NULL'
+      'SELECT id FROM users WHERE email = ?'
     ).bind(adminEmail).first();
 
     if (existingEmail) {
@@ -50,12 +50,10 @@ registerRoutes.post('/', zValidator('json', registerSchema), async (c) => {
 
     const passwordHash = await bcrypt.hash(adminPassword, 10);
 
-    // Create tenant + admin user atomically
-    const [tenantResult] = await c.env.DB.batch([
-      c.env.DB.prepare(
-        'INSERT INTO tenants (name, subdomain, status, plan, created_at) VALUES (?, ?, ?, ?, datetime("now"))'
-      ).bind(hospitalName, slug, 'active', 'basic'),
-    ]);
+    // Create tenant first to get the ID
+    const tenantResult = await c.env.DB.prepare(
+      'INSERT INTO tenants (name, subdomain, status, plan, created_at) VALUES (?, ?, ?, ?, datetime("now"))'
+    ).bind(hospitalName, slug, 'active', 'basic').run();
 
     const tenantId = tenantResult.meta.last_row_id;
 

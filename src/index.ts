@@ -30,6 +30,7 @@ import visitRoutes from './routes/tenant/visits';
 import labRoutes from './routes/tenant/lab';
 import commissionRoutes from './routes/tenant/commissions';
 import registerRoutes from './routes/register';
+import publicInviteRoutes from './routes/public-invite';
 import invitationRoutes from './routes/tenant/invitations';
 
 import type { Env } from './types';
@@ -77,10 +78,9 @@ app.route('/api/init', initRoutes);
 app.route('/api/register', registerRoutes);
 
 // ─── Public: Invitation validation + acceptance (no auth needed) ────────
-// These routes are registered BEFORE the auth middleware block below so they
-// are accessible without a JWT. Tenant is identified from the invite token.
-app.use('/api/invitations/:token', tenantMiddleware);
-app.use('/api/invitations/:token/accept', tenantMiddleware);
+// Separate path /api/invite/ so it's registered before the catch-all
+// '/api/*' tenant+auth middleware and doesn't require JWT.
+app.route('/api/invite', publicInviteRoutes);
 
 // ─── Admin routes ─────────────────────────────────────────────────────
 // Admin login is public (no auth needed)
