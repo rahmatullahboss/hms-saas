@@ -74,8 +74,8 @@ visitRoutes.post('/', zValidator('json', createVisitSchema), async (c) => {
     const result = await c.env.DB.prepare(`
       INSERT INTO visits
         (patient_id, visit_no, doctor_id, visit_type, admission_flag, admission_no,
-         admission_date, notes, tenant_id, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         admission_date, notes, icd10_code, icd10_description, tenant_id, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       data.patientId,
       visitNo,
@@ -85,6 +85,8 @@ visitRoutes.post('/', zValidator('json', createVisitSchema), async (c) => {
       admissionNo,
       data.admissionDate ?? null,
       data.notes ?? null,
+      data.icd10Code ?? null,
+      data.icd10Description ?? null,
       tenantId,
       userId,
     ).run();
@@ -112,15 +114,16 @@ visitRoutes.put('/:id', zValidator('json', updateVisitSchema), async (c) => {
 
     await c.env.DB.prepare(`
       UPDATE visits
-      SET doctor_id = ?, notes = ?, updated_at = datetime('now')
+      SET doctor_id = ?, notes = ?, icd10_code = ?, icd10_description = ?, updated_at = datetime('now')
       WHERE id = ? AND tenant_id = ?
     `).bind(
-      data.doctorId ?? existing['doctor_id'],
-      data.notes    !== undefined ? data.notes : existing['notes'],
+      data.doctorId       ?? existing['doctor_id'],
+      data.notes          !== undefined ? data.notes : existing['notes'],
+      data.icd10Code      !== undefined ? data.icd10Code : existing['icd10_code'],
+      data.icd10Description !== undefined ? data.icd10Description : existing['icd10_description'],
       id, tenantId,
     ).run();
 
-    // TODO: audit log when audit module is available
     return c.json({ message: 'Visit updated' });
   } catch (error) {
     if (error instanceof HTTPException) throw error;
@@ -143,9 +146,18 @@ visitRoutes.post('/:id/discharge', zValidator('json', dischargeSchema), async (c
 
     await c.env.DB.prepare(`
       UPDATE visits
-      SET discharge_date = ?, notes = COALESCE(?, notes), updated_at = datetime('now')
+      SET discharge_date = ?, notes = COALESCE(?, notes),
+          icd10_code = COALESCE(?, icd10_code),
+          icd10_description = COALESCE(?, icd10_description),
+          updated_at = datetime('now')
       WHERE id = ? AND tenant_id = ?
-    `).bind(data.dischargeDate, data.notes ?? null, id, tenantId).run();
+    `).bind(
+      data.dischargeDate,
+      data.notes ?? null,
+      data.icd10Code ?? null,
+      data.icd10Description ?? null,
+      id, tenantId
+    ).run();
 
     // Audit log
     void createAuditLog(c.env, tenantId!, userId!, 'discharge', 'visits', Number(id), null, { dischargeDate: data.dischargeDate });
