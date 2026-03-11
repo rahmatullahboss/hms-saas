@@ -26,8 +26,8 @@ run_worker_first = ["/api/*"]
 # ─── Cloudflare Bindings ──────────────────────────────────────────────
 [[d1_databases]]
 binding = "DB"
-database_name = "danphe-meta"
-database_id = "cd97b7d8-4068-47f7-b9d2-5e28ec7dfc98"
+database_name = "hms-super-admin-production"
+database_id = "f5ec1282-94e9-4574-b49c-19b50c03ed53"
 
 [[kv_namespaces]]
 binding = "KV"
