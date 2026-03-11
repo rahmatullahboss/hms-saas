@@ -14,12 +14,18 @@ import { HTTPException } from 'hono/http-exception';
 import { renderInvoiceHtml, renderPatientCardHtml } from '../../lib/pdf-bangla';
 import type { Env, Variables } from '../../types';
 
+const ALLOWED_PDF_ROLES = ['hospital_admin', 'reception', 'doctor', 'nurse'];
+
 const pdfRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // ─── GET /invoice/:billingId ───────────────────────────────────────────────────
 pdfRoutes.get('/invoice/:billingId', async (c) => {
   const tenantId = c.get('tenantId');
   const billingId = c.req.param('billingId');
+  const role = c.get('role');
+  if (!role || !ALLOWED_PDF_ROLES.includes(role)) {
+    throw new HTTPException(403, { message: 'Insufficient permissions' });
+  }
 
   try {
     // Fetch billing record
@@ -111,6 +117,10 @@ pdfRoutes.get('/invoice/:billingId', async (c) => {
 pdfRoutes.get('/patient-card/:patientId', async (c) => {
   const tenantId = c.get('tenantId');
   const patientId = c.req.param('patientId');
+  const role = c.get('role');
+  if (!role || !ALLOWED_PDF_ROLES.includes(role)) {
+    throw new HTTPException(403, { message: 'Insufficient permissions' });
+  }
 
   try {
     const patient = await c.env.DB.prepare(`

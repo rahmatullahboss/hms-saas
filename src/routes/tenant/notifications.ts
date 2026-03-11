@@ -23,6 +23,14 @@ const notificationRoutes = new Hono<{
 }>();
 
 // ─── Schemas ──────────────────────────────────────────────────────────────────
+const ALLOWED_NOTIFICATION_ROLES = ['hospital_admin', 'reception', 'doctor', 'nurse'];
+
+function requireNotificationRole(role?: string): void {
+  if (!role || !ALLOWED_NOTIFICATION_ROLES.includes(role)) {
+    throw new HTTPException(403, { message: 'Insufficient permissions to send notifications' });
+  }
+}
+
 const smsSchema = z.object({
   phone: z.string().min(10, 'Phone number required'),
   message: z.string().min(1, 'Message required').max(612, 'SMS message too long (max 612 chars)'),
@@ -105,6 +113,7 @@ notificationRoutes.post('/email', zValidator('json', emailSchema), async (c) => 
 notificationRoutes.post('/appointment', zValidator('json', appointmentSchema), async (c) => {
   const data = c.req.valid('json');
   const tenantId = c.get('tenantId');
+  requireNotificationRole(c.get('role'));
 
   // Get hospital name for this tenant
   const tenant = await c.env.DB.prepare(
@@ -145,6 +154,7 @@ notificationRoutes.post('/appointment', zValidator('json', appointmentSchema), a
 notificationRoutes.post('/lab-ready', zValidator('json', labReadySchema), async (c) => {
   const data = c.req.valid('json');
   const tenantId = c.get('tenantId');
+  requireNotificationRole(c.get('role'));
 
   const tenant = await c.env.DB.prepare(
     'SELECT name FROM tenants WHERE id = ?'
@@ -176,6 +186,7 @@ notificationRoutes.post('/lab-ready', zValidator('json', labReadySchema), async 
 notificationRoutes.post('/invoice', zValidator('json', invoiceSchema), async (c) => {
   const data = c.req.valid('json');
   const tenantId = c.get('tenantId');
+  requireNotificationRole(c.get('role'));
 
   const tenant = await c.env.DB.prepare(
     'SELECT name FROM tenants WHERE id = ?'

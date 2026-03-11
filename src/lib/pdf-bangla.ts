@@ -50,6 +50,17 @@ export interface PatientCardData {
   emergencyContact?: string;
 }
 
+// ─── XSS protection: escape user-controlled strings before HTML interpolation ─
+function escapeHtml(str: string | undefined | null): string {
+  if (!str) return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // ─── Common HTML boilerplate ───────────────────────────────────────────────────
 function htmlShell(title: string, body: string): string {
   return `<!DOCTYPE html>
@@ -57,7 +68,7 @@ function htmlShell(title: string, body: string): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${title}</title>
+  <title>${escapeHtml(title)}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;600;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
@@ -139,8 +150,8 @@ export function renderInvoiceHtml(data: InvoiceData): string {
   const itemRows = data.items.map(item => `
     <tr>
       <td style="padding:8px 4px;border-bottom:1px solid #f3f4f6;">
-        <div>${item.description}</div>
-        ${item.descriptionBn ? `<div class="bn small muted">${item.descriptionBn}</div>` : ''}
+        <div>${escapeHtml(item.description)}</div>
+        ${item.descriptionBn ? `<div class="bn small muted">${escapeHtml(item.descriptionBn)}</div>` : ''}
       </td>
       <td style="padding:8px 4px;border-bottom:1px solid #f3f4f6;text-align:center;">${item.quantity}</td>
       <td style="padding:8px 4px;border-bottom:1px solid #f3f4f6;text-align:right;">৳${item.unitPrice.toLocaleString()}</td>
@@ -151,14 +162,14 @@ export function renderInvoiceHtml(data: InvoiceData): string {
     <!-- Header -->
     <div class="flex between" style="border-bottom:2px solid #0f766e;padding-bottom:16px;margin-bottom:16px;">
       <div class="flex col gap-4">
-        <div class="bold" style="font-size:20px;color:#0f766e;">${data.hospitalName}</div>
-        ${data.hospitalAddress ? `<div class="small muted">${data.hospitalAddress}</div>` : ''}
-        ${data.hospitalPhone ? `<div class="small muted">📞 ${data.hospitalPhone}</div>` : ''}
+        <div class="bold" style="font-size:20px;color:#0f766e;">${escapeHtml(data.hospitalName)}</div>
+        ${data.hospitalAddress ? `<div class="small muted">${escapeHtml(data.hospitalAddress)}</div>` : ''}
+        ${data.hospitalPhone ? `<div class="small muted">📞 ${escapeHtml(data.hospitalPhone)}</div>` : ''}
       </div>
       <div class="flex col gap-4 right">
         <div class="bold" style="font-size:18px;">ইনভয়েস / Invoice</div>
-        <div class="small muted">#${data.invoiceNo}</div>
-        <div class="small muted">তারিখ: ${data.date}</div>
+        <div class="small muted">#${escapeHtml(data.invoiceNo)}</div>
+        <div class="small muted">তারিখ: ${escapeHtml(data.date)}</div>
       </div>
     </div>
 
@@ -166,13 +177,13 @@ export function renderInvoiceHtml(data: InvoiceData): string {
     <div class="flex between mt-8" style="background:#f9fafb;border-radius:6px;padding:12px 16px;">
       <div class="flex col gap-4">
         <div class="small muted">রোগীর নাম / Patient</div>
-        <div class="semibold">${data.patientName}</div>
-        ${data.patientCode ? `<div class="small muted">ID: ${data.patientCode}</div>` : ''}
+        <div class="semibold">${escapeHtml(data.patientName)}</div>
+        ${data.patientCode ? `<div class="small muted">ID: ${escapeHtml(data.patientCode)}</div>` : ''}
       </div>
       ${data.patientMobile ? `
       <div class="flex col gap-4 right">
         <div class="small muted">মোবাইল / Mobile</div>
-        <div class="semibold">${data.patientMobile}</div>
+        <div class="semibold">${escapeHtml(data.patientMobile)}</div>
       </div>` : ''}
     </div>
 
@@ -219,17 +230,17 @@ export function renderInvoiceHtml(data: InvoiceData): string {
     ${data.notes ? `
     <div style="margin-top:24px;background:#fef9c3;border-radius:6px;padding:12px;">
       <div class="small semibold" style="margin-bottom:4px;">নোট / Notes</div>
-      <div class="small">${data.notes}</div>
+      <div class="small">${escapeHtml(data.notes)}</div>
     </div>` : ''}
 
     <!-- Footer -->
     <div class="center muted small" style="margin-top:32px;border-top:1px solid #e5e7eb;padding-top:16px;">
       <span class="bn">ধন্যবাদ আপনার সুস্বাস্থ্য আমাদের লক্ষ্য।</span><br>
-      Thank you for choosing ${data.hospitalName}. Stay healthy!
+      Thank you for choosing ${escapeHtml(data.hospitalName)}. Stay healthy!
     </div>
   `;
 
-  return htmlShell(`Invoice #${data.invoiceNo} — ${data.hospitalName}`, body);
+  return htmlShell(`Invoice #${escapeHtml(data.invoiceNo)} — ${escapeHtml(data.hospitalName)}`, body);
 }
 
 // ─── Patient ID Card HTML ─────────────────────────────────────────────────────
@@ -238,7 +249,7 @@ export function renderPatientCardHtml(data: PatientCardData): string {
     <div style="max-width:380px;margin:0 auto;border:2px solid #0f766e;border-radius:12px;overflow:hidden;">
       <!-- Card Header -->
       <div style="background:#0f766e;color:white;padding:16px 20px;">
-        <div class="bold" style="font-size:16px;">${data.hospitalName}</div>
+        <div class="bold" style="font-size:16px;">${escapeHtml(data.hospitalName)}</div>
         <div class="small" style="opacity:0.85;margin-top:2px;">রোগী পরিচয়পত্র / Patient ID Card</div>
       </div>
 
@@ -246,12 +257,12 @@ export function renderPatientCardHtml(data: PatientCardData): string {
       <div style="padding:16px 20px;background:#fff;">
         <div class="flex between" style="margin-bottom:12px;">
           <div>
-            <div class="bold" style="font-size:17px;">${data.name}</div>
-            ${data.nameBn ? `<div class="bn bold" style="font-size:16px;color:#0f766e;">${data.nameBn}</div>` : ''}
+            <div class="bold" style="font-size:17px;">${escapeHtml(data.name)}</div>
+            ${data.nameBn ? `<div class="bn bold" style="font-size:16px;color:#0f766e;">${escapeHtml(data.nameBn)}</div>` : ''}
           </div>
           <div class="right">
             <div class="small muted">Patient ID</div>
-            <div class="bold semibold" style="font-size:16px;color:#0f766e;">${data.patientCode}</div>
+            <div class="bold semibold" style="font-size:16px;color:#0f766e;">${escapeHtml(data.patientCode)}</div>
           </div>
         </div>
 
@@ -259,7 +270,7 @@ export function renderPatientCardHtml(data: PatientCardData): string {
           ${data.dateOfBirth ? `
           <div>
             <div class="muted">জন্ম তারিখ / DOB</div>
-            <div class="semibold">${data.dateOfBirth}</div>
+            <div class="semibold">${escapeHtml(data.dateOfBirth)}</div>
           </div>` : ''}
           ${data.gender ? `
           <div>
@@ -273,17 +284,17 @@ export function renderPatientCardHtml(data: PatientCardData): string {
           </div>` : ''}
           <div>
             <div class="muted">মোবাইল / Mobile</div>
-            <div class="semibold">${data.mobile}</div>
+            <div class="semibold">${escapeHtml(data.mobile)}</div>
           </div>
           ${data.emergencyContact ? `
           <div style="grid-column:1/-1;">
             <div class="muted">জরুরি যোগাযোগ / Emergency</div>
-            <div class="semibold">${data.emergencyContact}</div>
+            <div class="semibold">${escapeHtml(data.emergencyContact)}</div>
           </div>` : ''}
           ${data.address ? `
           <div style="grid-column:1/-1;">
             <div class="muted">ঠিকানা / Address</div>
-            <div class="semibold">${data.address}</div>
+            <div class="semibold">${escapeHtml(data.address)}</div>
           </div>` : ''}
         </div>
 
@@ -294,5 +305,5 @@ export function renderPatientCardHtml(data: PatientCardData): string {
     </div>
   `;
 
-  return htmlShell(`Patient Card — ${data.patientCode}`, body);
+  return htmlShell(`Patient Card — ${escapeHtml(data.patientCode)}`, body);
 }

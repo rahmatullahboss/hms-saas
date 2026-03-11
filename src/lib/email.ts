@@ -30,6 +30,16 @@ export interface EmailEnv {
   RESEND_FROM_EMAIL?: string;
 }
 
+// ─── XSS protection for HTML email templates ───────────────────────────────
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // ─── Core send function ───────────────────────────────────────────────────────
 export async function sendEmail(
   env: EmailEnv,
@@ -79,6 +89,7 @@ export async function sendEmail(
 // ─── Email Templates ──────────────────────────────────────────────────────────
 
 function baseLayout(content: string, hospitalName = 'HMS'): string {
+  const safeHospital = escapeHtml(hospitalName);
   return `
 <!DOCTYPE html>
 <html lang="en">
@@ -102,10 +113,10 @@ function baseLayout(content: string, hospitalName = 'HMS'): string {
 <body>
   <div class="wrapper">
     <div class="card">
-      <div class="header"><h1>🏥 ${hospitalName}</h1></div>
+      <div class="header"><h1>🏥 ${safeHospital}</h1></div>
       ${content}
     </div>
-    <div class="footer">This is an automated message from ${hospitalName}. Please do not reply.</div>
+    <div class="footer">This is an automated message from ${safeHospital}. Please do not reply.</div>
   </div>
 </body>
 </html>`.trim();
@@ -128,18 +139,18 @@ export const EmailTemplates = {
     hospitalName?: string;
   }) {
     const html = baseLayout(`
-      <p>Dear <strong>${patientName}</strong>,</p>
+      <p>Dear <strong>${escapeHtml(patientName)}</strong>,</p>
       <p>This is a reminder for your upcoming appointment:</p>
       <div style="background:#f0fdf4;border-radius:6px;padding:16px;margin:16px 0;">
-        <div class="info-row"><span class="label">Doctor</span><br><span class="value">Dr. ${doctorName}</span></div>
-        <div class="info-row"><span class="label">Date</span><br><span class="value">${appointmentDate}</span></div>
-        <div class="info-row"><span class="label">Time</span><br><span class="value">${appointmentTime}</span></div>
+        <div class="info-row"><span class="label">Doctor</span><br><span class="value">Dr. ${escapeHtml(doctorName)}</span></div>
+        <div class="info-row"><span class="label">Date</span><br><span class="value">${escapeHtml(appointmentDate)}</span></div>
+        <div class="info-row"><span class="label">Time</span><br><span class="value">${escapeHtml(appointmentTime)}</span></div>
       </div>
       <p>Please arrive 10–15 minutes early. If you need to reschedule, contact us as soon as possible.</p>
     `, hospitalName);
 
     return {
-      subject: `Appointment Reminder — Dr. ${doctorName} on ${appointmentDate}`,
+      subject: `Appointment Reminder — Dr. ${escapeHtml(doctorName)} on ${escapeHtml(appointmentDate)}`,
       html,
       text: `Dear ${patientName}, reminder: appointment with Dr. ${doctorName} on ${appointmentDate} at ${appointmentTime}.`,
     };
@@ -158,17 +169,17 @@ export const EmailTemplates = {
     hospitalName?: string;
   }) {
     const html = baseLayout(`
-      <p>Dear <strong>${patientName}</strong>,</p>
+      <p>Dear <strong>${escapeHtml(patientName)}</strong>,</p>
       <p>Your lab report is ready for collection:</p>
       <div style="background:#eff6ff;border-radius:6px;padding:16px;margin:16px 0;">
-        <div class="info-row"><span class="label">Test</span><br><span class="value">${testName}</span></div>
-        <div class="info-row"><span class="label">Completed</span><br><span class="value">${completedDate}</span></div>
+        <div class="info-row"><span class="label">Test</span><br><span class="value">${escapeHtml(testName)}</span></div>
+        <div class="info-row"><span class="label">Completed</span><br><span class="value">${escapeHtml(completedDate)}</span></div>
       </div>
       <p>Please visit the hospital to collect your report. Bring this email or your patient ID.</p>
     `, hospitalName);
 
     return {
-      subject: `Lab Report Ready — ${testName}`,
+      subject: `Lab Report Ready — ${escapeHtml(testName)}`,
       html,
       text: `Dear ${patientName}, your lab report for "${testName}" is ready. Please collect it from the hospital.`,
     };
@@ -193,20 +204,20 @@ export const EmailTemplates = {
     hospitalName?: string;
   }) {
     const html = baseLayout(`
-      <p>Dear <strong>${patientName}</strong>,</p>
+      <p>Dear <strong>${escapeHtml(patientName)}</strong>,</p>
       <p>Please find your invoice summary below:</p>
       <div style="background:#fff7ed;border-radius:6px;padding:16px;margin:16px 0;">
-        <div class="info-row"><span class="label">Invoice #</span><br><span class="value">${invoiceNumber}</span></div>
+        <div class="info-row"><span class="label">Invoice #</span><br><span class="value">${escapeHtml(invoiceNumber)}</span></div>
         <div class="info-row"><span class="label">Total Amount</span><br><span class="value">৳${totalAmount.toLocaleString()}</span></div>
         <div class="info-row"><span class="label">Amount Paid</span><br><span class="value" style="color:#16a34a;">৳${paidAmount.toLocaleString()}</span></div>
         <div class="info-row"><span class="label">Amount Due</span><br><span class="value" style="color:${dueAmount > 0 ? '#dc2626' : '#16a34a'};">৳${dueAmount.toLocaleString()}</span></div>
-        ${dueDate ? `<div class="info-row"><span class="label">Due Date</span><br><span class="value">${dueDate}</span></div>` : ''}
+        ${dueDate ? `<div class="info-row"><span class="label">Due Date</span><br><span class="value">${escapeHtml(dueDate)}</span></div>` : ''}
       </div>
       ${dueAmount > 0 ? '<p>Please settle the outstanding amount at your earliest convenience.</p>' : '<p>Thank you — your account is fully settled.</p>'}
     `, hospitalName);
 
     return {
-      subject: `Invoice ${invoiceNumber} — ${dueAmount > 0 ? `৳${dueAmount} Due` : 'Fully Paid'}`,
+      subject: `Invoice ${escapeHtml(invoiceNumber)} — ${dueAmount > 0 ? `৳${dueAmount} Due` : 'Fully Paid'}`,
       html,
       text: `Dear ${patientName}, Invoice ${invoiceNumber}: Total ৳${totalAmount}, Paid ৳${paidAmount}, Due ৳${dueAmount}.`,
     };
@@ -227,20 +238,20 @@ export const EmailTemplates = {
     loginUrl: string;
   }) {
     const html = baseLayout(`
-      <p>Hello <strong>${name}</strong>,</p>
-      <p>Your account has been created at <strong>${hospitalName}</strong>.</p>
+      <p>Hello <strong>${escapeHtml(name)}</strong>,</p>
+      <p>Your account has been created at <strong>${escapeHtml(hospitalName)}</strong>.</p>
       <div style="background:#f0fdf4;border-radius:6px;padding:16px;margin:16px 0;">
-        <div class="info-row"><span class="label">Email</span><br><span class="value">${email}</span></div>
-        <div class="info-row"><span class="label">Role</span><br><span class="value" style="text-transform:capitalize;">${role.replace('_', ' ')}</span></div>
+        <div class="info-row"><span class="label">Email</span><br><span class="value">${escapeHtml(email)}</span></div>
+        <div class="info-row"><span class="label">Role</span><br><span class="value" style="text-transform:capitalize;">${escapeHtml(role.replace('_', ' '))}</span></div>
       </div>
       <p style="text-align:center;margin-top:24px;">
-        <a href="${loginUrl}" class="btn">Login to HMS</a>
+        <a href="${escapeHtml(loginUrl)}" class="btn">Login to HMS</a>
       </p>
       <p style="color:#6b7280;font-size:13px;">If you did not expect this email, please ignore it.</p>
     `, hospitalName);
 
     return {
-      subject: `Welcome to ${hospitalName} — Your Account is Ready`,
+      subject: `Welcome to ${escapeHtml(hospitalName)} — Your Account is Ready`,
       html,
       text: `Hello ${name}, your account at ${hospitalName} is ready. Login at: ${loginUrl}`,
     };
@@ -256,9 +267,9 @@ export const EmailTemplates = {
   }) {
     const rows = medicines.map(m => `
       <tr>
-        <td style="padding:8px;border-bottom:1px solid #f3f4f6;">${m.name}</td>
-        <td style="padding:8px;border-bottom:1px solid #f3f4f6;">${m.batchNo}</td>
-        <td style="padding:8px;border-bottom:1px solid #f3f4f6;color:#dc2626;font-weight:bold;">${m.expiryDate}</td>
+        <td style="padding:8px;border-bottom:1px solid #f3f4f6;">${escapeHtml(m.name)}</td>
+        <td style="padding:8px;border-bottom:1px solid #f3f4f6;">${escapeHtml(m.batchNo)}</td>
+        <td style="padding:8px;border-bottom:1px solid #f3f4f6;color:#dc2626;font-weight:bold;">${escapeHtml(m.expiryDate)}</td>
         <td style="padding:8px;border-bottom:1px solid #f3f4f6;">${m.stock}</td>
       </tr>`).join('');
 
