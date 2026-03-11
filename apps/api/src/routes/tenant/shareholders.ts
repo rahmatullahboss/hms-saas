@@ -265,24 +265,14 @@ shareholderRoutes.post('/distributions/:id/pay/:shareholderId', async (c) => {
 
     await c.env.DB.prepare(
       `UPDATE shareholder_distributions SET paid_status = 'paid', paid_date = date('now')
-       WHERE distribution_id = ? AND shareholder_id = ?`,
-    ).bind(id, shareholderId).run();
+       WHERE distribution_id = ? AND shareholder_id = ? AND tenant_id = ?`,
+    ).bind(id, shareholderId, tenantId).run();
 
     return c.json({ message: 'Marked as paid' });
   } catch (error) {
     if (error instanceof HTTPException) throw error;
     throw new HTTPException(500, { message: 'Failed to mark as paid' });
   }
-});
-
-// Keep backward-compatible calculate endpoint
-shareholderRoutes.get('/calculate-legacy', async (c) => {
-  return c.redirect('/api/shareholders/calculate', 301);
-});
-
-// Keep backward-compatible approve endpoint
-shareholderRoutes.post('/approve', zValidator('json', distributeMonthlyProfitSchema), async (c) => {
-  return c.redirect('/api/shareholders/distribute', 308);
 });
 
 export default shareholderRoutes;

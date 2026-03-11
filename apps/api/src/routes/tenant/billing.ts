@@ -156,6 +156,14 @@ billingRoutes.post('/pay', zValidator('json', paymentSchema), async (c) => {
       id: number; total_amount: number; paid_amount: number; status: string;
     }>();
     if (!bill) throw new HTTPException(404, { message: 'Bill not found' });
+    if (bill.status === 'paid') throw new HTTPException(400, { message: 'Bill is already fully paid' });
+
+    const outstanding = bill.total_amount - bill.paid_amount;
+    if (data.amount > outstanding) {
+      throw new HTTPException(400, {
+        message: `Payment amount (${data.amount}) exceeds outstanding balance (${outstanding})`,
+      });
+    }
 
     const newPaid = bill.paid_amount + data.amount;
     const status = newPaid >= bill.total_amount ? 'paid' : 'partially_paid';

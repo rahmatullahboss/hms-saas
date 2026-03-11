@@ -192,35 +192,44 @@ pharmacyRoutes.post('/purchases', zValidator('json', createPurchaseSchema), asyn
 
     const purchaseId = purchaseResult.meta.last_row_id;
 
-    // Insert line items and create stock batches
+    // Batch all item inserts + stock updates for atomicity
+    const batchStmts: D1PreparedStatement[] = [];
+
     for (const item of data.items) {
       const lineTotal = item.quantity * item.purchasePrice;
 
-      const itemResult = await c.env.DB.prepare(`
-        INSERT INTO medicine_purchase_items
-          (purchase_id, medicine_id, batch_no, expiry_date, quantity, purchase_price, sale_price, line_total, tenant_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).bind(purchaseId, item.medicineId, item.batchNo, item.expiryDate, item.quantity, item.purchasePrice, item.salePrice, lineTotal, tenantId).run();
+      batchStmts.push(
+        c.env.DB.prepare(`
+          INSERT INTO medicine_purchase_items
+            (purchase_id, medicine_id, batch_no, expiry_date, quantity, purchase_price, sale_price, line_total, tenant_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(purchaseId, item.medicineId, item.batchNo, item.expiryDate, item.quantity, item.purchasePrice, item.salePrice, lineTotal, tenantId),
+      );
 
-      // Create stock batch (FEFO — earliest expiry first)
-      await c.env.DB.prepare(`
-        INSERT INTO medicine_stock_batches
-          (medicine_id, batch_no, expiry_date, quantity_received, quantity_available, purchase_price, sale_price, purchase_item_id, tenant_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).bind(item.medicineId, item.batchNo, item.expiryDate, item.quantity, item.quantity, item.purchasePrice, item.salePrice, itemResult.meta.last_row_id, tenantId).run();
+      batchStmts.push(
+        c.env.DB.prepare(`
+          INSERT INTO medicine_stock_batches
+            (medicine_id, batch_no, expiry_date, quantity_received, quantity_available, purchase_price, sale_price, tenant_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(item.medicineId, item.batchNo, item.expiryDate, item.quantity, item.quantity, item.purchasePrice, item.salePrice, tenantId),
+      );
 
-      // Update medicine's price to latest sale price and aggregate quantity
-      await c.env.DB.prepare(
-        `UPDATE medicines SET price = ?, quantity = quantity + ? WHERE id = ? AND tenant_id = ?`,
-      ).bind(item.salePrice, item.quantity, item.medicineId, tenantId).run();
+      batchStmts.push(
+        c.env.DB.prepare(
+          `UPDATE medicines SET price = ?, quantity = quantity + ? WHERE id = ? AND tenant_id = ?`,
+        ).bind(item.salePrice, item.quantity, item.medicineId, tenantId),
+      );
 
-      // Record stock movement
-      await c.env.DB.prepare(`
-        INSERT INTO medicine_stock_movements
-          (medicine_id, movement_type, quantity, unit_cost, unit_price, reference_type, reference_id, movement_date, tenant_id, created_by)
-        VALUES (?, 'purchase_in', ?, ?, ?, 'purchase', ?, ?, ?, ?)
-      `).bind(item.medicineId, item.quantity, item.purchasePrice, item.salePrice, purchaseId, data.purchaseDate, tenantId, userId).run();
+      batchStmts.push(
+        c.env.DB.prepare(`
+          INSERT INTO medicine_stock_movements
+            (medicine_id, movement_type, quantity, unit_cost, unit_price, reference_type, reference_id, movement_date, tenant_id, created_by)
+          VALUES (?, 'purchase_in', ?, ?, ?, 'purchase', ?, ?, ?, ?)
+        `).bind(item.medicineId, item.quantity, item.purchasePrice, item.salePrice, purchaseId, data.purchaseDate, tenantId, userId),
+      );
     }
+
+    await c.env.DB.batch(batchStmts);
 
     return c.json({ message: 'Purchase recorded', purchaseId, purchaseNo }, 201);
   } catch (error) {
