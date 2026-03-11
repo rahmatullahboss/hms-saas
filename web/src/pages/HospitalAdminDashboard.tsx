@@ -1,249 +1,258 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
-import { 
-  Users, FlaskConical, Receipt, UserCog, 
-  TrendingUp, Activity, Clock, AlertCircle 
+import {
+  Users, FlaskConical, Receipt, UserCog,
+  TrendingUp, Activity, Clock, AlertCircle,
+  Plus, RefreshCw,
 } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, BarChart, Bar, Cell,
+} from 'recharts';
 import DashboardLayout from '../components/DashboardLayout';
 import KPICard from '../components/dashboard/KPICard';
 import axios from 'axios';
 
 interface DashboardStats {
-  totalPatients: number;
-  todayPatients: number;
-  pendingTests: number;
+  totalPatients:  number;
+  todayPatients:  number;
+  pendingTests:   number;
   completedTests: number;
-  pendingBills: number;
-  totalRevenue: number;
-  staffCount: number;
-  lowStockItems: number;
+  pendingBills:   number;
+  totalRevenue:   number;
+  staffCount:     number;
+  lowStockItems:  number;
 }
 
 interface RecentPatient {
-  id: number;
-  name: string;
-  mobile: string;
+  id:         number;
+  name:       string;
+  mobile:     string;
   created_at: string;
 }
 
 interface RevenueData {
-  day: string;
+  day:     string;
   revenue: number;
 }
 
+const STATUS_COLORS = {
+  Completed:   { bg: 'bg-emerald-50 text-emerald-700', dot: '#059669' },
+  Pending:     { bg: 'bg-amber-50 text-amber-700',     dot: '#d97706' },
+  'In Progress':{ bg: 'bg-blue-50 text-blue-700',      dot: '#2563eb' },
+};
+
 export default function HospitalAdminDashboard({ role = 'hospital_admin' }: { role?: string }) {
-  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [stats,          setStats]          = useState<DashboardStats | null>(null);
   const [recentPatients, setRecentPatients] = useState<RecentPatient[]>([]);
-  const [revenueData, setRevenueData] = useState<RevenueData[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [revenueData,    setRevenueData]    = useState<RevenueData[]>([]);
+  const [loading,        setLoading]        = useState(true);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
 
-  const fetchDashboardData = async () => {
+  const fetchData = async () => {
+    setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const headers = { Authorization: `Bearer ${token}` };
-
-      const { data } = await axios.get('/api/dashboard/stats', { headers });
-
+      const { data } = await axios.get('/api/dashboard/stats', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       setStats(data.stats);
-      setRecentPatients(data.recentPatients || []);
-      setRevenueData(data.revenueData || []);
-
-    } catch (error) {
-      console.error('Failed to fetch dashboard data:', error);
-      // Use mock data on error
+      setRecentPatients(data.recentPatients ?? []);
+      setRevenueData(data.revenueData ?? []);
+    } catch {
+      // Fallback mock data for development
       setStats({
-        totalPatients: 156,
-        todayPatients: 12,
-        pendingTests: 8,
-        completedTests: 45,
-        pendingBills: 15,
-        totalRevenue: 250000,
-        staffCount: 24,
-        lowStockItems: 3,
+        totalPatients: 1456, todayPatients: 47, pendingTests: 8,
+        completedTests: 45, pendingBills: 12, totalRevenue: 245000,
+        staffCount: 24, lowStockItems: 3,
       });
       setRevenueData([
-        { day: 'Mon', revenue: 15000 },
-        { day: 'Tue', revenue: 22000 },
-        { day: 'Wed', revenue: 18000 },
-        { day: 'Thu', revenue: 25000 },
-        { day: 'Fri', revenue: 30000 },
-        { day: 'Sat', revenue: 28000 },
-        { day: 'Sun', revenue: 12000 },
+        { day: 'Mon', revenue: 35000 }, { day: 'Tue', revenue: 52000 },
+        { day: 'Wed', revenue: 41000 }, { day: 'Thu', revenue: 68000 },
+        { day: 'Fri', revenue: 75000 }, { day: 'Sat', revenue: 58000 },
+        { day: 'Sun', revenue: 28000 },
+      ]);
+      setRecentPatients([
+        { id: 1, name: 'Mohammad Karim',  mobile: '01711-234567', created_at: new Date().toISOString() },
+        { id: 2, name: 'Fatema Begum',    mobile: '01812-345678', created_at: new Date().toISOString() },
+        { id: 3, name: 'Rahim Uddin',     mobile: '01911-456789', created_at: new Date().toISOString() },
+        { id: 4, name: 'Nasrin Akter',    mobile: '01611-567890', created_at: new Date().toISOString() },
+        { id: 5, name: 'Kabir Hossain',   mobile: '01511-678901', created_at: new Date().toISOString() },
       ]);
     } finally {
       setLoading(false);
     }
   };
 
+  const kpiCards = [
+    {
+      title: 'Total Patients',
+      value: stats?.totalPatients.toLocaleString() ?? 0,
+      icon:  <Users className="w-5 h-5" />,
+      iconBg:'bg-blue-50 text-blue-600',
+      trend: { value: 12, isPositive: true, label: 'vs last month' },
+    },
+    {
+      title: "Today's Patients",
+      value: stats?.todayPatients ?? 0,
+      icon:  <Activity className="w-5 h-5" />,
+      iconBg:'bg-[var(--color-primary-light)] text-[var(--color-primary)]',
+    },
+    {
+      title: 'Monthly Revenue',
+      value: `৳${(stats?.totalRevenue ?? 0).toLocaleString()}`,
+      icon:  <TrendingUp className="w-5 h-5" />,
+      iconBg:'bg-emerald-50 text-emerald-600',
+      trend: { value: 8, isPositive: true, label: 'vs last month' },
+    },
+    {
+      title: 'Pending Bills',
+      value: stats?.pendingBills ?? 0,
+      icon:  <Receipt className="w-5 h-5" />,
+      iconBg:'bg-amber-50 text-amber-600',
+      trend: { value: 3, isPositive: false },
+    },
+    {
+      title: 'Pending Tests',
+      value: stats?.pendingTests ?? 0,
+      icon:  <FlaskConical className="w-5 h-5" />,
+      iconBg:'bg-purple-50 text-purple-600',
+    },
+    {
+      title: 'Completed Tests',
+      value: stats?.completedTests ?? 0,
+      icon:  <FlaskConical className="w-5 h-5" />,
+      iconBg:'bg-emerald-50 text-emerald-600',
+    },
+    {
+      title: 'Staff Count',
+      value: stats?.staffCount ?? 0,
+      icon:  <UserCog className="w-5 h-5" />,
+      iconBg:'bg-slate-100 text-slate-600',
+    },
+    {
+      title: 'Low Stock Items',
+      value: stats?.lowStockItems ?? 0,
+      icon:  <AlertCircle className="w-5 h-5" />,
+      iconBg:'bg-red-50 text-red-500',
+      trend: stats?.lowStockItems ? { value: stats.lowStockItems, isPositive: false } : undefined,
+    },
+  ];
+
   const quickActions = [
-    { label: 'New Patient', icon: <Users className="w-5 h-5" />, path: '/hospital_admin/patients/new', color: 'bg-teal-500' },
-    { label: 'New Bill', icon: <Receipt className="w-5 h-5" />, path: '/hospital_admin/billing', color: 'bg-blue-500' },
-    { label: 'Add Staff', icon: <UserCog className="w-5 h-5" />, path: '/hospital_admin/staff', color: 'bg-purple-500' },
-    { label: 'Lab Test', icon: <FlaskConical className="w-5 h-5" />, path: '/hospital_admin/tests', color: 'bg-orange-500' },
+    { label: 'New Patient',      icon: <Plus className="w-4 h-4" />,     path: 'patients/new',  color: 'btn-primary' },
+    { label: 'Lab Test',         icon: <FlaskConical className="w-4 h-4"/>, path: 'tests',       color: 'btn-secondary' },
+    { label: 'New Bill',         icon: <Receipt className="w-4 h-4" />,  path: 'billing',        color: 'btn-secondary' },
+    { label: 'Add Staff',        icon: <UserCog className="w-4 h-4" />,  path: 'staff',          color: 'btn-secondary' },
   ];
 
   return (
     <DashboardLayout role={role}>
-      <div className="space-y-6">
-        {/* Welcome */}
-        <div className="flex items-center justify-between">
+      <div className="space-y-6 max-w-screen-2xl mx-auto">
+
+        {/* ── Page header ── */}
+        <div className="page-header">
           <div>
-            <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">Dashboard</h1>
-            <p className="text-[var(--color-text-muted)]">Welcome back! Here's your hospital overview.</p>
+            <h1 className="page-title">Dashboard</h1>
+            <p className="section-subtitle flex items-center gap-1.5 mt-1">
+              <Clock className="w-3.5 h-3.5" />
+              {new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            </p>
           </div>
-          <div className="flex items-center gap-2 text-sm text-[var(--color-text-muted)]">
-            <Clock className="w-4 h-4" />
-            {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+          <div className="flex items-center gap-2">
+            <button onClick={fetchData} className="btn-ghost" title="Refresh">
+              <RefreshCw className="w-4 h-4" />
+            </button>
+            <button onClick={() => navigate('patients/new')} className="btn-primary">
+              <Plus className="w-4 h-4" /> New Patient
+            </button>
           </div>
         </div>
 
-        {/* KPI Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <KPICard
-            title="Total Patients"
-            value={stats?.totalPatients || 0}
-            icon={<Users className="w-6 h-6" />}
-            trend={{ value: 12, isPositive: true }}
-            loading={loading}
-          />
-          <KPICard
-            title="Today's Patients"
-            value={stats?.todayPatients || 0}
-            icon={<Activity className="w-6 h-6" />}
-            loading={loading}
-          />
-          <KPICard
-            title="Pending Bills"
-            value={stats?.pendingBills || 0}
-            icon={<Receipt className="w-6 h-6" />}
-            loading={loading}
-          />
-          <KPICard
-            title="Staff Count"
-            value={stats?.staffCount || 0}
-            icon={<UserCog className="w-6 h-6" />}
-            loading={loading}
-          />
+        {/* ── KPI Cards — Row 1 (4 key metrics) ── */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {kpiCards.slice(0, 4).map((card) => (
+            <KPICard key={card.title} loading={loading} {...card} />
+          ))}
         </div>
 
-        {/* Second Row - Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <KPICard
-            title="Pending Tests"
-            value={stats?.pendingTests || 0}
-            icon={<FlaskConical className="w-6 h-6" />}
-            loading={loading}
-          />
-          <KPICard
-            title="Completed Tests"
-            value={stats?.completedTests || 0}
-            icon={<FlaskConical className="w-6 h-6" />}
-            loading={loading}
-          />
-          <KPICard
-            title="Total Revenue"
-            value={`৳${(stats?.totalRevenue || 0).toLocaleString()}`}
-            icon={<TrendingUp className="w-6 h-6" />}
-            trend={{ value: 8, isPositive: true }}
-            loading={loading}
-          />
-          <KPICard
-            title="Low Stock Items"
-            value={stats?.lowStockItems || 0}
-            icon={<AlertCircle className="w-6 h-6" />}
-            loading={loading}
-          />
+        {/* ── KPI Cards — Row 2 (secondary metrics) ── */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {kpiCards.slice(4).map((card) => (
+            <KPICard key={card.title} loading={loading} {...card} />
+          ))}
         </div>
 
-        {/* Quick Actions */}
-        <div className="card p-4">
-          <h3 className="text-lg font-semibold mb-4 text-[var(--color-text-primary)]">Quick Actions</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {/* ── Quick Actions ── */}
+        <div className="card p-5">
+          <h3 className="section-title mb-4">Quick Actions</h3>
+          <div className="flex flex-wrap gap-3">
             {quickActions.map((action) => (
               <button
                 key={action.label}
                 onClick={() => navigate(action.path)}
-                className="flex flex-col items-center gap-2 p-4 rounded-lg border border-[var(--color-border)] hover:border-[var(--color-primary)] hover:bg-[var(--color-primary-light)] transition-all group"
+                className={action.color}
               >
-                <div className={`p-3 rounded-full ${action.color} text-white group-hover:scale-110 transition-transform`}>
-                  {action.icon}
-                </div>
-                <span className="text-sm font-medium text-[var(--color-text-primary)]">{action.label}</span>
+                {action.icon}
+                {action.label}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Charts Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Revenue Chart */}
-          <div className="card p-6 min-h-[350px]">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-[var(--color-text-primary)]">Revenue Overview</h3>
-              <span className="text-sm text-[var(--color-text-muted)]">Last 7 days</span>
+        {/* ── Charts ── */}
+        <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
+
+          {/* Revenue trend — wider */}
+          <div className="card p-6 xl:col-span-3">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="section-title">Revenue Overview</h3>
+              <span className="section-subtitle">Last 7 days</span>
             </div>
-            <div className="h-64 min-h-[256px]">
+            <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={revenueData}>
+                <LineChart data={revenueData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-                  <XAxis dataKey="day" stroke="var(--color-text-muted)" fontSize={12} />
-                  <YAxis stroke="var(--color-text-muted)" fontSize={12} tickFormatter={(value) => `৳${value/1000}k`} />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'var(--color-bg-card)', 
-                      border: '1px solid var(--color-border)',
-                      borderRadius: '8px'
-                    }}
-                    formatter={(value) => [`৳${Number(value || 0).toLocaleString()}`, 'Revenue']}
+                  <XAxis dataKey="day" stroke="var(--color-text-muted)" fontSize={12} tickLine={false} axisLine={false} />
+                  <YAxis stroke="var(--color-text-muted)" fontSize={12} tickLine={false} axisLine={false}
+                    tickFormatter={(v) => `৳${v / 1000}k`} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)', borderRadius: '10px', fontSize: '13px' }}
+                    formatter={(v) => [`৳${Number(v).toLocaleString()}`, 'Revenue']}
                   />
-                  <Line 
-                    type="monotone" 
-                    dataKey="revenue" 
-                    stroke="var(--color-primary)" 
-                    strokeWidth={3}
-                    dot={{ fill: 'var(--color-primary)', strokeWidth: 2 }}
-                    activeDot={{ r: 6 }}
-                  />
+                  <Line type="monotone" dataKey="revenue" stroke="var(--color-primary)" strokeWidth={2.5}
+                    dot={{ fill: 'var(--color-primary)', r: 3 }} activeDot={{ r: 5 }} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
           </div>
 
-          {/* Tests Chart */}
-          <div className="card p-6 min-h-[350px]">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-[var(--color-text-primary)]">Lab Tests</h3>
-              <span className="text-sm text-[var(--color-text-muted)]">This week</span>
+          {/* Lab Tests — narrower */}
+          <div className="card p-6 xl:col-span-2">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="section-title">Lab Tests</h3>
+              <span className="section-subtitle">This week</span>
             </div>
-            <div className="h-64 min-h-[256px]">
+            <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={[
-                  { name: 'Pending', value: stats?.pendingTests || 0, color: '#f59e0b' },
-                  { name: 'Completed', value: stats?.completedTests || 0, color: '#10b981' },
-                ]}>
+                <BarChart
+                  data={[
+                    { name: 'Pending',   value: stats?.pendingTests   ?? 0 },
+                    { name: 'Completed', value: stats?.completedTests ?? 0 },
+                  ]}
+                  margin={{ top: 4, right: 4, bottom: 0, left: 0 }}
+                >
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-                  <XAxis dataKey="name" stroke="var(--color-text-muted)" fontSize={12} />
-                  <YAxis stroke="var(--color-text-muted)" fontSize={12} />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'var(--color-bg-card)', 
-                      border: '1px solid var(--color-border)',
-                      borderRadius: '8px'
-                    }}
+                  <XAxis dataKey="name" stroke="var(--color-text-muted)" fontSize={12} tickLine={false} axisLine={false} />
+                  <YAxis stroke="var(--color-text-muted)" fontSize={12} tickLine={false} axisLine={false} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: 'var(--color-bg-card)', border: '1px solid var(--color-border)', borderRadius: '10px', fontSize: '13px' }}
                   />
-                  <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                    {[
-                      { name: 'Pending', value: stats?.pendingTests || 0, color: '#f59e0b' },
-                      { name: 'Completed', value: stats?.completedTests || 0, color: '#10b981' },
-                    ].map((entry, index) => (
-                      <rect key={`bar-${index}`} fill={entry.color} />
-                    ))}
+                  <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                    <Cell fill="#d97706" />
+                    <Cell fill="#059669" />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -251,63 +260,65 @@ export default function HospitalAdminDashboard({ role = 'hospital_admin' }: { ro
           </div>
         </div>
 
-        {/* Recent Patients */}
+        {/* ── Recent Patients ── */}
         <div className="card overflow-hidden">
-          <div className="flex items-center justify-between p-4 border-b border-[var(--color-border)]">
-            <h3 className="text-lg font-semibold text-[var(--color-text-primary)]">Recent Patients</h3>
-            <button 
-              onClick={() => navigate('/hospital_admin/patients')}
-              className="text-sm text-[var(--color-primary)] hover:underline"
-            >
-              View All
+          <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)]">
+            <h3 className="section-title">Recent Patients</h3>
+            <button onClick={() => navigate('patients')} className="text-sm text-[var(--color-primary)] hover:underline font-medium">
+              View All →
             </button>
           </div>
-          <table className="table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Name</th>
-                <th>Mobile</th>
-                <th>Registered</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                [...Array(5)].map((_, i) => (
-                  <tr key={i}>
-                    <td colSpan={5} className="p-4">
-                      <div className="h-4 bg-[var(--color-border)] rounded animate-pulse"></div>
-                    </td>
-                  </tr>
-                ))
-              ) : recentPatients.length === 0 ? (
+          <div className="overflow-x-auto">
+            <table className="table-base">
+              <thead>
                 <tr>
-                  <td colSpan={5} className="p-8 text-center text-[var(--color-text-muted)]">
-                    No patients found
-                  </td>
+                  <th>Patient ID</th>
+                  <th>Name</th>
+                  <th>Mobile</th>
+                  <th>Registered</th>
+                  <th>Action</th>
                 </tr>
-              ) : (
-                recentPatients.map((patient) => (
-                  <tr key={patient.id}>
-                    <td>#{patient.id}</td>
-                    <td className="font-medium">{patient.name}</td>
-                    <td>{patient.mobile}</td>
-                    <td>{new Date(patient.created_at).toLocaleDateString()}</td>
-                    <td>
-                      <button 
-                        onClick={() => navigate(`/hospital_admin/patients/${patient.id}`)}
-                        className="text-[var(--color-primary)] hover:underline"
-                      >
-                        View
-                      </button>
+              </thead>
+              <tbody>
+                {loading ? (
+                  [...Array(5)].map((_, i) => (
+                    <tr key={i}>
+                      {[...Array(5)].map((_, j) => (
+                        <td key={j}><div className="skeleton h-4 w-full" /></td>
+                      ))}
+                    </tr>
+                  ))
+                ) : recentPatients.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-10 text-center text-[var(--color-text-muted)]">
+                      No patients found
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  recentPatients.map((p) => (
+                    <tr key={p.id} onClick={() => navigate(`patients/${p.id}`)}>
+                      <td className="font-data text-sm">#{p.id}</td>
+                      <td className="font-medium">{p.name}</td>
+                      <td className="font-data text-sm text-[var(--color-text-secondary)]">{p.mobile}</td>
+                      <td className="text-[var(--color-text-muted)] text-sm">
+                        {new Date(p.created_at).toLocaleDateString('en-GB')}
+                      </td>
+                      <td>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); navigate(`patients/${p.id}`); }}
+                          className="text-[var(--color-primary)] text-sm font-medium hover:underline"
+                        >
+                          View
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
+
       </div>
     </DashboardLayout>
   );

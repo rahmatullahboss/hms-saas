@@ -22,19 +22,12 @@ export default function DashboardLayout({ children, role }: DashboardLayoutProps
   const navigate = useNavigate();
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token   = localStorage.getItem('token');
     const userStr = localStorage.getItem('user');
-    if (!token) {
-      navigate('/login');
-      return;
-    }
+    if (!token) { navigate('/login'); return; }
     if (userStr) {
-      try {
-        const userData = JSON.parse(userStr);
-        setUser(userData);
-      } catch {
-        setUser({ id: '1', name: 'User', email: 'user@hms.com', role });
-      }
+      try { setUser(JSON.parse(userStr)); }
+      catch { setUser({ id: '1', name: 'User', email: 'user@hms.com', role }); }
     } else {
       setUser({ id: '1', name: 'User', email: 'user@hms.com', role });
     }
@@ -44,21 +37,22 @@ export default function DashboardLayout({ children, role }: DashboardLayoutProps
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     localStorage.removeItem('tenant');
-    toast.success('Logged out');
+    toast.success('Signed out');
     navigate('/login');
   };
 
   return (
     <div className="min-h-screen bg-[var(--color-bg-primary)]">
-      <div className="flex">
+      <div className="flex h-screen overflow-hidden">
         <Sidebar role={role} onLogout={handleLogout} />
-        <div className="flex-1 flex flex-col min-h-screen">
-          <Header 
-            userName={user?.name || 'User'}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          <Header
+            userName={user?.name ?? 'User'}
             userEmail={user?.email}
+            userRole={user?.role ?? role}
             onLogout={handleLogout}
           />
-          <main className="flex-1 p-6 overflow-auto">
+          <main className="flex-1 overflow-y-auto p-6">
             {children}
           </main>
         </div>
