@@ -36,11 +36,6 @@ interface RevenueData {
   revenue: number;
 }
 
-const STATUS_COLORS = {
-  Completed:   { bg: 'bg-emerald-50 text-emerald-700', dot: '#059669' },
-  Pending:     { bg: 'bg-amber-50 text-amber-700',     dot: '#d97706' },
-  'In Progress':{ bg: 'bg-blue-50 text-blue-700',      dot: '#2563eb' },
-};
 
 export default function HospitalAdminDashboard({ role = 'hospital_admin' }: { role?: string }) {
   const [stats,          setStats]          = useState<DashboardStats | null>(null);

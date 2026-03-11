@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router';
+import { PWAUpdatePrompt } from './components/PWAUpdatePrompt';
 import { Toaster } from 'react-hot-toast';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import Login from './pages/Login';
@@ -46,6 +47,7 @@ function App() {
   return (
     <>
       <Toaster position="top-right" />
+      <PWAUpdatePrompt />
       <Routes>
         {/* ─── Public: Landing / Marketing ─────────────────────────── */}
         <Route path="/" element={<Navigate to="/signup" replace />} />

@@ -140,11 +140,12 @@
 
   /* Input */
   .input {
-    @apply w-full px-3.5 py-2.5 border border-[var(--color-border)] rounded-lg 
+    @apply w-full px-3.5 py-2.5 border border-[var(--color-border)] rounded-lg
            bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] text-sm
            placeholder:text-[var(--color-text-muted)]
-           focus:ring-2 focus:ring-[var(--color-primary)]/30 focus:border-[var(--color-primary)]
+           focus:outline-none focus:ring-2 focus:border-[var(--color-primary)]
            transition-all duration-150;
+    --tw-ring-color: rgb(8 145 178 / 0.25);
   }
 
   /* Label */
@@ -167,19 +168,28 @@
     @apply transition-colors duration-100 cursor-pointer;
   }
   .table-base tbody tr:hover {
-    @apply bg-[var(--color-primary-light)]/40;
+    background-color: rgb(207 250 254 / 0.5);
+  }
+  .dark .table-base tbody tr:hover {
+    background-color: rgb(22 78 99 / 0.3);
   }
 
   /* Badges */
   .badge {
     @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium;
   }
-  .badge-success {   @apply badge bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400; }
-  .badge-warning {   @apply badge bg-amber-50   text-amber-700   dark:bg-amber-900/30   dark:text-amber-400; }
-  .badge-danger  {   @apply badge bg-red-50     text-red-700     dark:bg-red-900/30     dark:text-red-400; }
-  .badge-info    {   @apply badge bg-blue-50    text-blue-700    dark:bg-blue-900/30    dark:text-blue-400; }
-  .badge-primary {   @apply badge bg-[var(--color-primary-light)] text-[var(--color-primary-dark)]; }
-  .badge-neutral {   @apply badge bg-slate-100  text-slate-600   dark:bg-slate-800      dark:text-slate-400; }
+  .badge-success { @apply badge bg-emerald-50 text-emerald-700; }
+  .badge-warning { @apply badge bg-amber-50   text-amber-700; }
+  .badge-danger  { @apply badge bg-red-50     text-red-700; }
+  .badge-info    { @apply badge bg-blue-50    text-blue-700; }
+  .badge-primary { @apply badge; background-color: var(--color-primary-light); color: var(--color-primary-dark); }
+  .badge-neutral { @apply badge bg-slate-100  text-slate-600; }
+
+  .dark .badge-success { @apply bg-emerald-900 text-emerald-400; }
+  .dark .badge-warning { @apply bg-amber-900   text-amber-400; }
+  .dark .badge-danger  { @apply bg-red-900     text-red-400; }
+  .dark .badge-info    { @apply bg-blue-900    text-blue-400; }
+  .dark .badge-neutral { @apply bg-slate-800   text-slate-400; }
 
   /* Skeleton */
   .skeleton {
