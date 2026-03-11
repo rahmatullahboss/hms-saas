@@ -39,10 +39,12 @@ async function request(method: string, path: string, body?: any) {
 // is setting JWT_SECRET in env and signing a token.
 import * as jwt from 'jsonwebtoken';
 
-function getAuthHeaders(tenantId: number, userId: number = 1) {
+const TEST_JWT_SECRET = 'test-secret-for-vitest';
+
+function getAuthHeaders(tenantId: number, userId: number = 1, role = 'admin') {
   const token = jwt.sign(
-    { sub: userId.toString(), tenantId },
-    env.JWT_SECRET || 'test-secret', // Assuming JWT_SECRET is test-secret or fallback
+    { userId: userId.toString(), tenantId: String(tenantId), role, permissions: [] },
+    TEST_JWT_SECRET,
     { expiresIn: '1h' }
   );
   return {
@@ -213,7 +215,7 @@ describe('Billing API Tests', () => {
       const billId = data.billId;
 
       // Try to pay the bill as Tenant 2
-      const token = jwt.sign({ sub: '1', tenantId: 2 }, env.JWT_SECRET || 'test-secret', { expiresIn: '1h' });
+      const token = jwt.sign({ userId: '1', tenantId: '2', role: 'admin', permissions: [] }, TEST_JWT_SECRET, { expiresIn: '1h' });
       
       const req = new Request(`http://localhost/api/billing/pay`, {
         method: 'POST',
