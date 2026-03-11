@@ -34,6 +34,7 @@ import registerRoutes from './routes/register';
 import publicInviteRoutes from './routes/public-invite';
 import invitationRoutes from './routes/tenant/invitations';
 import notificationRoutes from './routes/tenant/notifications';
+import pdfRoutes from './routes/tenant/pdf';
 
 import type { Env } from './types';
 
@@ -136,6 +137,7 @@ app.route('/api/lab', labRoutes);
 app.route('/api/commissions', commissionRoutes);
 app.route('/api/invitations', invitationRoutes);
 app.route('/api/notifications', notificationRoutes);
+app.route('/api/pdf', pdfRoutes);
 
 
 // ─── Not Found handler ──────────────────────────────────────────────
