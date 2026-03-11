@@ -113,31 +113,33 @@ billingRoutes.post('/', zValidator('json', createBillSchema), async (c) => {
     const total = Math.max(0, subtotal - discount);
 
     const invoiceNo = await getNextSequence(c.env.DB, tenantId!, 'invoice', 'INV');
+    const today = new Date().toISOString().split('T')[0];
 
-    const billResult = await c.env.DB.prepare(`
+    // ─── Atomic batch: bill + items + income all succeed or all fail ──────
+    const billStatement = c.env.DB.prepare(`
       INSERT INTO bills
         (patient_id, visit_id, invoice_no, subtotal, discount, total_amount, paid_amount, status, tenant_id, created_by, created_at)
       VALUES (?, ?, ?, ?, ?, ?, 0, 'open', ?, ?, datetime('now'))
-    `).bind(data.patientId, data.visitId ?? null, invoiceNo, subtotal, discount, total, tenantId, userId).run();
+    `).bind(data.patientId, data.visitId ?? null, invoiceNo, subtotal, discount, total, tenantId, userId);
 
-    const billId = billResult.meta.last_row_id;
-
-    // Insert invoice line items
-    for (const item of data.items) {
+    const itemStatements = data.items.map((item) => {
       const lineTotal = item.quantity * item.unitPrice;
-      await c.env.DB.prepare(`
+      return c.env.DB.prepare(`
         INSERT INTO invoice_items
           (bill_id, item_category, description, quantity, unit_price, line_total, reference_id, tenant_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).bind(billId, item.itemCategory, item.description ?? null, item.quantity, item.unitPrice, lineTotal, item.referenceId ?? null, tenantId).run();
-    }
+        VALUES (last_insert_rowid(), ?, ?, ?, ?, ?, ?, ?)
+      `).bind(item.itemCategory, item.description ?? null, item.quantity, item.unitPrice, lineTotal, item.referenceId ?? null, tenantId);
+    });
 
-    // Record income for accounting (split or flat)
-    await c.env.DB.prepare(`
-      INSERT INTO income (date, source, amount, description, ref_id, tenant_id) VALUES (?, ?, ?, ?, ?, ?)
-    `).bind(new Date().toISOString().split('T')[0], 'billing', total, `Invoice ${invoiceNo}`, billId, tenantId).run();
+    const incomeStatement = c.env.DB.prepare(`
+      INSERT INTO income (date, source, amount, description, ref_id, tenant_id) VALUES (?, 'billing', ?, ?, last_insert_rowid(), ?)
+    `).bind(today, total, `Invoice ${invoiceNo}`, tenantId);
 
-    // Audit log
+    // Execute all statements atomically
+    const batchResults = await c.env.DB.batch([billStatement, ...itemStatements, incomeStatement]);
+    const billId = batchResults[0].meta.last_row_id;
+
+    // Audit log (fire-and-forget — non-critical path)
     void createAuditLog(c.env, tenantId!, userId!, 'create', 'bills', billId, null, { patientId: data.patientId, invoiceNo, total });
 
     return c.json({ message: 'Bill created', billId, invoiceNo, total }, 201);
@@ -146,6 +148,7 @@ billingRoutes.post('/', zValidator('json', createBillSchema), async (c) => {
     throw new HTTPException(500, { message: 'Failed to create bill' });
   }
 });
+
 
 // POST /api/billing/pay — collect payment on a bill
 billingRoutes.post('/pay', zValidator('json', paymentSchema), async (c) => {

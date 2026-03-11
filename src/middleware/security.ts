@@ -51,4 +51,19 @@ export async function securityHeaders(c: Context, next: Next) {
   c.res.headers.set('X-XSS-Protection', '1; mode=block');
   c.res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   c.res.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  c.res.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  c.res.headers.set(
+    'Content-Security-Policy',
+    [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline'",  // React needs this; tighten with nonce in future
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob:",
+      "font-src 'self'",
+      "connect-src 'self'",
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+    ].join('; '),
+  );
 }

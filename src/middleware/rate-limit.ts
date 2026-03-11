@@ -11,11 +11,14 @@ export interface RateLimitConfig {
   max?: number;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type KVContext = Context<{ Bindings: any; Variables: any }>;
+
 /**
  * KV-backed rate limiting middleware.
  * Uses Cloudflare KV with TTL for automatic cleanup.
  */
-export async function rateLimitMiddleware(c: Context<{ Bindings: { KV: KVNamespace } }>, next: Next, config?: RateLimitConfig) {
+export async function rateLimitMiddleware(c: KVContext, next: Next, config?: RateLimitConfig) {
   const windowSec = config?.window ?? RATE_LIMIT_WINDOW;
   const max = config?.max ?? MAX_REQUESTS;
   
@@ -78,7 +81,7 @@ export async function rateLimitMiddleware(c: Context<{ Bindings: { KV: KVNamespa
  * KV-backed login rate limiting (stricter).
  * Limits login attempts per IP+email combination.
  */
-export async function loginRateLimit(c: Context<{ Bindings: { KV: KVNamespace } }>, next: Next) {
+export async function loginRateLimit(c: KVContext, next: Next) {
   const ip = c.req.header('CF-Connecting-IP') ?? 'unknown';
   
   // Use IP-only key since we don't have parsed body yet

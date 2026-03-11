@@ -119,7 +119,7 @@ publicInviteRoutes.post('/:token/accept', zValidator('json', acceptSchema), asyn
 
     const userId = userResult.meta.last_row_id;
 
-    const jwtToken = generateToken(
+    const jwtToken = await generateToken(
       {
         userId: String(userId),
         role: invite.role,
@@ -127,8 +127,9 @@ publicInviteRoutes.post('/:token/accept', zValidator('json', acceptSchema), asyn
         permissions: getPermissions(invite.role),
       },
       c.env.JWT_SECRET,
-      '8h'
+      8
     );
+
 
     return c.json({
       message: 'Account created successfully',

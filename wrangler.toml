@@ -1,5 +1,6 @@
 name = "hms-saas"
 main = "src/index.ts"
+account_id = "474078d5f990169d7dadf4e1df83214a"
 compatibility_date = "2026-02-17"
 compatibility_flags = ["nodejs_compat"]
 
@@ -63,11 +64,15 @@ run_worker_first = ["/api/*"]
 [[env.staging.d1_databases]]
 binding = "DB"
 database_name = "hms-super-admin-staging"
-database_id = "f5ec1282-94e9-4574-b49c-19b50c03ed53"
+# Separate staging D1 database — created 2026-03-11
+# This is DIFFERENT from production (f5ec1282-94e9-4574-b49c-19b50c03ed53)
+database_id = "9e72382e-0d73-49da-90c8-ad5ff6fc5911"
 
 [[env.staging.kv_namespaces]]
 binding = "KV"
-id = "ed8650b9af6549ecbaf5cc90b187d53b"
+# Dedicated staging KV namespace — created 2026-03-11
+# ISOLATED from production (ed8650b9af6549ecbaf5cc90b187d53b)
+id = "7907d8fc866848e3ba115fbe975a0fde"
 
 [[env.staging.r2_buckets]]
 binding = "UPLOADS"

@@ -4,10 +4,12 @@ export interface Env {
   DB: D1Database;
   KV: KVNamespace;
   UPLOADS: R2Bucket;
-  DASHBOARD_DO: DurableObjectNamespace;
+  // Note: DASHBOARD_DO was removed — Durable Object not yet registered in wrangler.toml
+  // Add it back when the DO class is implemented and the binding is configured.
   ENVIRONMENT: string;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function notifyDashboard(
   env: Env,
   tenantId: string,
@@ -16,23 +18,11 @@ export async function notifyDashboard(
   isToday: boolean = true,
   isMTD: boolean = true
 ): Promise<void> {
-  // Fire-and-forget: dashboard notification failures must never break the main flow
-  try {
-    const doId = env.DASHBOARD_DO.idFromName(tenantId);
-    const doStub = env.DASHBOARD_DO.get(doId) as DurableObjectStub & {
-      updateIncome?: (amount: number, isToday: boolean, isMTD: boolean) => Promise<void>;
-      updateExpense?: (amount: number, isToday: boolean, isMTD: boolean) => Promise<void>;
-    };
-
-    if (type === 'income' && doStub.updateIncome) {
-      await doStub.updateIncome(amount, isToday, isMTD);
-    } else if (type === 'expense' && doStub.updateExpense) {
-      await doStub.updateExpense(amount, isToday, isMTD);
-    }
-  } catch (error) {
-    console.error('Error notifying dashboard:', error);
-  }
+  // DASHBOARD_DO binding is not yet configured — this is a future feature.
+  // Will be implemented when a DurableObject class is created and registered.
 }
+
+
 
 export async function createAuditLog(
   env: Env,

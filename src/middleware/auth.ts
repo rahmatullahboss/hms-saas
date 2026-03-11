@@ -1,8 +1,8 @@
 import type { MiddlewareHandler } from 'hono';
-import jwt from 'jsonwebtoken';
+import { verify, sign } from 'hono/jwt';
 import type { Env, Variables } from '../types';
 
-interface JWTPayload {
+export interface JWTPayload {
   userId: string;
   role: string;
   tenantId?: string;
@@ -46,7 +46,8 @@ export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
       // KV not available in local dev — skip blacklist check
     }
 
-    const decoded = jwt.verify(token, secret) as JWTPayload;
+    // Use hono/jwt verify — fully edge-runtime compatible (no Node.js crypto)
+    const decoded = (await verify(token, secret, 'HS256')) as unknown as JWTPayload;
 
     c.set('userId', decoded.userId);
     c.set('role', decoded.role);
@@ -56,29 +57,43 @@ export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
 
     await next();
   } catch (error) {
-    if (error instanceof jwt.JsonWebTokenError && error.name === 'TokenExpiredError') {
+    const message = error instanceof Error ? error.message : '';
+    if (message.includes('expired')) {
       return c.json({ error: 'Token has expired' }, 401);
     }
-    if (error instanceof jwt.JsonWebTokenError) {
-      return c.json({ error: 'Invalid token' }, 401);
-    }
-    return c.json({ error: 'Authentication failed' }, 401);
+    return c.json({ error: 'Invalid token' }, 401);
   }
 };
 
 /**
- * Generate a JWT token.
+ * Generate a JWT token using hono/jwt (edge-runtime compatible).
  * Pass `c.env.JWT_SECRET` as the `secret` argument.
+ * Returns a Promise — callers must await.
  */
-export function generateToken(payload: JWTPayload, secret: string, expiresIn = '8h'): string {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return jwt.sign(payload, secret, { expiresIn } as any);
+export async function generateToken(
+  payload: JWTPayload,
+  secret: string,
+  expiresInHours = 8
+): Promise<string> {
+  const now = Math.floor(Date.now() / 1000);
+  return sign(
+    {
+      ...payload,
+      iat: now,
+      exp: now + expiresInHours * 3600,
+    } as Record<string, unknown>,
+    secret
+  );
 }
 
 /**
  * Blacklist a token in KV so it cannot be used again.
  * @param ttl remaining validity in seconds
  */
-export async function blacklistToken(token: string, kv: KVNamespace, ttl = 86400): Promise<void> {
+export async function blacklistToken(
+  token: string,
+  kv: KVNamespace,
+  ttl = 86400
+): Promise<void> {
   await kv.put(`blacklist:${token}`, '1', { expirationTtl: ttl });
 }

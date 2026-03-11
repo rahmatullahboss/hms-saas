@@ -65,7 +65,7 @@ registerRoutes.post('/', zValidator('json', registerSchema), async (c) => {
     const userId = userResult.meta.last_row_id;
 
     // Auto-login: generate JWT
-    const token = generateToken(
+    const token = await generateToken(
       {
         userId: String(userId),
         role: 'hospital_admin',
@@ -80,7 +80,7 @@ registerRoutes.post('/', zValidator('json', registerSchema), async (c) => {
         ],
       },
       c.env.JWT_SECRET,
-      '8h'
+      8
     );
 
     return c.json({

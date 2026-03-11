@@ -7,9 +7,17 @@ const seedRoutes = new Hono<{
   };
 }>();
 
+
+// ⚠️  SAFETY: seed routes are guarded by TWO checks:
+//   1. Runtime: ENVIRONMENT must equal 'development'
+//   2. Compile-time: ALLOW_SEED must be true (set this only in local dev builds)
+// Never set ALLOW_SEED = true in production code.
+const ALLOW_SEED = true; // <── flip to `false` before ANY production build
+
+
+
 seedRoutes.post('/dev', async (c) => {
-  const env = c.env.ENVIRONMENT;
-  if (env !== 'development') {
+  if (!ALLOW_SEED || c.env.ENVIRONMENT !== 'development') {
     return c.json({ error: 'Seed only works in development' }, 403);
   }
 
@@ -111,17 +119,10 @@ seedRoutes.post('/dev', async (c) => {
       ).bind(setting.key, setting.value, 1).run();
     }
 
-    return c.json({ 
+    return c.json({
       message: 'Seed data created successfully!',
-      users: {
-        superAdmin: { email: 'admin@hms.com', password: 'admin123' },
-        hospital: { email: 'hospital@general.com', password: 'hospital123' },
-        lab: { email: 'lab@general.com', password: 'hospital123' },
-        reception: { email: 'reception@general.com', password: 'hospital123' },
-        md: { email: 'md@general.com', password: 'hospital123' },
-        director: { email: 'director@general.com', password: 'hospital123' },
-      },
-      hospital: 'general.yourdomain.com'
+      hospital: 'general.yourdomain.com',
+      // Credentials NOT returned in response for security — check seed code for defaults
     });
   } catch (error) {
     console.error('Seed error:', error);
@@ -130,8 +131,7 @@ seedRoutes.post('/dev', async (c) => {
 });
 
 seedRoutes.post('/accounting', async (c) => {
-  const env = c.env.ENVIRONMENT;
-  if (env !== 'development') {
+  if (!ALLOW_SEED || c.env.ENVIRONMENT !== 'development') {
     return c.json({ error: 'Seed only works in development' }, 403);
   }
 

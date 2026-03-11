@@ -3,6 +3,7 @@ import { logger } from 'hono/logger';
 import { securityHeaders } from './middleware/security';
 import { tenantMiddleware } from './middleware/tenant';
 import { authMiddleware } from './middleware/auth';
+import { rateLimitMiddleware, loginRateLimit } from './middleware/rate-limit';
 import adminRoutes from './routes/admin';
 import authRoutes from './routes/tenant/auth';
 import patientRoutes from './routes/tenant/patients';
@@ -75,6 +76,8 @@ app.route('/api/seed', seedRoutes);
 app.route('/api/init', initRoutes);
 
 // ─── Public: Hospital self-signup ──────────────────────────────────────
+// Rate limit: max 10 registrations per IP per hour
+app.use('/api/register', (c, next) => rateLimitMiddleware(c, next, { window: 3600, max: 10 }));
 app.route('/api/register', registerRoutes);
 
 // ─── Public: Invitation validation + acceptance (no auth needed) ────────
@@ -83,7 +86,8 @@ app.route('/api/register', registerRoutes);
 app.route('/api/invite', publicInviteRoutes);
 
 // ─── Admin routes ─────────────────────────────────────────────────────
-// Admin login is public (no auth needed)
+// Admin login is public but rate-limited
+app.use('/api/admin/login', loginRateLimit);
 app.use('/api/admin/*', async (c, next) => {
   const path = c.req.path;
   // Allow login without auth
@@ -98,6 +102,8 @@ app.route('/api/admin', adminRoutes);
 
 // ─── Tenant auth routes ──────────────────────────────────────────────
 // Login and logout are public; register requires authentication
+// Rate limit login: 5 attempts per IP per 15 minutes
+app.use('/api/auth/login', loginRateLimit);
 app.use('/api/auth/*', tenantMiddleware);
 app.use('/api/auth/register', authMiddleware);
 app.route('/api/auth', authRoutes);

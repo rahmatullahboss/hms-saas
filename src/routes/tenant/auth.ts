@@ -55,7 +55,7 @@ tenantAuthRoutes.post('/login', zValidator('json', loginSchema), async (c) => {
       return c.json({ error: 'Invalid credentials' }, 401);
     }
 
-    const token = generateToken(
+    const token = await generateToken(
       {
         userId: user.id,
         role: user.role,
@@ -63,7 +63,7 @@ tenantAuthRoutes.post('/login', zValidator('json', loginSchema), async (c) => {
         permissions: getPermissions(user.role),
       },
       c.env.JWT_SECRET,
-      '8h'
+      8
     );
 
     return c.json({

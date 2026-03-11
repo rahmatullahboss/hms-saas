@@ -41,11 +41,12 @@ authRoutes.post('/login', async (c) => {
     }
     
     // Generate token
-    const token = generateToken({
+    const token = await generateToken({
       userId: user.id,
       role: user.role,
       permissions: getPermissions(user.role),
-    }, c.env.JWT_SECRET, '24h');
+    }, c.env.JWT_SECRET, 24);
+
     
     return c.json({
       token,

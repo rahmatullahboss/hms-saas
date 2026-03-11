@@ -46,12 +46,13 @@ adminRoutes.post('/login', async (c) => {
     }
     
     // Generate token (no tenant for super admin)
-    const token = generateToken({
+    const token = await generateToken({
       userId: user.id,
       role: user.role,
       tenantId: user.tenant_id?.toString() || undefined,
       permissions: ['*'],
-    }, c.env.JWT_SECRET, '8h');
+    }, c.env.JWT_SECRET, 8);
+
     
     return c.json({
       token,
