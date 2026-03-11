@@ -1,7 +1,14 @@
+import { createSmsProvider, SmsTemplates } from './lib/sms';
+import { sendEmail, EmailTemplates } from './lib/email';
+
 export default {
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
     if (event.cron === '0 0 * * *') {
-      await processRecurringExpenses(env);
+      // Run both daily jobs concurrently
+      await Promise.allSettled([
+        processRecurringExpenses(env),
+        checkMedicineExpiry(env),
+      ]);
     }
   }
 };
@@ -102,11 +109,114 @@ function computeNextRunDate(currentDate: string, frequency: string): string {
   return d.toISOString().split('T')[0];
 }
 
-// ─── Local Env interface (DASHBOARD_DO removed) ───────────────────────────────
+/**
+ * Daily medicine expiry alert job.
+ * Queries all pharmacy stock items expiring within 30 days,
+ * groups them by tenant, and notifies the hospital admin via email + SMS.
+ */
+async function checkMedicineExpiry(env: Env): Promise<void> {
+  console.log('Running medicine expiry check...');
+
+  try {
+    const tenants = await env.DB.prepare(
+      'SELECT id, name FROM tenants WHERE status = ?'
+    ).bind('active').all<{ id: number; name: string }>();
+
+    const today = new Date();
+    const threshold = new Date();
+    threshold.setDate(today.getDate() + 30);
+    const thresholdDate = threshold.toISOString().split('T')[0];
+    const todayDate = today.toISOString().split('T')[0];
+
+    for (const tenant of tenants.results) {
+      const tenantId = tenant.id.toString();
+
+      // Find medicines expiring within the next 30 days
+      const expiring = await env.DB.prepare(`
+        SELECT
+          p.name,
+          ps.expiry_date,
+          ps.quantity as stock,
+          ps.batch_no
+        FROM pharmacy_stock ps
+        JOIN pharmacy p ON ps.medicine_id = p.id
+        WHERE ps.tenant_id = ?
+          AND ps.expiry_date IS NOT NULL
+          AND ps.expiry_date >= ?
+          AND ps.expiry_date <= ?
+          AND ps.quantity > 0
+        ORDER BY ps.expiry_date ASC
+      `).bind(tenantId, todayDate, thresholdDate).all<{
+        name: string;
+        expiry_date: string;
+        stock: number;
+        batch_no: string;
+      }>();
+
+      if (expiring.results.length === 0) continue;
+
+      // Get admin contact info
+      const admin = await env.DB.prepare(`
+        SELECT u.email, u.name, u.mobile
+        FROM users u
+        WHERE u.tenant_id = ? AND u.role = 'hospital_admin'
+        ORDER BY u.id ASC LIMIT 1
+      `).bind(tenantId).first<{ email: string; name: string; mobile?: string }>();
+
+      if (!admin) {
+        console.warn(`No admin found for tenant ${tenantId} — skipping expiry alert`);
+        continue;
+      }
+
+      const medicines = expiring.results.map(m => ({
+        name: m.name,
+        expiryDate: m.expiry_date,
+        stock: m.stock,
+        batchNo: m.batch_no || '—',
+      }));
+
+      // ─── Email alert ─────────────────────────────────────────────────
+      const template = EmailTemplates.medicineExpiryAlert({
+        medicines,
+        hospitalName: tenant.name,
+      });
+      const emailResult = await sendEmail(env, { to: admin.email, ...template });
+      if (emailResult.success) {
+        console.log(`Expiry alert email sent to admin of tenant ${tenantId} (${expiring.results.length} items)`);
+      } else {
+        console.error(`Failed to send expiry email for tenant ${tenantId}:`, emailResult.error);
+      }
+
+      // ─── SMS alert (if admin has mobile) ─────────────────────────────
+      if (admin.mobile) {
+        const sms = createSmsProvider(env);
+        const message = SmsTemplates.medicineExpiry(
+          medicines[0].name,
+          medicines[0].expiryDate,
+          medicines[0].stock
+        ) + (medicines.length > 1 ? ` (+${medicines.length - 1} more)` : '');
+        await sms.sendSMS(admin.mobile, message);
+      }
+    }
+
+    console.log('Medicine expiry check completed');
+  } catch (error) {
+    console.error('Error in medicine expiry check:', error);
+  }
+}
+
+// ─── Local Env interface ──────────────────────────────────────────────────────
 interface Env {
   DB: D1Database;
   KV: KVNamespace;
   UPLOADS: R2Bucket;
   ENVIRONMENT: string;
   JWT_SECRET: string;
+  // Email
+  RESEND_API_KEY?: string;
+  RESEND_FROM_EMAIL?: string;
+  // SMS
+  SMS_PROVIDER?: string;
+  SMS_API_KEY?: string;
+  SMS_SENDER_ID?: string;
 }
