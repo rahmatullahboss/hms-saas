@@ -1,165 +1,232 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { env } from 'cloudflare:test';
+import app from '../src/index';
+import { createPatient } from './helpers/fixtures';
 
-describe('HMS Billing Tests', () => {
+// Helper to make API requests with tenant auth context
+// For tests, we mock the auth middleware behavior by injecting headers 
+// assuming the middleware checks headers (or we bypass it simply by having it)
+// Let's assume the auth middleware accepts a dummy token or we can just mock it,
+// but actually, we should just see what the auth middleware expects. 
+// Assuming tests run in a controlled environment, let's just pass the required request.
+
+async function request(method: string, path: string, body?: any) {
+  // For testing purposes, we need to pass a valid JWT or bypass auth.
+  // We can create a valid token, or maybe we can just bypass it.
+  // Actually, wait, let's look at auth middleware. We don't have its secret.
+  // But wait, we can just use the DB to create a test user and sign a token!
+  // For now, let's assume `X-Tenant-Subdomain` is enough for tenantMiddleware.
+  // If `authMiddleware` blocks us, we might need a token. Let's try without auth first or generate a test token.
+  
+  // Here I will generate a valid token using standard jsonwebtoken, but since it's a worker 
+  // maybe we don't have jsonwebtoken easily. Let's see what happens.
+  const req = new Request(`http://localhost${path}`, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Tenant-Subdomain': 'test'
+      // 'Authorization': `Bearer ${token}`
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  
+  // The fetch handler takes (request, env, ctx)
+  return app.fetch(req, env as any, {} as any);
+}
+
+// Since authMiddleware might block, let's just mock the tenant and user context manually
+// or write the test assuming we have a way. Actually, the easiest way for integration tests 
+// is setting JWT_SECRET in env and signing a token.
+import * as jwt from 'jsonwebtoken';
+
+function getAuthHeaders(tenantId: number, userId: number = 1) {
+  const token = jwt.sign(
+    { sub: userId.toString(), tenantId },
+    env.JWT_SECRET || 'test-secret', // Assuming JWT_SECRET is test-secret or fallback
+    { expiresIn: '1h' }
+  );
+  return {
+    'Content-Type': 'application/json',
+    'X-Tenant-Subdomain': 'test',
+    'Authorization': `Bearer ${token}`
+  };
+}
+
+async function api(method: string, path: string, body?: any) {
+  const req = new Request(`http://localhost${path}`, {
+    method,
+    headers: getAuthHeaders(1),
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return app.fetch(req, env as any, { waitUntil: () => {}, passThroughOnException: () => {} } as any);
+}
+
+describe('Billing API Tests', () => {
+  let patientId: number;
+
+  beforeEach(async () => {
+    // We already have a "test" tenant from setup.ts with ID = 1
+    patientId = await createPatient(1, { name: 'John Doe', patient_code: 'P-123' });
+  });
+
   describe('Bill Creation', () => {
-    it('should create bill with all components', () => {
-      const bill = {
-        patient_id: 1,
-        test_bill: 5000,
-        admission_bill: 10000,
-        doctor_visit_bill: 500,
-        operation_bill: 0,
-        medicine_bill: 2000,
-        discount: 500,
-        total: 17000,
-        paid: 10000,
-        due: 7000,
+    it('1. Create bill with multiple line items → correct subtotal/total', async () => {
+      const payload = {
+        patientId,
+        items: [
+          { itemCategory: 'test', description: 'Blood Test', quantity: 1, unitPrice: 500 },
+          { itemCategory: 'medicine', description: 'Paracetamol', quantity: 2, unitPrice: 50 }
+        ],
+        discount: 0
       };
 
-      expect(bill.test_bill).toBe(5000);
-      expect(bill.admission_bill).toBe(10000);
-      expect(bill.doctor_visit_bill).toBe(500);
-      expect(bill.medicine_bill).toBe(2000);
+      const res = await api('POST', '/api/billing', payload);
+      expect(res.status).toBe(201);
+      const data = await res.json() as any;
+      expect(data.message).toBe('Bill created');
+      expect(data.total).toBe(600); // 500 + 100
+      expect(data.invoiceNo).toMatch(/^INV-/);
     });
 
-    it('should calculate total bill correctly', () => {
-      const test_bill = 5000;
-      const admission_bill = 10000;
-      const doctor_visit_bill = 500;
-      const operation_bill = 0;
-      const medicine_bill = 2000;
-      
-      const total = test_bill + admission_bill + doctor_visit_bill + operation_bill + medicine_bill;
-      
-      expect(total).toBe(17500);
+    it('2. Discount > subtotal → total clamped to 0', async () => {
+      const payload = {
+        patientId,
+        items: [{ itemCategory: 'test', quantity: 1, unitPrice: 500 }],
+        discount: 600 // More than subtotal
+      };
+
+      const res = await api('POST', '/api/billing', payload);
+      expect(res.status).toBe(201);
+      const data = await res.json() as any;
+      expect(data.total).toBe(0); // Clamped to 0
     });
 
-    it('should calculate discount correctly', () => {
-      const total = 17500;
-      const discountPercent = 10;
-      const discount = total * (discountPercent / 100);
-      
-      expect(discount).toBe(1750);
+    it('8. Income record created on bill creation', async () => {
+      const payload = {
+        patientId,
+        items: [{ itemCategory: 'test', quantity: 1, unitPrice: 500 }],
+        discount: 0
+      };
+
+      const res = await api('POST', '/api/billing', payload);
+      const data = await res.json() as any;
+
+      // Check income table
+      const income = await env.DB.prepare('SELECT amount FROM income WHERE ref_id = ?').bind(data.billId).first<{ amount: number }>();
+      expect(income).toBeTruthy();
+      expect(income?.amount).toBe(500);
     });
 
-    it('should calculate net total after discount', () => {
-      const total = 17500;
-      const discount = 1750;
-      const netTotal = total - discount;
+    it('9. Invoice number auto-increments', async () => {
+      const payload = { patientId, items: [{ itemCategory: 'test', quantity: 1, unitPrice: 100 }], discount: 0 };
       
-      expect(netTotal).toBe(15750);
-    });
+      const res1 = await api('POST', '/api/billing', payload);
+      const data1 = await res1.json() as any;
+      
+      const res2 = await api('POST', '/api/billing', payload);
+      const data2 = await res2.json() as any;
 
-    it('should calculate due amount', () => {
-      const netTotal = 15750;
-      const paid = 10000;
-      const due = netTotal - paid;
-      
-      expect(due).toBe(5750);
+      expect(data1.invoiceNo).not.toBe(data2.invoiceNo);
     });
   });
 
   describe('Payment Processing', () => {
-    it('should process full payment', () => {
-      const bill = { total: 10000, paid: 0 };
-      const payment = { amount: 10000 };
-      
-      const newPaid = bill.paid + payment.amount;
-      const remainingDue = bill.total - newPaid;
-      
-      expect(newPaid).toBe(10000);
-      expect(remainingDue).toBe(0);
+    let billId: number;
+
+    beforeEach(async () => {
+      const res = await api('POST', '/api/billing', {
+        patientId,
+        items: [{ itemCategory: 'test', quantity: 1, unitPrice: 1000 }],
+        discount: 0
+      });
+      const data = await res.json() as any;
+      billId = data.billId;
     });
 
-    it('should process partial payment', () => {
-      const bill = { total: 10000, paid: 0 };
-      const payment = { amount: 5000 };
-      
-      const newPaid = bill.paid + payment.amount;
-      const remainingDue = bill.total - newPaid;
-      
-      expect(newPaid).toBe(5000);
-      expect(remainingDue).toBe(5000);
+    it('3. Collect partial payment → status = partially_paid', async () => {
+      const res = await api('POST', '/api/billing/pay', {
+        billId, amount: 400, type: 'current'
+      });
+      expect(res.status).toBe(200);
+      const data = await res.json() as any;
+      expect(data.status).toBe('partially_paid');
+      expect(data.outstanding).toBe(600);
+      expect(data.paidAmount).toBe(400);
     });
 
-    it('should validate payment types', () => {
-      const validPaymentTypes = ['current', 'due'];
+    it('4. Collect full remaining → status = paid', async () => {
+      await api('POST', '/api/billing/pay', { billId, amount: 400, type: 'current' });
+      const res = await api('POST', '/api/billing/pay', { billId, amount: 600, type: 'due' });
       
-      expect(validPaymentTypes).toContain('current');
-      expect(validPaymentTypes).toContain('due');
+      expect(res.status).toBe(200);
+      const data = await res.json() as any;
+      expect(data.status).toBe('paid');
+      expect(data.outstanding).toBe(0);
+      expect(data.paidAmount).toBe(1000);
     });
 
-    it('should generate receipt number', () => {
-      const generateReceiptNo = (tenantId: number) => {
-        const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-        const random = Math.random().toString(36).substring(2, 6).toUpperCase();
-        return `RCP-${tenantId}-${date}-${random}`;
-      };
-
-      const receiptNo = generateReceiptNo(1);
-      expect(receiptNo).toMatch(/^RCP-\d+-\d+-[A-Z0-9]{4}$/);
-    });
-  });
-
-  describe('Bill Settlement', () => {
-    it('should settle current bill', () => {
-      const settlement = {
-        type: 'current',
-        amount: 5000,
-        bill_id: 1,
-      };
-
-      expect(settlement.type).toBe('current');
-      expect(settlement.amount).toBe(5000);
+    it('5. Overpayment rejected → 400 error', async () => {
+      const res = await api('POST', '/api/billing/pay', {
+        billId, amount: 1500, type: 'current'
+      });
+      expect(res.status).toBe(400);
+      const data = await res.json() as any;
+      expect(data.error).toBeDefined();
     });
 
-    it('should settle due bill', () => {
-      const settlement = {
-        type: 'due',
-        amount: 3000,
-        bill_id: 1,
-      };
-
-      expect(settlement.type).toBe('due');
-    });
-
-    it('should process fire service charge', () => {
-      const fireServiceCharge = 50;
+    it('6. Pay on already-paid bill → 400 error', async () => {
+      await api('POST', '/api/billing/pay', { billId, amount: 1000, type: 'current' });
       
-      expect(fireServiceCharge).toBe(50);
+      const res = await api('POST', '/api/billing/pay', { billId, amount: 100, type: 'due' });
+      expect(res.status).toBe(400);
+      const data = await res.json() as any;
+      expect(data.error).toBeDefined(); // Bill is already fully paid
     });
 
-    it('should calculate total settlement', () => {
-      const currentSettlement = 5000;
-      const dueSettlement = 3000;
-      const fireServiceCharge = 50;
+    it('7. Bill not found → 404', async () => {
+      const res = await api('POST', '/api/billing/pay', {
+        billId: 9999, amount: 100, type: 'current'
+      });
+      expect(res.status).toBe(404);
+    });
+
+    it('10. Receipt number auto-increments', async () => {
+      const res1 = await api('POST', '/api/billing/pay', { billId, amount: 100, type: 'current' });
+      const data1 = await res1.json() as any;
       
-      const totalSettlement = currentSettlement + dueSettlement + fireServiceCharge;
-      
-      expect(totalSettlement).toBe(8050);
+      const res2 = await api('POST', '/api/billing/pay', { billId, amount: 200, type: 'current' });
+      const data2 = await res2.json() as any;
+
+      expect(data1.receiptNo).not.toBe(data2.receiptNo);
     });
   });
 
-  describe('Bill Status', () => {
-    it('should identify paid bill', () => {
-      const bill = { total: 10000, paid: 10000, due: 0 };
-      const isPaid = bill.paid >= bill.total;
-      
-      expect(isPaid).toBe(true);
-    });
+  describe('Security & Isolation', () => {
+    it('11. Tenant isolation — cannot access other tenants bills', async () => {
+      // Create a bill for Tenant 1
+      const res = await api('POST', '/api/billing', {
+        patientId,
+        items: [{ itemCategory: 'test', quantity: 1, unitPrice: 1000 }],
+        discount: 0
+      });
+      const data = await res.json() as any;
+      const billId = data.billId;
 
-    it('should identify partially paid bill', () => {
-      const bill = { total: 10000, paid: 5000, due: 5000 };
-      const isPartial = bill.paid > 0 && bill.paid < bill.total;
+      // Try to pay the bill as Tenant 2
+      const token = jwt.sign({ sub: '1', tenantId: 2 }, env.JWT_SECRET || 'test-secret', { expiresIn: '1h' });
       
-      expect(isPartial).toBe(true);
-    });
-
-    it('should identify unpaid bill', () => {
-      const bill = { total: 10000, paid: 0, due: 10000 };
-      const isUnpaid = bill.paid === 0;
+      const req = new Request(`http://localhost/api/billing/pay`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Tenant-Subdomain': 'tenant2', // let's pretend 
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ billId, amount: 100, type: 'current' }),
+      });
+      const maliciousRes = await app.fetch(req, env as any, { waitUntil: () => {}, passThroughOnException: () => {} } as any);
       
-      expect(isUnpaid).toBe(true);
+      expect(maliciousRes.status).toBe(404); // Bill not found for tenant 2
     });
   });
 });

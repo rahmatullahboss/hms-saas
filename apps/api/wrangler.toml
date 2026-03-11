@@ -8,6 +8,7 @@ compatibility_flags = ["nodejs_compat"]
 binding = "DB"
 database_name = "danphe-meta"
 database_id = "7f8c376f-c6b9-40fc-841f-76600782c151"
+migrations_dir = "migrations"
 
 [[kv_namespaces]]
 binding = "KV"
