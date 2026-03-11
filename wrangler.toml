@@ -49,6 +49,15 @@ ALLOWED_ORIGINS = "http://localhost:5174,http://localhost:5173"
 RESEND_FROM_EMAIL = "HMS Dev <dev@hms.local>"
 # SMS — set SMS_API_KEY + SMS_SENDER_ID via wrangler secrets when service is purchased
 SMS_PROVIDER = "stub"
+# ─── Phase 3: bKash / Nagad / Daily.co (set real values via wrangler secrets) ─
+# wrangler secret put BKASH_APP_KEY
+# wrangler secret put BKASH_APP_SECRET
+# wrangler secret put BKASH_USERNAME
+# wrangler secret put BKASH_PASSWORD
+# wrangler secret put NAGAD_MERCHANT_ID
+# wrangler secret put NAGAD_MERCHANT_PRIVATE_KEY
+# wrangler secret put DAILY_API_KEY
+# Without secrets, stub providers are automatically used.
 
 # ─── Staging environment ──────────────────────────────────────────────
 [env.staging]
@@ -59,6 +68,7 @@ ENVIRONMENT = "staging"
 ALLOWED_ORIGINS = "https://hms-saas-staging.rahmatullahzisan.workers.dev"
 RESEND_FROM_EMAIL = "HMS Staging <noreply@hms-staging.app>"
 SMS_PROVIDER = "stub"
+# bKash/Nagad/Daily — set via wrangler secrets (--env staging)
 
 [env.staging.assets]
 directory = "./web/dist/"
@@ -94,6 +104,7 @@ ALLOWED_ORIGINS = "https://hms-saas.rahmatullahzisan.workers.dev"
 RESEND_FROM_EMAIL = "HMS <noreply@yourhospital.com>"
 # Change to "sslwireless" or "bnotify" when SMS service is activated
 SMS_PROVIDER = "stub"
+# bKash/Nagad/Daily — set via wrangler secrets (--env production)
 
 [env.production.assets]
 directory = "./web/dist/"

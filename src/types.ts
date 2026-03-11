@@ -18,6 +18,18 @@ export interface Env {
   SMS_PROVIDER?: string;          // "sslwireless" | "bnotify" | "stub"
   SMS_API_KEY?: string;           // wrangler secret put SMS_API_KEY
   SMS_SENDER_ID?: string;         // wrangler secret put SMS_SENDER_ID
+  // ─── bKash Payment Gateway ───────────────────────────────────────────
+  BKASH_APP_KEY?: string;
+  BKASH_APP_SECRET?: string;
+  BKASH_USERNAME?: string;
+  BKASH_PASSWORD?: string;
+  BKASH_BASE_URL?: string;        // default: sandbox URL
+  // ─── Nagad Payment Gateway ───────────────────────────────────────────
+  NAGAD_MERCHANT_ID?: string;
+  NAGAD_MERCHANT_PRIVATE_KEY?: string;
+  NAGAD_BASE_URL?: string;        // default: sandbox URL
+  // ─── Telemedicine (Daily.co) ─────────────────────────────────────────
+  DAILY_API_KEY?: string;         // if set, uses Daily.co; otherwise Jitsi fallback
 }
 
 /**

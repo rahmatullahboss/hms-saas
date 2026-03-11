@@ -145,4 +145,7 @@ export const SmsTemplates = {
 
   medicineExpiry: (medicineName: string, expiryDate: string, stock: number) =>
     `[HMS Alert] Medicine "${medicineName}" expires on ${expiryDate}. Current stock: ${stock} units. Please take action.`,
+
+  consultationReminderEn: (patientName: string, doctorName: string, scheduledAt: string, roomUrl: string) =>
+    `Dear ${patientName}, your video consultation with Dr. ${doctorName} is at ${scheduledAt}. Join here: ${roomUrl} - HMS`,
 };

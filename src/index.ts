@@ -35,6 +35,9 @@ import publicInviteRoutes from './routes/public-invite';
 import invitationRoutes from './routes/tenant/invitations';
 import notificationRoutes from './routes/tenant/notifications';
 import pdfRoutes from './routes/tenant/pdf';
+import branchRoutes from './routes/tenant/branches';
+import paymentRoutes from './routes/tenant/payments';
+import consultationRoutes from './routes/tenant/consultations';
 
 import type { Env } from './types';
 
@@ -138,6 +141,9 @@ app.route('/api/commissions', commissionRoutes);
 app.route('/api/invitations', invitationRoutes);
 app.route('/api/notifications', notificationRoutes);
 app.route('/api/pdf', pdfRoutes);
+app.route('/api/branches', branchRoutes);
+app.route('/api/payments', paymentRoutes);
+app.route('/api/consultations', consultationRoutes);
 
 
 // ─── Not Found handler ──────────────────────────────────────────────
