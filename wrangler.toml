@@ -27,7 +27,7 @@ run_worker_first = ["/api/*"]
 [[d1_databases]]
 binding = "DB"
 database_name = "danphe-meta"
-database_id = "7f8c376f-c6b9-40fc-841f-76600782c151"
+database_id = "cd97b7d8-4068-47f7-b9d2-5e28ec7dfc98"
 
 [[kv_namespaces]]
 binding = "KV"
@@ -63,7 +63,7 @@ run_worker_first = ["/api/*"]
 [[env.staging.d1_databases]]
 binding = "DB"
 database_name = "hms-super-admin-staging"
-database_id = "6b8ce45d-024e-4561-8a51-880d971274d2"
+database_id = "f5ec1282-94e9-4574-b49c-19b50c03ed53"
 
 [[env.staging.kv_namespaces]]
 binding = "KV"
@@ -90,7 +90,7 @@ run_worker_first = ["/api/*"]
 [[env.production.d1_databases]]
 binding = "DB"
 database_name = "hms-super-admin-production"
-database_id = "72d398a3-a087-4d0f-a13c-472217dbfc45"
+database_id = "f5ec1282-94e9-4574-b49c-19b50c03ed53"
 
 [[env.production.kv_namespaces]]
 binding = "KV"
