@@ -111,6 +111,17 @@ app.use('/api/admin/*', async (c, next) => {
   // All other admin routes require auth
   return authMiddleware(c, next);
 });
+app.use('/api/admin/*', async (c, next) => {
+  const path = c.req.path;
+  if (path === '/api/admin/login') {
+    return next();
+  }
+  // 🛡️ Sentinel: Ensure only super_admin can access the admin dashboard routes.
+  if (c.get('role') !== 'super_admin') {
+    return c.json({ error: 'Forbidden: Super admin access required' }, 403);
+  }
+  return next();
+});
 
 app.route('/api/admin', adminRoutes);
 
