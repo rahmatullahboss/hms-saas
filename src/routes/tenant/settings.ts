@@ -46,6 +46,11 @@ settingsRoutes.get('/', async (c) => {
 
 // Update setting
 settingsRoutes.put('/:key', async (c) => {
+  const callerRole = c.get('role');
+  if (callerRole !== 'hospital_admin' && callerRole !== 'director' && callerRole !== 'md') {
+    return c.json({ error: 'Forbidden: Insufficient permissions to update settings' }, 403);
+  }
+
   const key = c.req.param('key');
   const tenantId = c.get('tenantId');
   const { value } = await c.req.json();
@@ -63,6 +68,11 @@ settingsRoutes.put('/:key', async (c) => {
 
 // Bulk update settings
 settingsRoutes.put('/', async (c) => {
+  const callerRole = c.get('role');
+  if (callerRole !== 'hospital_admin' && callerRole !== 'director' && callerRole !== 'md') {
+    return c.json({ error: 'Forbidden: Insufficient permissions to update settings' }, 403);
+  }
+
   const tenantId = c.get('tenantId');
   const settings = await c.req.json();
   
