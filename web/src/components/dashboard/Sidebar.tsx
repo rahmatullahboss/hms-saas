@@ -47,6 +47,7 @@ const roleNavItems: Record<string, NavItem[]> = {
     { label: 'Reports',      path: '/hospital_admin/reports',      icon: <PieChart        className="w-4.5 h-4.5" /> },
     { label: 'System Audit', path: '/hospital_admin/system-audit', icon: <Shield          className="w-4.5 h-4.5" /> },
     { label: 'Insurance',    path: '/hospital_admin/insurance-claims', icon: <FileText    className="w-4.5 h-4.5" /> },
+    { label: 'Telemedicine', path: '/hospital_admin/telemedicine', icon: <Video            className="w-4.5 h-4.5" /> },
     { label: 'Multi-Branch', path: '/hospital_admin/multi-branch', icon: <Building2       className="w-4.5 h-4.5" /> },
     { label: 'Settings',     path: '/hospital_admin/settings',     icon: <Settings        className="w-4.5 h-4.5" /> },
   ],

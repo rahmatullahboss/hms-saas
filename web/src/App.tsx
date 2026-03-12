@@ -44,6 +44,8 @@ import PatientTimeline from './pages/PatientTimeline';
 import InsuranceClaims from './pages/InsuranceClaims';
 import MultiBranchDashboard from './pages/MultiBranchDashboard';
 import PatientPortal from './pages/PatientPortal';
+import TelemedicineDashboard from './pages/TelemedicineDashboard';
+import TelemedicineRoom from './pages/TelemedicineRoom';
 
 function Unauthorized() {
   return (
@@ -123,6 +125,8 @@ function App() {
             <Route path="insurance-claims" element={<InsuranceClaims role="hospital_admin" />} />
             <Route path="multi-branch" element={<MultiBranchDashboard role="hospital_admin" />} />
             <Route path="patient-portal" element={<PatientPortal role="hospital_admin" />} />
+            <Route path="telemedicine" element={<TelemedicineDashboard role="hospital_admin" />} />
+            <Route path="telemedicine/room/:roomId" element={<TelemedicineRoom role="hospital_admin" />} />
           </Route>
 
           {/* ─── Laboratory ──────────────────────────────────────────── */}

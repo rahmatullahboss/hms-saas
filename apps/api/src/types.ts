@@ -10,6 +10,9 @@ export interface Env {
   JWT_SECRET: string;
   ENVIRONMENT: string;
   ALLOWED_ORIGINS: string;
+  // Cloudflare Calls (Telemedicine)
+  CF_CALLS_APP_ID: string;
+  CF_CALLS_APP_SECRET: string;
 }
 
 /**
