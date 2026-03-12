@@ -1,0 +1,21 @@
+{
+  "title": "Billing",
+  "newBill": "New Bill",
+  "billList": "Bill List",
+  "billDetails": "Bill Details",
+  "billNo": "Bill No.",
+  "patient": "Patient",
+  "amount": "Amount",
+  "paid": "Paid",
+  "due": "Due",
+  "grandTotal": "Grand Total",
+  "discount": "Discount",
+  "tax": "Tax",
+  "paymentMethod": "Payment Method",
+  "cash": "Cash",
+  "card": "Card",
+  "bank": "Bank Transfer",
+  "insurance": "Insurance",
+  "printBill": "Print Bill",
+  "noBills": "No bills found"
+}

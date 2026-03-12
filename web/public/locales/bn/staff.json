@@ -1,0 +1,14 @@
+{
+  "title": "কর্মী",
+  "addStaff": "কর্মী যোগ করুন",
+  "staffList": "কর্মীর তালিকা",
+  "role": "পদ",
+  "department": "বিভাগ",
+  "joinDate": "যোগদানের তারিখ",
+  "salary": "বেতন",
+  "activeStaff": "সক্রিয় কর্মী",
+  "inactiveStaff": "নিষ্ক্রিয় কর্মী",
+  "inviteStaff": "কর্মী আমন্ত্রণ করুন",
+  "noStaff": "কোনো কর্মী পাওয়া যায়নি",
+  "sendInvite": "আমন্ত্রণ পাঠান"
+}

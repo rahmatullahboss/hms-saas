@@ -1,0 +1,13 @@
+{
+  "title": "Reports",
+  "generate": "Generate Report",
+  "dateRange": "Date Range",
+  "from": "From",
+  "to": "To",
+  "revenueReport": "Revenue Report",
+  "patientReport": "Patient Report",
+  "labReport": "Lab Report",
+  "pharmacyReport": "Pharmacy Report",
+  "download": "Download",
+  "export": "Export"
+}

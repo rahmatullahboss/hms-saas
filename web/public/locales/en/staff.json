@@ -1,0 +1,14 @@
+{
+  "title": "Staff",
+  "addStaff": "Add Staff",
+  "staffList": "Staff List",
+  "role": "Role",
+  "department": "Department",
+  "joinDate": "Join Date",
+  "salary": "Salary",
+  "activeStaff": "Active Staff",
+  "inactiveStaff": "Inactive Staff",
+  "inviteStaff": "Invite Staff",
+  "noStaff": "No staff found",
+  "sendInvite": "Send Invite"
+}

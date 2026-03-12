@@ -1,0 +1,15 @@
+{
+  "title": "Laboratory",
+  "tests": "Tests",
+  "newTest": "New Test",
+  "testName": "Test Name",
+  "sampleType": "Sample Type",
+  "referenceRange": "Reference Range",
+  "result": "Result",
+  "reportReady": "Report Ready",
+  "pending": "Pending",
+  "completed": "Completed",
+  "printReport": "Print Report",
+  "collectSample": "Collect Sample",
+  "noTests": "No lab tests found"
+}

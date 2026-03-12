@@ -1,0 +1,16 @@
+{
+  "title": "আইপিডি / ভর্তি",
+  "admitPatient": "রোগী ভর্তি",
+  "admissionNo": "ভর্তি নং",
+  "ward": "ওয়ার্ড",
+  "bed": "বেড",
+  "admissionDate": "ভর্তির তারিখ",
+  "dischargeDate": "ছাড়পত্রের তারিখ",
+  "dischargePatient": "রোগী ছাড়",
+  "admitted": "ভর্তি",
+  "discharged": "ছাড়প্রাপ্ত",
+  "bedManagement": "বেড ব্যবস্থাপনা",
+  "availableBeds": "উপলব্ধ বেড",
+  "occupiedBeds": "অধিকৃত বেড",
+  "noAdmissions": "কোনো ভর্তি পাওয়া যায়নি"
+}

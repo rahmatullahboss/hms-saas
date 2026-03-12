@@ -1,0 +1,19 @@
+{
+  "title": "Accounting",
+  "income": "Income",
+  "expenses": "Expenses",
+  "recurring": "Recurring Expenses",
+  "accounts": "Chart of Accounts",
+  "reports": "Reports",
+  "audit": "Audit Logs",
+  "category": "Category",
+  "description": "Description",
+  "transactionDate": "Transaction Date",
+  "reference": "Reference",
+  "debit": "Debit",
+  "credit": "Credit",
+  "balance": "Balance",
+  "openingBalance": "Opening Balance",
+  "closingBalance": "Closing Balance",
+  "netProfit": "Net Profit"
+}

@@ -1,0 +1,18 @@
+{
+  "title": "ফার্মেসি",
+  "inventory": "ইনভেন্টরি",
+  "dispensing": "ওষুধ বিতরণ",
+  "medicine": "ওষুধ",
+  "quantity": "পরিমাণ",
+  "unit": "একক",
+  "price": "মূল্য",
+  "expiryDate": "মেয়াদ শেষ",
+  "manufacturer": "প্রস্তুতকারক",
+  "stock": "মজুদ",
+  "lowStock": "কম মজুদ",
+  "outOfStock": "স্টক নেই",
+  "addMedicine": "ওষুধ যোগ করুন",
+  "dispenseMedicine": "ওষুধ বিতরণ করুন",
+  "prescription": "প্রেসক্রিপশন",
+  "batch": "ব্যাচ"
+}

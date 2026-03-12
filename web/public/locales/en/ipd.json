@@ -1,0 +1,16 @@
+{
+  "title": "IPD / Admissions",
+  "admitPatient": "Admit Patient",
+  "admissionNo": "Admission No.",
+  "ward": "Ward",
+  "bed": "Bed",
+  "admissionDate": "Admission Date",
+  "dischargeDate": "Discharge Date",
+  "dischargePatient": "Discharge Patient",
+  "admitted": "Admitted",
+  "discharged": "Discharged",
+  "bedManagement": "Bed Management",
+  "availableBeds": "Available Beds",
+  "occupiedBeds": "Occupied Beds",
+  "noAdmissions": "No admissions found"
+}

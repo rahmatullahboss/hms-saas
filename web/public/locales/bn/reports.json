@@ -1,0 +1,13 @@
+{
+  "title": "রিপোর্ট",
+  "generate": "রিপোর্ট তৈরি করুন",
+  "dateRange": "তারিখ সীমা",
+  "from": "থেকে",
+  "to": "পর্যন্ত",
+  "revenueReport": "রাজস্ব রিপোর্ট",
+  "patientReport": "রোগী রিপোর্ট",
+  "labReport": "ল্যাব রিপোর্ট",
+  "pharmacyReport": "ফার্মেসি রিপোর্ট",
+  "download": "ডাউনলোড",
+  "export": "রপ্তানি"
+}

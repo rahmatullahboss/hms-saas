@@ -1,0 +1,19 @@
+{
+  "title": "অ্যাকাউন্টিং",
+  "income": "আয়",
+  "expenses": "ব্যয়",
+  "recurring": "পুনরাবৃত্তি ব্যয়",
+  "accounts": "অ্যাকাউন্টের তালিকা",
+  "reports": "রিপোর্ট",
+  "audit": "অডিট লগ",
+  "category": "বিভাগ",
+  "description": "বিবরণ",
+  "transactionDate": "লেনদেনের তারিখ",
+  "reference": "রেফারেন্স",
+  "debit": "ডেবিট",
+  "credit": "ক্রেডিট",
+  "balance": "ব্যালেন্স",
+  "openingBalance": "প্রারম্ভিক ব্যালেন্স",
+  "closingBalance": "সমাপনী ব্যালেন্স",
+  "netProfit": "নিট মুনাফা"
+}

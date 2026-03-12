@@ -1,0 +1,19 @@
+{
+  "title": "Settings",
+  "hospitalInfo": "Hospital Information",
+  "profile": "Profile",
+  "security": "Security",
+  "notifications": "Notifications",
+  "language": "Language",
+  "theme": "Theme",
+  "light": "Light",
+  "dark": "Dark",
+  "system": "System",
+  "english": "English",
+  "bangla": "বাংলা",
+  "saveChanges": "Save Changes",
+  "changePassword": "Change Password",
+  "currentPassword": "Current Password",
+  "newPassword": "New Password",
+  "confirmPassword": "Confirm Password"
+}

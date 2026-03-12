@@ -1,0 +1,21 @@
+{
+  "title": "বিলিং",
+  "newBill": "নতুন বিল",
+  "billList": "বিলের তালিকা",
+  "billDetails": "বিলের তথ্য",
+  "billNo": "বিল নং",
+  "patient": "রোগী",
+  "amount": "পরিমাণ",
+  "paid": "পরিশোধিত",
+  "due": "বকেয়া",
+  "grandTotal": "সর্বমোট",
+  "discount": "ছাড়",
+  "tax": "কর",
+  "paymentMethod": "পেমেন্ট পদ্ধতি",
+  "cash": "নগদ",
+  "card": "কার্ড",
+  "bank": "ব্যাংক ট্রান্সফার",
+  "insurance": "বিমা",
+  "printBill": "বিল প্রিন্ট করুন",
+  "noBills": "কোনো বিল পাওয়া যায়নি"
+}

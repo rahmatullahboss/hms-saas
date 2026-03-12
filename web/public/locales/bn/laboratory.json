@@ -1,0 +1,15 @@
+{
+  "title": "ল্যাবরেটরি",
+  "tests": "পরীক্ষা",
+  "newTest": "নতুন পরীক্ষা",
+  "testName": "পরীক্ষার নাম",
+  "sampleType": "নমুনার ধরন",
+  "referenceRange": "রেফারেন্স রেঞ্জ",
+  "result": "ফলাফল",
+  "reportReady": "রিপোর্ট প্রস্তুত",
+  "pending": "অপেক্ষমাণ",
+  "completed": "সম্পন্ন",
+  "printReport": "রিপোর্ট প্রিন্ট করুন",
+  "collectSample": "নমুনা সংগ্রহ",
+  "noTests": "কোনো ল্যাব পরীক্ষা পাওয়া যায়নি"
+}

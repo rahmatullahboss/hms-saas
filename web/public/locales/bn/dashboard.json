@@ -1,0 +1,14 @@
+{
+  "title": "ড্যাশবোর্ড",
+  "welcome": "স্বাগতম",
+  "totalPatients": "মোট রোগী",
+  "todayAppointments": "আজকের অ্যাপয়েন্টমেন্ট",
+  "pendingBills": "বকেয়া বিল",
+  "activeDoctors": "সক্রিয় ডাক্তার",
+  "recentActivity": "সাম্প্রতিক কার্যক্রম",
+  "quickStats": "দ্রুত পরিসংখ্যান",
+  "revenue": "রাজস্ব",
+  "occupancy": "বেড দখল",
+  "labPending": "অপেক্ষমাণ ল্যাব পরীক্ষা",
+  "pharmacySales": "ফার্মেসি বিক্রয়"
+}

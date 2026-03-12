@@ -5,105 +5,99 @@ import {
   Building2, Wallet, TrendingUp, TrendingDown, Repeat,
   BookOpen, FileText, Video, ChevronRight,
   BedDouble, Stethoscope, Calendar, Shield, ClipboardList,
+  Globe,
 } from 'lucide-react';
 import { useState } from 'react';
-
-interface NavItem {
-  label: string;
-  path: string;
-  icon: React.ReactNode;
-}
+import { useTranslation } from 'react-i18next';
 
 interface SidebarProps {
   role: string;
   onLogout: () => void;
 }
 
-const roleNavItems: Record<string, NavItem[]> = {
-  super_admin: [
-    { label: 'Dashboard',  path: '/super_admin/dashboard', icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
-    { label: 'Hospitals',  path: '/super_admin/hospitals', icon: <Building2 className="w-4.5 h-4.5" /> },
-    { label: 'Settings',   path: '/super_admin/settings',  icon: <Settings className="w-4.5 h-4.5" /> },
-  ],
-  hospital_admin: [
-    { label: 'Dashboard',     path: '/hospital_admin/dashboard',    icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
-    { label: 'Appointments',  path: '/hospital_admin/appointments', icon: <BookOpen        className="w-4.5 h-4.5" /> },
-    { label: 'Patients',     path: '/hospital_admin/patients',     icon: <Users           className="w-4.5 h-4.5" /> },
-    { label: 'Lab / Tests',  path: '/hospital_admin/tests',        icon: <FlaskConical    className="w-4.5 h-4.5" /> },
-    { label: 'Billing',      path: '/hospital_admin/billing',      icon: <Receipt         className="w-4.5 h-4.5" /> },
-    { label: 'Pharmacy',     path: '/hospital_admin/pharmacy',     icon: <Pill            className="w-4.5 h-4.5" /> },
-    { label: 'Telemedicine', path: '/hospital_admin/telemedicine', icon: <Video           className="w-4.5 h-4.5" /> },
-    { label: 'Accounting',   path: '/hospital_admin/accounting',   icon: <Wallet          className="w-4.5 h-4.5" /> },
-    { label: 'Income',       path: '/hospital_admin/income',       icon: <TrendingUp      className="w-4.5 h-4.5" /> },
-    { label: 'Expenses',     path: '/hospital_admin/expenses',     icon: <TrendingDown    className="w-4.5 h-4.5" /> },
-    { label: 'Recurring',    path: '/hospital_admin/recurring',    icon: <Repeat          className="w-4.5 h-4.5" /> },
-    { label: 'Accounts',     path: '/hospital_admin/accounts',     icon: <BookOpen        className="w-4.5 h-4.5" /> },
-    { label: 'Staff',        path: '/hospital_admin/staff',        icon: <UserCog         className="w-4.5 h-4.5" /> },
-    { label: 'Shareholders', path: '/hospital_admin/shareholders', icon: <Users           className="w-4.5 h-4.5" /> },
-    { label: 'IPD / Admissions', path: '/hospital_admin/admissions', icon: <BedDouble      className="w-4.5 h-4.5" /> },
-    { label: 'Beds',         path: '/hospital_admin/beds',         icon: <ClipboardList   className="w-4.5 h-4.5" /> },
-    { label: 'Nurse Station', path: '/hospital_admin/nurse-station', icon: <Stethoscope   className="w-4.5 h-4.5" /> },
-    { label: 'Doctor Schedule', path: '/hospital_admin/doctor-schedule', icon: <Calendar   className="w-4.5 h-4.5" /> },
-    { label: 'Reports',      path: '/hospital_admin/reports',      icon: <PieChart        className="w-4.5 h-4.5" /> },
-    { label: 'System Audit', path: '/hospital_admin/system-audit', icon: <Shield          className="w-4.5 h-4.5" /> },
-    { label: 'Insurance',    path: '/hospital_admin/insurance-claims', icon: <FileText    className="w-4.5 h-4.5" /> },
-    { label: 'Telemedicine', path: '/hospital_admin/telemedicine', icon: <Video            className="w-4.5 h-4.5" /> },
-    { label: 'Multi-Branch', path: '/hospital_admin/multi-branch', icon: <Building2       className="w-4.5 h-4.5" /> },
-    { label: 'Settings',     path: '/hospital_admin/settings',     icon: <Settings        className="w-4.5 h-4.5" /> },
-  ],
-  laboratory: [
-    { label: 'Dashboard', path: '/laboratory/dashboard', icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
-    { label: 'Tests',     path: '/laboratory/tests',     icon: <FlaskConical    className="w-4.5 h-4.5" /> },
-  ],
-  reception: [
-    { label: 'Dashboard',    path: '/reception/dashboard',     icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
-    { label: 'Appointments', path: '/reception/appointments',  icon: <BookOpen        className="w-4.5 h-4.5" /> },
-    { label: 'Patients',     path: '/reception/patients',      icon: <Users           className="w-4.5 h-4.5" /> },
-    { label: 'Billing',      path: '/reception/billing',       icon: <Receipt         className="w-4.5 h-4.5" /> },
-  ],
-  md: [
-    { label: 'Dashboard',  path: '/md/dashboard',  icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
-    { label: 'Accounting', path: '/md/accounting', icon: <Wallet          className="w-4.5 h-4.5" /> },
-    { label: 'Income',     path: '/md/income',     icon: <TrendingUp      className="w-4.5 h-4.5" /> },
-    { label: 'Expenses',   path: '/md/expenses',   icon: <TrendingDown    className="w-4.5 h-4.5" /> },
-    { label: 'Recurring',  path: '/md/recurring',  icon: <Repeat          className="w-4.5 h-4.5" /> },
-    { label: 'Accounts',   path: '/md/accounts',   icon: <BookOpen        className="w-4.5 h-4.5" /> },
-    { label: 'Reports',    path: '/md/reports',    icon: <PieChart        className="w-4.5 h-4.5" /> },
-    { label: 'Audit',      path: '/md/audit',      icon: <FileText        className="w-4.5 h-4.5" /> },
-    { label: 'Staff',      path: '/md/staff',      icon: <UserCog         className="w-4.5 h-4.5" /> },
-    { label: 'Profit',     path: '/md/profit',     icon: <TrendingUp      className="w-4.5 h-4.5" /> },
-  ],
-  director: [
-    { label: 'Dashboard',   path: '/director/dashboard',   icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
-    { label: 'Accounting',  path: '/director/accounting',  icon: <Wallet          className="w-4.5 h-4.5" /> },
-    { label: 'Income',      path: '/director/income',      icon: <TrendingUp      className="w-4.5 h-4.5" /> },
-    { label: 'Expenses',    path: '/director/expenses',    icon: <TrendingDown    className="w-4.5 h-4.5" /> },
-    { label: 'Reports',     path: '/director/reports',     icon: <PieChart        className="w-4.5 h-4.5" /> },
-    { label: 'Audit',       path: '/director/audit',       icon: <FileText        className="w-4.5 h-4.5" /> },
-    { label: 'Shareholders',path: '/director/shareholders',icon: <Users           className="w-4.5 h-4.5" /> },
-    { label: 'Profit',      path: '/director/profit',      icon: <TrendingUp      className="w-4.5 h-4.5" /> },
-    { label: 'Settings',    path: '/director/settings',    icon: <Settings        className="w-4.5 h-4.5" /> },
-  ],
-  pharmacist: [
-    { label: 'Dashboard', path: '/pharmacy/dashboard', icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
-    { label: 'Inventory',  path: '/pharmacy/inventory', icon: <Pill            className="w-4.5 h-4.5" /> },
-  ],
-};
-
-const ROLE_LABELS: Record<string, string> = {
-  hospital_admin: 'Admin',
-  super_admin:    'Super Admin',
-  laboratory:     'Lab',
-  reception:      'Reception',
-  md:             'MD',
-  director:       'Director',
-  pharmacist:     'Pharmacist',
-};
-
 export default function Sidebar({ role, onLogout }: SidebarProps) {
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
+  const { t, i18n } = useTranslation('sidebar');
+
+  const toggleLanguage = () => {
+    i18n.changeLanguage(i18n.language === 'en' ? 'bn' : 'en');
+  };
+
+  const lang = i18n.language;
+
+  const roleNavItems = {
+    super_admin: [
+      { labelKey: 'dashboard', path: '/super_admin/dashboard', icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
+      { labelKey: 'hospitals',  path: '/super_admin/hospitals', icon: <Building2 className="w-4.5 h-4.5" /> },
+      { labelKey: 'settings',   path: '/super_admin/settings',  icon: <Settings className="w-4.5 h-4.5" /> },
+    ],
+    hospital_admin: [
+      { labelKey: 'dashboard',     path: '/hospital_admin/dashboard',    icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
+      { labelKey: 'appointments',  path: '/hospital_admin/appointments', icon: <BookOpen        className="w-4.5 h-4.5" /> },
+      { labelKey: 'patients',      path: '/hospital_admin/patients',     icon: <Users           className="w-4.5 h-4.5" /> },
+      { labelKey: 'labTests',      path: '/hospital_admin/tests',        icon: <FlaskConical    className="w-4.5 h-4.5" /> },
+      { labelKey: 'billing',       path: '/hospital_admin/billing',      icon: <Receipt         className="w-4.5 h-4.5" /> },
+      { labelKey: 'pharmacy',      path: '/hospital_admin/pharmacy',     icon: <Pill            className="w-4.5 h-4.5" /> },
+      { labelKey: 'accounting',    path: '/hospital_admin/accounting',   icon: <Wallet          className="w-4.5 h-4.5" /> },
+      { labelKey: 'income',        path: '/hospital_admin/income',       icon: <TrendingUp      className="w-4.5 h-4.5" /> },
+      { labelKey: 'expenses',      path: '/hospital_admin/expenses',     icon: <TrendingDown    className="w-4.5 h-4.5" /> },
+      { labelKey: 'recurring',     path: '/hospital_admin/recurring',    icon: <Repeat          className="w-4.5 h-4.5" /> },
+      { labelKey: 'accounts',      path: '/hospital_admin/accounts',     icon: <BookOpen        className="w-4.5 h-4.5" /> },
+      { labelKey: 'staff',         path: '/hospital_admin/staff',        icon: <UserCog         className="w-4.5 h-4.5" /> },
+      { labelKey: 'shareholders',  path: '/hospital_admin/shareholders', icon: <Users           className="w-4.5 h-4.5" /> },
+      { labelKey: 'ipdAdmissions', path: '/hospital_admin/admissions',  icon: <BedDouble       className="w-4.5 h-4.5" /> },
+      { labelKey: 'beds',          path: '/hospital_admin/beds',         icon: <ClipboardList   className="w-4.5 h-4.5" /> },
+      { labelKey: 'nurseStation',  path: '/hospital_admin/nurse-station', icon: <Stethoscope   className="w-4.5 h-4.5" /> },
+      { labelKey: 'doctorSchedule', path: '/hospital_admin/doctor-schedule', icon: <Calendar   className="w-4.5 h-4.5" /> },
+      { labelKey: 'reports',       path: '/hospital_admin/reports',      icon: <PieChart        className="w-4.5 h-4.5" /> },
+      { labelKey: 'systemAudit',   path: '/hospital_admin/system-audit', icon: <Shield         className="w-4.5 h-4.5" /> },
+      { labelKey: 'insurance',     path: '/hospital_admin/insurance-claims', icon: <FileText   className="w-4.5 h-4.5" /> },
+      { labelKey: 'telemedicine',  path: '/hospital_admin/telemedicine', icon: <Video           className="w-4.5 h-4.5" /> },
+      { labelKey: 'multiBranch',   path: '/hospital_admin/multi-branch', icon: <Building2       className="w-4.5 h-4.5" /> },
+      { labelKey: 'settings',      path: '/hospital_admin/settings',     icon: <Settings        className="w-4.5 h-4.5" /> },
+    ],
+    laboratory: [
+      { labelKey: 'dashboard', path: '/laboratory/dashboard', icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
+      { labelKey: 'tests',     path: '/laboratory/tests',     icon: <FlaskConical    className="w-4.5 h-4.5" /> },
+    ],
+    reception: [
+      { labelKey: 'dashboard',    path: '/reception/dashboard',     icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
+      { labelKey: 'appointments', path: '/reception/appointments',  icon: <BookOpen        className="w-4.5 h-4.5" /> },
+      { labelKey: 'patients',     path: '/reception/patients',      icon: <Users           className="w-4.5 h-4.5" /> },
+      { labelKey: 'billing',      path: '/reception/billing',       icon: <Receipt         className="w-4.5 h-4.5" /> },
+    ],
+    md: [
+      { labelKey: 'dashboard',  path: '/md/dashboard',  icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
+      { labelKey: 'accounting', path: '/md/accounting', icon: <Wallet          className="w-4.5 h-4.5" /> },
+      { labelKey: 'income',     path: '/md/income',     icon: <TrendingUp      className="w-4.5 h-4.5" /> },
+      { labelKey: 'expenses',   path: '/md/expenses',   icon: <TrendingDown    className="w-4.5 h-4.5" /> },
+      { labelKey: 'recurring',  path: '/md/recurring',  icon: <Repeat          className="w-4.5 h-4.5" /> },
+      { labelKey: 'accounts',   path: '/md/accounts',   icon: <BookOpen        className="w-4.5 h-4.5" /> },
+      { labelKey: 'reports',    path: '/md/reports',    icon: <PieChart        className="w-4.5 h-4.5" /> },
+      { labelKey: 'audit',      path: '/md/audit',      icon: <FileText        className="w-4.5 h-4.5" /> },
+      { labelKey: 'staff',      path: '/md/staff',      icon: <UserCog         className="w-4.5 h-4.5" /> },
+      { labelKey: 'profit',     path: '/md/profit',     icon: <TrendingUp      className="w-4.5 h-4.5" /> },
+    ],
+    director: [
+      { labelKey: 'dashboard',    path: '/director/dashboard',   icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
+      { labelKey: 'accounting',   path: '/director/accounting',  icon: <Wallet          className="w-4.5 h-4.5" /> },
+      { labelKey: 'income',       path: '/director/income',      icon: <TrendingUp      className="w-4.5 h-4.5" /> },
+      { labelKey: 'expenses',     path: '/director/expenses',    icon: <TrendingDown    className="w-4.5 h-4.5" /> },
+      { labelKey: 'reports',      path: '/director/reports',     icon: <PieChart        className="w-4.5 h-4.5" /> },
+      { labelKey: 'audit',        path: '/director/audit',       icon: <FileText        className="w-4.5 h-4.5" /> },
+      { labelKey: 'shareholders', path: '/director/shareholders',icon: <Users           className="w-4.5 h-4.5" /> },
+      { labelKey: 'profit',       path: '/director/profit',      icon: <TrendingUp      className="w-4.5 h-4.5" /> },
+      { labelKey: 'settings',     path: '/director/settings',    icon: <Settings        className="w-4.5 h-4.5" /> },
+    ],
+    pharmacist: [
+      { labelKey: 'dashboard', path: '/pharmacy/dashboard', icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
+      { labelKey: 'inventory',  path: '/pharmacy/inventory', icon: <Pill            className="w-4.5 h-4.5" /> },
+    ],
+  } as Record<string, { labelKey: string; path: string; icon: React.ReactNode }[]>;
+
   const navItems = roleNavItems[role] ?? roleNavItems.hospital_admin;
+  const roleLabel = t(`roleLabels.${role}`, { defaultValue: role });
 
   return (
     <>
@@ -143,10 +137,19 @@ export default function Sidebar({ role, onLogout }: SidebarProps) {
               <rect x="2" y="8" width="16" height="4" rx="1"/>
             </svg>
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="text-sm font-bold text-[var(--color-primary-dark)] leading-none">HMS SaaS</p>
-            <p className="text-xs text-[var(--color-text-muted)] mt-0.5 leading-none">{ROLE_LABELS[role] ?? role}</p>
+            <p className="text-xs text-[var(--color-text-muted)] mt-0.5 leading-none">{roleLabel}</p>
           </div>
+          {/* Language Toggle */}
+          <button
+            onClick={toggleLanguage}
+            title={lang === 'en' ? 'Switch to Bangla' : 'Switch to English'}
+            className="shrink-0 flex items-center gap-1 px-2 py-1 rounded-md text-xs font-semibold border border-[var(--color-border)] hover:bg-[var(--color-primary-light)] hover:text-[var(--color-primary-dark)] transition-colors"
+          >
+            <Globe className="w-3.5 h-3.5" />
+            {lang === 'en' ? 'বাং' : 'EN'}
+          </button>
         </div>
 
         {/* Navigation */}
@@ -171,7 +174,7 @@ export default function Sidebar({ role, onLogout }: SidebarProps) {
                 <span className={`shrink-0 ${isActive ? 'text-white' : 'text-[var(--color-text-muted)] group-hover:text-[var(--color-primary)]'}`}>
                   {item.icon}
                 </span>
-                <span className="truncate">{item.label}</span>
+                <span className="truncate">{t(item.labelKey)}</span>
                 {isActive && <ChevronRight className="w-3.5 h-3.5 ml-auto opacity-70" />}
               </Link>
             );
@@ -185,7 +188,7 @@ export default function Sidebar({ role, onLogout }: SidebarProps) {
             className="btn-danger w-full justify-start text-sm"
           >
             <LogOut className="w-4 h-4" />
-            <span>Sign Out</span>
+            <span>{t('signOut', { ns: 'common' })}</span>
           </button>
         </div>
       </aside>

@@ -1,0 +1,17 @@
+{
+  "title": "Appointments",
+  "newAppointment": "New Appointment",
+  "doctor": "Doctor",
+  "patient": "Patient",
+  "appointmentDate": "Appointment Date",
+  "time": "Time",
+  "type": "Type",
+  "opd": "OPD",
+  "followUp": "Follow Up",
+  "emergency": "Emergency",
+  "confirmed": "Confirmed",
+  "cancelled": "Cancelled",
+  "pending": "Pending",
+  "noAppointments": "No appointments found",
+  "scheduleAppointment": "Schedule Appointment"
+}

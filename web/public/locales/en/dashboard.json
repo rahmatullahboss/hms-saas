@@ -1,0 +1,14 @@
+{
+  "title": "Dashboard",
+  "welcome": "Welcome",
+  "totalPatients": "Total Patients",
+  "todayAppointments": "Today's Appointments",
+  "pendingBills": "Pending Bills",
+  "activeDoctors": "Active Doctors",
+  "recentActivity": "Recent Activity",
+  "quickStats": "Quick Stats",
+  "revenue": "Revenue",
+  "occupancy": "Bed Occupancy",
+  "labPending": "Lab Tests Pending",
+  "pharmacySales": "Pharmacy Sales"
+}

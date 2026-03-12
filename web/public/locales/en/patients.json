@@ -1,0 +1,23 @@
+{
+  "title": "Patients",
+  "newPatient": "New Patient",
+  "patientList": "Patient List",
+  "patientDetails": "Patient Details",
+  "patientId": "Patient ID",
+  "age": "Age",
+  "gender": "Gender",
+  "male": "Male",
+  "female": "Female",
+  "other": "Other",
+  "address": "Address",
+  "bloodGroup": "Blood Group",
+  "weight": "Weight",
+  "height": "Height",
+  "allergies": "Allergies",
+  "diagnosis": "Diagnosis",
+  "timeline": "Timeline",
+  "visitHistory": "Visit History",
+  "noPatients": "No patients found",
+  "addPatient": "Add Patient",
+  "searchPatients": "Search patients..."
+}

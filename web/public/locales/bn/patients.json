@@ -1,0 +1,23 @@
+{
+  "title": "রোগী",
+  "newPatient": "নতুন রোগী",
+  "patientList": "রোগীর তালিকা",
+  "patientDetails": "রোগীর তথ্য",
+  "patientId": "রোগী আইডি",
+  "age": "বয়স",
+  "gender": "লিঙ্গ",
+  "male": "পুরুষ",
+  "female": "মহিলা",
+  "other": "অন্যান্য",
+  "address": "ঠিকানা",
+  "bloodGroup": "রক্তের গ্রুপ",
+  "weight": "ওজন",
+  "height": "উচ্চতা",
+  "allergies": "অ্যালার্জি",
+  "diagnosis": "রোগ নির্ণয়",
+  "timeline": "টাইমলাইন",
+  "visitHistory": "পরিদর্শনের ইতিহাস",
+  "noPatients": "কোনো রোগী পাওয়া যায়নি",
+  "addPatient": "রোগী যোগ করুন",
+  "searchPatients": "রোগী খুঁজুন..."
+}

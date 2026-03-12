@@ -1,0 +1,17 @@
+{
+  "title": "অ্যাপয়েন্টমেন্ট",
+  "newAppointment": "নতুন অ্যাপয়েন্টমেন্ট",
+  "doctor": "ডাক্তার",
+  "patient": "রোগী",
+  "appointmentDate": "অ্যাপয়েন্টমেন্টের তারিখ",
+  "time": "সময়",
+  "type": "ধরন",
+  "opd": "ওপিডি",
+  "followUp": "ফলো আপ",
+  "emergency": "জরুরি",
+  "confirmed": "নিশ্চিত",
+  "cancelled": "বাতিল",
+  "pending": "অপেক্ষমাণ",
+  "noAppointments": "কোনো অ্যাপয়েন্টমেন্ট পাওয়া যায়নি",
+  "scheduleAppointment": "অ্যাপয়েন্টমেন্ট নির্ধারণ করুন"
+}
