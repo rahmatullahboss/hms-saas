@@ -11,7 +11,7 @@ on:
         default: 'debug'
 
 env:
-  NODE_VERSION: '20'
+  NODE_VERSION: '22'
 
 jobs:
   build-android:
