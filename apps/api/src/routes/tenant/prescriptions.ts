@@ -46,7 +46,46 @@ prescriptionRoutes.get('/', async (c) => {
   }
 });
 
+// ─── GET /api/prescriptions/:id/print ─────────────────── BEFORE /:id ────────
+// Returns full data needed for A4 print view including BMDC, qualifications, hospital name
+prescriptionRoutes.get('/:id/print', async (c) => {
+  const tenantId = c.get('tenantId');
+  const id = c.req.param('id');
+
+  const rx = await c.env.DB.prepare(`
+    SELECT p.*,
+           pt.name          AS patient_name,
+           pt.patient_code,
+           pt.date_of_birth,
+           pt.gender,
+           pt.address,
+           d.name           AS doctor_name,
+           d.specialty,
+           d.bmdc_reg_no,
+           d.qualifications,
+           d.visiting_hours,
+           t.name           AS hospital_name
+    FROM   prescriptions p
+    JOIN   patients pt ON p.patient_id = pt.id AND pt.tenant_id = p.tenant_id
+    LEFT JOIN doctors d ON p.doctor_id = d.id AND d.tenant_id = p.tenant_id
+    LEFT JOIN tenants t ON t.id = p.tenant_id
+    WHERE  p.id = ? AND p.tenant_id = ?
+  `).bind(id, tenantId).first<Record<string, unknown>>();
+
+  if (!rx) throw new HTTPException(404, { message: 'Prescription not found' });
+
+  const { results: items } = await c.env.DB.prepare(`
+    SELECT pi.* FROM prescription_items pi
+    JOIN   prescriptions p ON pi.prescription_id = p.id
+    WHERE  pi.prescription_id = ? AND p.tenant_id = ?
+    ORDER  BY pi.sort_order ASC
+  `).bind(id, tenantId).all();
+
+  return c.json({ prescription: { ...rx, items, suggested_tests: rx.lab_tests } });
+});
+
 // ─── GET /api/prescriptions/:id ───────────────────────────────────────────────
+
 prescriptionRoutes.get('/:id', async (c) => {
   const tenantId = c.get('tenantId');
   const id       = c.req.param('id');

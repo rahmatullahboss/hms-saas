@@ -35,6 +35,9 @@ import AdmissionIPD from './pages/AdmissionIPD';
 import BedManagement from './pages/BedManagement';
 import NotificationsCenter from './pages/NotificationsCenter';
 import NurseStation from './pages/NurseStation';
+import DischargeSummary from './pages/DischargeSummary';
+import PrescriptionPrint from './pages/PrescriptionPrint';
+import DoctorSchedule from './pages/DoctorSchedule';
 
 function Unauthorized() {
   return (
@@ -105,6 +108,9 @@ function App() {
             <Route path="beds" element={<BedManagement role="hospital_admin" />} />
             <Route path="notifications" element={<NotificationsCenter role="hospital_admin" />} />
             <Route path="nurse-station" element={<NurseStation role="hospital_admin" />} />
+            <Route path="admissions/:admissionId/discharge" element={<DischargeSummary role="hospital_admin" />} />
+            <Route path="prescriptions/:prescriptionId/print" element={<PrescriptionPrint role="hospital_admin" />} />
+            <Route path="doctor-schedule" element={<DoctorSchedule role="hospital_admin" />} />
           </Route>
 
           {/* ─── Laboratory ──────────────────────────────────────────── */}

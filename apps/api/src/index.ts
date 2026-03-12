@@ -36,6 +36,8 @@ import doctorDashboardRoutes from './routes/tenant/doctorDashboard';
 import admissionRoutes from './routes/tenant/admissions';
 import notificationRoutes from './routes/tenant/notifications';
 import nurseStationRoutes from './routes/tenant/nurseStation';
+import dischargeRoutes from './routes/tenant/discharge';
+import doctorScheduleRoutes from './routes/tenant/doctorSchedule';
 
 import type { Env } from './types';
 
@@ -148,6 +150,8 @@ app.route('/api/prescriptions', prescriptionRoutes);
 app.route('/api/admissions', admissionRoutes);
 app.route('/api/notifications', notificationRoutes);
 app.route('/api/nurse-station', nurseStationRoutes);
+app.route('/api/discharge', dischargeRoutes);
+app.route('/api/doctor-schedules', doctorScheduleRoutes);
 
 // 404 handler
 app.notFound((c) => c.json({ error: 'Not found' }, 404));
