@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import DashboardLayout from '../../components/DashboardLayout';
+import { useTranslation } from 'react-i18next';
 
 interface DashboardData {
   today: { income: number; expense: number; profit: number };
@@ -37,31 +38,8 @@ const formatCurrency = (amount: number) => {
   }).format(amount);
 };
 
-const sourceLabels: Record<string, string> = {
-  pharmacy: 'Pharmacy',
-  laboratory: 'Laboratory',
-  doctor_visit: 'Doctor Visit',
-  admission: 'Admission',
-  operation: 'Operation',
-  ambulance: 'Ambulance',
-  other: 'Other',
-};
-
-const categoryLabels: Record<string, string> = {
-  SALARY: 'Staff Salary',
-  MEDICINE: 'Medicine Purchase',
-  RENT: 'Rent',
-  ELECTRICITY: 'Electricity',
-  WATER: 'Water Supply',
-  COMMUNICATION: 'Internet & Phone',
-  MAINTENANCE: 'Maintenance',
-  SUPPLIES: 'Medical Supplies',
-  MARKETING: 'Marketing',
-  BANK: 'Bank Charges',
-  MISC: 'Miscellaneous',
-};
-
 export default function AccountingDashboard({ role = 'md' }: { role?: string }) {
+  const { t } = useTranslation(['accounting', 'common']);
   const [data, setData] = useState<DashboardData | null>(null);
   const [incomeBreakdown, setIncomeBreakdown] = useState<IncomeBreakdown[]>([]);
   const [expenseBreakdown, setExpenseBreakdown] = useState<ExpenseBreakdown[]>([]);
@@ -72,6 +50,30 @@ export default function AccountingDashboard({ role = 'md' }: { role?: string }) 
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [incomeForm, setIncomeForm] = useState({ date: new Date().toISOString().split('T')[0], source: 'other', amount: '', description: '' });
   const [expenseForm, setExpenseForm] = useState({ date: new Date().toISOString().split('T')[0], category: 'MISC', amount: '', description: '' });
+
+  const sourceLabels: Record<string, string> = {
+    pharmacy: t('sourcePharmacy'),
+    laboratory: t('sourceLaboratory'),
+    doctor_visit: t('sourceDoctorVisit'),
+    admission: t('sourceAdmission'),
+    operation: t('sourceOperation'),
+    ambulance: t('sourceAmbulance'),
+    other: t('sourceOther'),
+  };
+
+  const categoryLabels: Record<string, string> = {
+    SALARY: t('catSalary'),
+    MEDICINE: t('catMedicine'),
+    RENT: t('catRent'),
+    ELECTRICITY: t('catElectricity'),
+    WATER: t('catWater'),
+    COMMUNICATION: t('catCommunication'),
+    MAINTENANCE: t('catMaintenance'),
+    SUPPLIES: t('catSupplies'),
+    MARKETING: t('catMarketing'),
+    BANK: t('catBank'),
+    MISC: t('catMisc'),
+  };
 
   const fetchData = useCallback(async () => {
     try {
@@ -147,7 +149,7 @@ export default function AccountingDashboard({ role = 'md' }: { role?: string }) 
               lastUpdated: message.data.lastUpdated,
             } : null);
           }
-        } catch (e) {
+        } catch {
           // silently ignore parse errors
         }
       };
@@ -216,10 +218,10 @@ export default function AccountingDashboard({ role = 'md' }: { role?: string }) 
       <div className="p-6">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Accounting Dashboard</h1>
+          <h1 className="text-2xl font-bold text-gray-800">{t('dashboardTitle')}</h1>
           <p className="text-sm text-gray-500">
-            Last updated: {data?.lastUpdated ? new Date(data.lastUpdated).toLocaleString() : 'N/A'}
-            {wsConnected && <span className="ml-2 text-green-500">● Live</span>}
+            {t('lastUpdated')}: {data?.lastUpdated ? new Date(data.lastUpdated).toLocaleString() : 'N/A'}
+            {wsConnected && <span className="ml-2 text-green-500">● {t('live')}</span>}
           </p>
         </div>
         <div className="flex gap-2">
@@ -227,28 +229,28 @@ export default function AccountingDashboard({ role = 'md' }: { role?: string }) 
             onClick={() => setShowIncomeModal(true)}
             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
           >
-            + Add Income
+            + {t('addIncome')}
           </button>
           <button
             onClick={() => setShowExpenseModal(true)}
             className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
           >
-            + Add Expense
+            + {t('addExpense')}
           </button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
         <div className="bg-white rounded-xl shadow-sm p-6 border-l-4 border-green-500">
-          <h3 className="text-gray-500 text-sm font-medium">Today's Income</h3>
+          <h3 className="text-gray-500 text-sm font-medium">{t('todaysIncome')}</h3>
           <p className="text-3xl font-bold text-green-600">{formatCurrency(data?.today.income || 0)}</p>
         </div>
         <div className="bg-white rounded-xl shadow-sm p-6 border-l-4 border-red-500">
-          <h3 className="text-gray-500 text-sm font-medium">Today's Expense</h3>
+          <h3 className="text-gray-500 text-sm font-medium">{t('todaysExpense')}</h3>
           <p className="text-3xl font-bold text-red-600">{formatCurrency(data?.today.expense || 0)}</p>
         </div>
         <div className="bg-white rounded-xl shadow-sm p-6 border-l-4 border-blue-500">
-          <h3 className="text-gray-500 text-sm font-medium">Today's Profit</h3>
+          <h3 className="text-gray-500 text-sm font-medium">{t('todaysProfit')}</h3>
           <p className={`text-3xl font-bold ${(data?.today.profit || 0) >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
             {formatCurrency(data?.today.profit || 0)}
           </p>
@@ -257,15 +259,15 @@ export default function AccountingDashboard({ role = 'md' }: { role?: string }) 
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
         <div className="bg-white rounded-xl shadow-sm p-6">
-          <h3 className="text-gray-500 text-sm font-medium mb-2">MTD Income</h3>
+          <h3 className="text-gray-500 text-sm font-medium mb-2">{t('mtdIncome')}</h3>
           <p className="text-2xl font-bold text-gray-800">{formatCurrency(data?.mtd.income || 0)}</p>
         </div>
         <div className="bg-white rounded-xl shadow-sm p-6">
-          <h3 className="text-gray-500 text-sm font-medium mb-2">MTD Expense</h3>
+          <h3 className="text-gray-500 text-sm font-medium mb-2">{t('mtdExpense')}</h3>
           <p className="text-2xl font-bold text-gray-800">{formatCurrency(data?.mtd.expense || 0)}</p>
         </div>
         <div className="bg-white rounded-xl shadow-sm p-6">
-          <h3 className="text-gray-500 text-sm font-medium mb-2">MTD Profit</h3>
+          <h3 className="text-gray-500 text-sm font-medium mb-2">{t('mtdProfit')}</h3>
           <p className={`text-2xl font-bold ${(data?.mtd.profit || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
             {formatCurrency(data?.mtd.profit || 0)}
           </p>
@@ -274,7 +276,7 @@ export default function AccountingDashboard({ role = 'md' }: { role?: string }) 
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <div className="bg-white rounded-xl shadow-sm p-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Income by Source (MTD)</h3>
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">{t('incomeBySource')}</h3>
           {incomeBreakdown.length > 0 ? (
             <div className="space-y-3">
               {incomeBreakdown.map((item, idx) => (
@@ -297,12 +299,12 @@ export default function AccountingDashboard({ role = 'md' }: { role?: string }) 
               ))}
             </div>
           ) : (
-            <p className="text-gray-400 text-center py-4">No income data</p>
+            <p className="text-gray-400 text-center py-4">{t('noIncomeData')}</p>
           )}
         </div>
 
         <div className="bg-white rounded-xl shadow-sm p-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Expense by Category (MTD)</h3>
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">{t('expenseByCategory')}</h3>
           {expenseBreakdown.length > 0 ? (
             <div className="space-y-3">
               {expenseBreakdown.map((item, idx) => (
@@ -325,13 +327,13 @@ export default function AccountingDashboard({ role = 'md' }: { role?: string }) 
               ))}
             </div>
           ) : (
-            <p className="text-gray-400 text-center py-4">No expense data</p>
+            <p className="text-gray-400 text-center py-4">{t('noExpenseData')}</p>
           )}
         </div>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm p-6">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4">Profit Trend (Last 6 Months)</h3>
+        <h3 className="text-lg font-semibold text-gray-800 mb-4">{t('profitTrend')}</h3>
         {trends.length > 0 ? (
           <div className="h-64 flex items-end gap-4">
             {trends.map((trend, idx) => (
@@ -340,12 +342,12 @@ export default function AccountingDashboard({ role = 'md' }: { role?: string }) 
                   <div
                     className="flex-1 bg-green-500 rounded-t"
                     style={{ height: `${Math.max(5, (trend.income / Math.max(...trends.map(t => Math.max(t.income, t.expense)))) * 100)}%` }}
-                    title={`Income: ${formatCurrency(trend.income)}`}
+                    title={`${t('income')}: ${formatCurrency(trend.income)}`}
                   ></div>
                   <div
                     className="flex-1 bg-red-400 rounded-t"
                     style={{ height: `${Math.max(5, (trend.expense / Math.max(...trends.map(t => Math.max(t.income, t.expense)))) * 100)}%` }}
-                    title={`Expense: ${formatCurrency(trend.expense)}`}
+                    title={`${t('expenses')}: ${formatCurrency(trend.expense)}`}
                   ></div>
                 </div>
                 <span className="text-xs text-gray-500 mt-2">{trend.month}</span>
@@ -353,18 +355,18 @@ export default function AccountingDashboard({ role = 'md' }: { role?: string }) 
             ))}
           </div>
         ) : (
-          <p className="text-gray-400 text-center py-8">No trend data available</p>
+          <p className="text-gray-400 text-center py-8">{t('noTrendData')}</p>
         )}
       </div>
 
       {showIncomeModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-6 w-full max-w-md">
-            <h2 className="text-xl font-bold mb-4">Add Income</h2>
+            <h2 className="text-xl font-bold mb-4">{t('addIncome')}</h2>
             <form onSubmit={handleAddIncome}>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Date</label>
+                  <label className="block text-sm font-medium text-gray-700">{t('common:date')}</label>
                   <input
                     type="date"
                     value={incomeForm.date}
@@ -374,23 +376,23 @@ export default function AccountingDashboard({ role = 'md' }: { role?: string }) 
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Source</label>
+                  <label className="block text-sm font-medium text-gray-700">{t('source')}</label>
                   <select
                     value={incomeForm.source}
                     onChange={(e) => setIncomeForm({ ...incomeForm, source: e.target.value })}
                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border"
                   >
-                    <option value="pharmacy">Pharmacy</option>
-                    <option value="laboratory">Laboratory</option>
-                    <option value="doctor_visit">Doctor Visit</option>
-                    <option value="admission">Admission</option>
-                    <option value="operation">Operation</option>
-                    <option value="ambulance">Ambulance</option>
-                    <option value="other">Other</option>
+                    <option value="pharmacy">{t('sourcePharmacy')}</option>
+                    <option value="laboratory">{t('sourceLaboratory')}</option>
+                    <option value="doctor_visit">{t('sourceDoctorVisit')}</option>
+                    <option value="admission">{t('sourceAdmission')}</option>
+                    <option value="operation">{t('sourceOperation')}</option>
+                    <option value="ambulance">{t('sourceAmbulance')}</option>
+                    <option value="other">{t('sourceOther')}</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Amount (BDT)</label>
+                  <label className="block text-sm font-medium text-gray-700">{t('amountBDT')}</label>
                   <input
                     type="number"
                     value={incomeForm.amount}
@@ -400,7 +402,7 @@ export default function AccountingDashboard({ role = 'md' }: { role?: string }) 
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Description</label>
+                  <label className="block text-sm font-medium text-gray-700">{t('description')}</label>
                   <input
                     type="text"
                     value={incomeForm.description}
@@ -415,13 +417,13 @@ export default function AccountingDashboard({ role = 'md' }: { role?: string }) 
                   onClick={() => setShowIncomeModal(false)}
                   className="px-4 py-2 border rounded-lg hover:bg-gray-50"
                 >
-                  Cancel
+                  {t('common:cancel')}
                 </button>
                 <button
                   type="submit"
                   className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
                 >
-                  Add Income
+                  {t('addIncome')}
                 </button>
               </div>
             </form>
@@ -432,11 +434,11 @@ export default function AccountingDashboard({ role = 'md' }: { role?: string }) 
       {showExpenseModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-6 w-full max-w-md">
-            <h2 className="text-xl font-bold mb-4">Add Expense</h2>
+            <h2 className="text-xl font-bold mb-4">{t('addExpense')}</h2>
             <form onSubmit={handleAddExpense}>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Date</label>
+                  <label className="block text-sm font-medium text-gray-700">{t('common:date')}</label>
                   <input
                     type="date"
                     value={expenseForm.date}
@@ -446,27 +448,27 @@ export default function AccountingDashboard({ role = 'md' }: { role?: string }) 
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Category</label>
+                  <label className="block text-sm font-medium text-gray-700">{t('category')}</label>
                   <select
                     value={expenseForm.category}
                     onChange={(e) => setExpenseForm({ ...expenseForm, category: e.target.value })}
                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border"
                   >
-                    <option value="SALARY">Staff Salary</option>
-                    <option value="MEDICINE">Medicine Purchase</option>
-                    <option value="RENT">Rent</option>
-                    <option value="ELECTRICITY">Electricity</option>
-                    <option value="WATER">Water Supply</option>
-                    <option value="COMMUNICATION">Internet & Phone</option>
-                    <option value="MAINTENANCE">Maintenance</option>
-                    <option value="SUPPLIES">Medical Supplies</option>
-                    <option value="MARKETING">Marketing</option>
-                    <option value="BANK">Bank Charges</option>
-                    <option value="MISC">Miscellaneous</option>
+                    <option value="SALARY">{t('catSalary')}</option>
+                    <option value="MEDICINE">{t('catMedicine')}</option>
+                    <option value="RENT">{t('catRent')}</option>
+                    <option value="ELECTRICITY">{t('catElectricity')}</option>
+                    <option value="WATER">{t('catWater')}</option>
+                    <option value="COMMUNICATION">{t('catCommunication')}</option>
+                    <option value="MAINTENANCE">{t('catMaintenance')}</option>
+                    <option value="SUPPLIES">{t('catSupplies')}</option>
+                    <option value="MARKETING">{t('catMarketing')}</option>
+                    <option value="BANK">{t('catBank')}</option>
+                    <option value="MISC">{t('catMisc')}</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Amount (BDT)</label>
+                  <label className="block text-sm font-medium text-gray-700">{t('amountBDT')}</label>
                   <input
                     type="number"
                     value={expenseForm.amount}
@@ -476,7 +478,7 @@ export default function AccountingDashboard({ role = 'md' }: { role?: string }) 
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Description</label>
+                  <label className="block text-sm font-medium text-gray-700">{t('description')}</label>
                   <input
                     type="text"
                     value={expenseForm.description}
@@ -491,13 +493,13 @@ export default function AccountingDashboard({ role = 'md' }: { role?: string }) 
                   onClick={() => setShowExpenseModal(false)}
                   className="px-4 py-2 border rounded-lg hover:bg-gray-50"
                 >
-                  Cancel
+                  {t('common:cancel')}
                 </button>
                 <button
                   type="submit"
                   className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
                 >
-                  Add Expense
+                  {t('addExpense')}
                 </button>
               </div>
             </form>

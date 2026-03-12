@@ -29,9 +29,7 @@ export class AccountingDashboard extends DurableObject<Env> {
 
     // ── WebSocket upgrade ─────────────────────────────────────────────
     const upgradeHeader = request.headers.get('Upgrade');
-    const hasWsKey = request.headers.get('Sec-WebSocket-Key');
-    const isWsPath = url.pathname.endsWith('/ws');
-    if (upgradeHeader === 'websocket' || hasWsKey || isWsPath) {
+    if (upgradeHeader === 'websocket') {
       const pair = new WebSocketPair();
       const [client, server] = Object.values(pair);
 
@@ -83,6 +81,10 @@ export class AccountingDashboard extends DurableObject<Env> {
   }
 
   async webSocketError(ws: WebSocket, _error: unknown): Promise<void> {
-    ws.close(1011, 'WebSocket error');
+    try {
+      ws.close(1011, 'WebSocket error');
+    } catch {
+      // Socket may already be closed — ignore
+    }
   }
 }
