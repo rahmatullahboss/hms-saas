@@ -30,6 +30,12 @@ import doctorRoutes from './routes/tenant/doctors';
 import visitRoutes from './routes/tenant/visits';
 import labRoutes from './routes/tenant/lab';
 import commissionRoutes from './routes/tenant/commissions';
+import appointmentRoutes from './routes/tenant/appointments';
+import { prescriptionRoutes } from './routes/tenant/prescriptions';
+import doctorDashboardRoutes from './routes/tenant/doctorDashboard';
+import admissionRoutes from './routes/tenant/admissions';
+import notificationRoutes from './routes/tenant/notifications';
+import nurseStationRoutes from './routes/tenant/nurseStation';
 
 import type { Env } from './types';
 
@@ -132,10 +138,16 @@ app.route('/api/audit', auditRoutes);
 app.route('/api/profit', profitRoutes);
 app.route('/api/journal', journalRoutes);
 app.route('/api/recurring', recurringRoutes);
+app.route('/api/doctors', doctorDashboardRoutes); // /api/doctors/dashboard — must be before :id routes
 app.route('/api/doctors', doctorRoutes);
 app.route('/api/visits', visitRoutes);
 app.route('/api/lab', labRoutes);
 app.route('/api/commissions', commissionRoutes);
+app.route('/api/appointments', appointmentRoutes);
+app.route('/api/prescriptions', prescriptionRoutes);
+app.route('/api/admissions', admissionRoutes);
+app.route('/api/notifications', notificationRoutes);
+app.route('/api/nurse-station', nurseStationRoutes);
 
 // 404 handler
 app.notFound((c) => c.json({ error: 'Not found' }, 404));

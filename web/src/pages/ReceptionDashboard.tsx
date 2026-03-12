@@ -181,7 +181,18 @@ export default function ReceptionDashboard({ role = 'reception' }: { role?: stri
                       </td>
                       <td className="text-sm text-[var(--color-text-muted)]">{new Date(bill.created_at).toLocaleDateString('en-GB')}</td>
                       <td>
-                        <button className="btn-ghost p-1.5" title="Print"><Printer className="w-4 h-4"/></button>
+                        <button
+                          className="btn-ghost p-1.5"
+                          title="Print Invoice"
+                          onClick={() => {
+                            const base = role === 'hospital_admin'
+                              ? `/h/${slug}/billing`
+                              : `/h/${slug}/reception/billing`;
+                            navigate(`${base}/${bill.id}/print`);
+                          }}
+                        >
+                          <Printer className="w-4 h-4"/>
+                        </button>
                       </td>
                     </tr>
                   ))

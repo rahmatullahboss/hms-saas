@@ -25,7 +25,8 @@ const roleNavItems: Record<string, NavItem[]> = {
     { label: 'Settings',   path: '/super_admin/settings',  icon: <Settings className="w-4.5 h-4.5" /> },
   ],
   hospital_admin: [
-    { label: 'Dashboard',    path: '/hospital_admin/dashboard',    icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
+    { label: 'Dashboard',     path: '/hospital_admin/dashboard',    icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
+    { label: 'Appointments',  path: '/hospital_admin/appointments', icon: <BookOpen        className="w-4.5 h-4.5" /> },
     { label: 'Patients',     path: '/hospital_admin/patients',     icon: <Users           className="w-4.5 h-4.5" /> },
     { label: 'Lab / Tests',  path: '/hospital_admin/tests',        icon: <FlaskConical    className="w-4.5 h-4.5" /> },
     { label: 'Billing',      path: '/hospital_admin/billing',      icon: <Receipt         className="w-4.5 h-4.5" /> },
@@ -47,9 +48,10 @@ const roleNavItems: Record<string, NavItem[]> = {
     { label: 'Tests',     path: '/laboratory/tests',     icon: <FlaskConical    className="w-4.5 h-4.5" /> },
   ],
   reception: [
-    { label: 'Dashboard', path: '/reception/dashboard', icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
-    { label: 'Patients',  path: '/reception/patients',  icon: <Users           className="w-4.5 h-4.5" /> },
-    { label: 'Billing',   path: '/reception/billing',   icon: <Receipt         className="w-4.5 h-4.5" /> },
+    { label: 'Dashboard',    path: '/reception/dashboard',     icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
+    { label: 'Appointments', path: '/reception/appointments',  icon: <BookOpen        className="w-4.5 h-4.5" /> },
+    { label: 'Patients',     path: '/reception/patients',      icon: <Users           className="w-4.5 h-4.5" /> },
+    { label: 'Billing',      path: '/reception/billing',       icon: <Receipt         className="w-4.5 h-4.5" /> },
   ],
   md: [
     { label: 'Dashboard',  path: '/md/dashboard',  icon: <LayoutDashboard className="w-4.5 h-4.5" /> },

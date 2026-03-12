@@ -23,6 +23,18 @@ import RecurringExpenses from './pages/accounting/RecurringExpenses';
 import ChartOfAccounts from './pages/accounting/ChartOfAccounts';
 import PharmacyDashboard from './pages/PharmacyDashboard';
 import StaffPage from './pages/StaffPage';
+import PatientDetail from './pages/PatientDetail';
+import ReportsDashboard from './pages/ReportsDashboard';
+import BillPrint from './pages/BillPrint';
+import AppointmentScheduler from './pages/AppointmentScheduler';
+import DigitalPrescription from './pages/DigitalPrescription';
+import DoctorDashboard from './pages/DoctorDashboard';
+import LabTestOrderForm from './pages/LabTestOrderForm';
+import MedicineDispensing from './pages/MedicineDispensing';
+import AdmissionIPD from './pages/AdmissionIPD';
+import BedManagement from './pages/BedManagement';
+import NotificationsCenter from './pages/NotificationsCenter';
+import NurseStation from './pages/NurseStation';
 
 function Unauthorized() {
   return (
@@ -67,8 +79,10 @@ function App() {
             <Route path="dashboard" element={<HospitalAdminDashboard role="hospital_admin" />} />
             <Route path="patients" element={<PatientList role="hospital_admin" />} />
             <Route path="patients/new" element={<PatientForm role="hospital_admin" />} />
+            <Route path="patients/:id" element={<PatientDetail role="hospital_admin" />} />
             <Route path="tests" element={<LaboratoryDashboard role="hospital_admin" />} />
             <Route path="billing" element={<ReceptionDashboard role="hospital_admin" />} />
+            <Route path="billing/:billId/print" element={<BillPrint role="hospital_admin" />} />
             <Route path="pharmacy" element={<PharmacyDashboard role="hospital_admin" />} />
             <Route path="accounting" element={<AccountingDashboard role="hospital_admin" />} />
             <Route path="income" element={<IncomeList role="hospital_admin" />} />
@@ -77,10 +91,20 @@ function App() {
             <Route path="accounts" element={<ChartOfAccounts role="hospital_admin" />} />
             <Route path="staff" element={<StaffPage role="hospital_admin" />} />
             <Route path="shareholders" element={<DirectorDashboard role="hospital_admin" />} />
-            <Route path="reports" element={<Reports role="hospital_admin" />} />
+            <Route path="reports" element={<ReportsDashboard role="hospital_admin" />} />
             <Route path="audit" element={<AuditLogs role="hospital_admin" />} />
             <Route path="settings" element={<SettingsPage role="hospital_admin" />} />
             <Route path="invitations" element={<InviteStaff />} />
+            <Route path="appointments" element={<AppointmentScheduler role="hospital_admin" />} />
+            <Route path="prescriptions/new" element={<DigitalPrescription />} />
+            <Route path="prescriptions/:rxId" element={<DigitalPrescription />} />
+            <Route path="doctor/dashboard" element={<DoctorDashboard />} />
+            <Route path="lab/order/new" element={<LabTestOrderForm />} />
+            <Route path="pharmacy/dispensing" element={<MedicineDispensing />} />
+            <Route path="admissions" element={<AdmissionIPD role="hospital_admin" />} />
+            <Route path="beds" element={<BedManagement role="hospital_admin" />} />
+            <Route path="notifications" element={<NotificationsCenter role="hospital_admin" />} />
+            <Route path="nurse-station" element={<NurseStation role="hospital_admin" />} />
           </Route>
 
           {/* ─── Laboratory ──────────────────────────────────────────── */}
@@ -94,7 +118,12 @@ function App() {
             <Route path="reception/dashboard" element={<ReceptionDashboard />} />
             <Route path="reception/patients" element={<PatientList />} />
             <Route path="reception/patients/new" element={<PatientForm />} />
+            <Route path="reception/patients/:id" element={<PatientDetail />} />
             <Route path="reception/billing" element={<ReceptionDashboard />} />
+            <Route path="reception/billing/:billId/print" element={<BillPrint />} />
+            <Route path="reception/appointments" element={<AppointmentScheduler role="reception" />} />
+            <Route path="reception/prescriptions/new" element={<DigitalPrescription />} />
+            <Route path="reception/prescriptions/:rxId" element={<DigitalPrescription />} />
           </Route>
 
           {/* ─── Managing Director ───────────────────────────────────── */}

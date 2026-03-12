@@ -139,7 +139,7 @@ labCatalogRoutes.get('/orders/queue/today', async (c) => {
       JOIN lab_orders lo ON loi.lab_order_id = lo.id
       JOIN patients p ON lo.patient_id = p.id
       JOIN lab_test_catalog ltc ON loi.lab_test_id = ltc.id
-      WHERE lo.tenant_id = ? AND lo.order_date = ?
+      WHERE lo.tenant_id = ? AND lo.order_date = ? AND lo.status = 'sent'
       ORDER BY loi.status ASC, lo.created_at ASC
     `).bind(tenantId, today).all();
     return c.json({ queue: queue.results, date: today });
@@ -186,9 +186,18 @@ labCatalogRoutes.post('/orders', zValidator('json', createLabOrderSchema), async
     const orderNo = await getNextSequence(c.env.DB, tenantId!, 'lab_order', 'LO');
 
     const orderResult = await c.env.DB.prepare(`
-      INSERT INTO lab_orders (order_no, patient_id, visit_id, ordered_by, order_date, tenant_id)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).bind(orderNo, data.patientId, data.visitId ?? null, userId, orderDate, tenantId).run();
+      INSERT INTO lab_orders (order_no, patient_id, visit_id, ordered_by, order_date, status, diagnosis, relevant_history, fasting_required, specimen_type, collection_notes, tenant_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      orderNo, data.patientId, data.visitId ?? null, userId, orderDate,
+      data.status ?? 'sent',
+      data.diagnosis ?? null,
+      data.relevantHistory ?? null,
+      data.fastingRequired ? 1 : 0,
+      data.specimenType ?? 'Blood',
+      data.collectionNotes ?? null,
+      tenantId
+    ).run();
 
     const orderId = orderResult.meta.last_row_id;
 
@@ -203,9 +212,9 @@ labCatalogRoutes.post('/orders', zValidator('json', createLabOrderSchema), async
       const lineTotal = Math.max(0, test.price - discount);
 
       await c.env.DB.prepare(`
-        INSERT INTO lab_order_items (lab_order_id, lab_test_id, unit_price, discount, line_total, status, tenant_id)
-        VALUES (?, ?, ?, ?, ?, 'pending', ?)
-      `).bind(orderId, item.labTestId, test.price, discount, lineTotal, tenantId).run();
+        INSERT INTO lab_order_items (lab_order_id, lab_test_id, unit_price, discount, line_total, status, priority, instructions, tenant_id)
+        VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?)
+      `).bind(orderId, item.labTestId, test.price, discount, lineTotal, item.priority ?? 'routine', item.instructions ?? null, tenantId).run();
     }
 
     return c.json({ message: 'Lab order created', orderId, orderNo }, 201);
