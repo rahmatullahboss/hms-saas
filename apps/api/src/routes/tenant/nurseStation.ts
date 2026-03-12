@@ -106,7 +106,16 @@ nurseStation.get('/vitals', async (c) => {
 nurseStation.post('/vitals', zValidator('json', recordVitalsSchema), async (c) => {
   const tenantId = Number(c.get('tenantId'));
   const data = c.req.valid('json');
-  const userName = c.get('userId') ?? 'Nurse';
+  const userId = c.get('userId');
+
+  // Look up the staff member's name for readable recorded_by
+  let nurseName = 'Nurse';
+  if (userId) {
+    const staffRow = await c.env.DB.prepare(
+      `SELECT name FROM staff WHERE user_id = ? AND tenant_id = ? LIMIT 1`
+    ).bind(Number(userId), tenantId).first<{ name: string }>();
+    if (staffRow?.name) nurseName = staffRow.name;
+  }
 
   const result = await c.env.DB.prepare(`
     INSERT INTO patient_vitals (tenant_id, patient_id, admission_id, systolic, diastolic, temperature, heart_rate, spo2, respiratory_rate, weight, notes, recorded_by)
@@ -116,7 +125,7 @@ nurseStation.post('/vitals', zValidator('json', recordVitalsSchema), async (c) =
     data.systolic ?? null, data.diastolic ?? null,
     data.temperature ?? null, data.heart_rate ?? null,
     data.spo2 ?? null, data.respiratory_rate ?? null,
-    data.weight ?? null, data.notes ?? null, String(userName)
+    data.weight ?? null, data.notes ?? null, nurseName
   ).run();
 
   return c.json({ id: result.meta.last_row_id }, 201);

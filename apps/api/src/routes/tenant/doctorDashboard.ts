@@ -18,7 +18,8 @@ doctorDashboardRoutes.get('/dashboard', async (c) => {
   const tenantId = c.get('tenantId');
   const userId   = c.get('userId');
 
-  // BST today's date (UTC+6)
+  // BST (Bangladesh Standard Time = UTC+6). Workers always run in UTC,
+  // so adding 6 hours gives us the correct local date in Bangladesh.
   const now    = new Date(Date.now() + 6 * 60 * 60 * 1000);
   const today  = now.toISOString().split('T')[0]; // YYYY-MM-DD
 

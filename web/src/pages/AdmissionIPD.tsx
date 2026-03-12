@@ -162,6 +162,7 @@ export default function AdmissionIPD({ role = 'hospital_admin' }: { role?: strin
         admission_type: admitForm.admission_type,
       };
       if (admitForm.bed_id) body.bed_id = admitForm.bed_id;
+      if (admitForm.doctor_id) body.doctor_id = admitForm.doctor_id;
       if (admitForm.provisional_diagnosis) body.provisional_diagnosis = admitForm.provisional_diagnosis;
       if (admitForm.notes) body.notes = admitForm.notes;
 

@@ -36,9 +36,17 @@ notifications.get('/', async (c) => {
     `SELECT COUNT(*) as cnt FROM notifications WHERE tenant_id = ? AND (user_id IS NULL OR user_id = ?) AND is_read = 0`
   ).bind(tenantId, userId ? Number(userId) : null).first<{ cnt: number }>();
 
+  // Total count (for pagination)
+  let totalSql = `SELECT COUNT(*) as cnt FROM notifications WHERE tenant_id = ? AND (user_id IS NULL OR user_id = ?)`;
+  const totalParams: (string | number | null)[] = [tenantId, userId ? Number(userId) : null];
+  if (filter === 'unread') { totalSql += ` AND is_read = 0`; }
+  else if (filter === 'read') { totalSql += ` AND is_read = 1`; }
+  const totalRow = await c.env.DB.prepare(totalSql).bind(...totalParams).first<{ cnt: number }>();
+
   return c.json({
     notifications: results,
     unreadCount: countRow?.cnt ?? 0,
+    totalCount: totalRow?.cnt ?? 0,
   });
 });
 

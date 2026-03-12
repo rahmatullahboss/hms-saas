@@ -100,13 +100,20 @@ export default function BedManagement({ role = 'hospital_admin' }: { role?: stri
     }
     setSubmitting(true);
     try {
-      // Note: would need a POST /api/admissions/beds endpoint — for now simulate
+      await axios.post('/api/admissions/beds', {
+        ward_name: addForm.ward_name,
+        bed_number: addForm.bed_number,
+        bed_type: addForm.bed_type,
+      }, { headers: authHeaders() });
       toast.success(`Bed ${addForm.ward_name} — ${addForm.bed_number} added`);
       setShowAddModal(false);
       setAddForm({ ward_name: '', bed_number: '', bed_type: 'general', floor: '' });
       fetchBeds();
-    } catch {
-      toast.error('Failed to add bed');
+    } catch (err: unknown) {
+      const msg = axios.isAxiosError(err) && err.response?.data?.message
+        ? err.response.data.message
+        : 'Failed to add bed';
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
