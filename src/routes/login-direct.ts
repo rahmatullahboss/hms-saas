@@ -107,6 +107,12 @@ loginDirectRoutes.post('/', zValidator('json', loginSchema), async (c) => {
       return c.json({ error: 'Invalid credentials' }, 401);
     }
 
+    // Guard: ensure JWT_SECRET is configured
+    if (!c.env.JWT_SECRET) {
+      console.error('JWT_SECRET not configured');
+      return c.json({ error: 'Server configuration error' }, 500);
+    }
+
     // Filter out inactive/suspended tenants
     const activeUsers = users.filter((u) => u.tenant_status === 'active');
     if (activeUsers.length === 0) {
@@ -123,6 +129,9 @@ loginDirectRoutes.post('/', zValidator('json', loginSchema), async (c) => {
       targetUser = found;
     } else if (activeUsers.length > 1) {
       // Multiple hospitals — verify password first, then return list
+      if (!activeUsers[0].password_hash) {
+        return c.json({ error: 'This account uses Google login. Please use Google Sign-In.' }, 400);
+      }
       const anyValid = await bcrypt.compare(password, activeUsers[0].password_hash);
       if (!anyValid) {
         return c.json({ error: 'Invalid credentials' }, 401);
@@ -140,6 +149,9 @@ loginDirectRoutes.post('/', zValidator('json', loginSchema), async (c) => {
     }
 
     // Verify password
+    if (!targetUser.password_hash) {
+      return c.json({ error: 'This account uses Google login. Please use Google Sign-In.' }, 400);
+    }
     const validPassword = await bcrypt.compare(password, targetUser.password_hash);
     if (!validPassword) {
       return c.json({ error: 'Invalid credentials' }, 401);
