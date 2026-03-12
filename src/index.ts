@@ -39,6 +39,10 @@ import pdfRoutes from './routes/tenant/pdf';
 import branchRoutes from './routes/tenant/branches';
 import paymentRoutes from './routes/tenant/payments';
 import consultationRoutes from './routes/tenant/consultations';
+import appointmentRoutes from './routes/tenant/appointments';
+import admissionRoutes from './routes/tenant/admissions';
+import nurseStationRoutes from './routes/tenant/nurseStation';
+import doctorScheduleRoutes from './routes/tenant/doctorSchedules';
 
 import type { Env } from './types';
 
@@ -151,6 +155,10 @@ app.route('/api/pdf', pdfRoutes);
 app.route('/api/branches', branchRoutes);
 app.route('/api/payments', paymentRoutes);
 app.route('/api/consultations', consultationRoutes);
+app.route('/api/appointments', appointmentRoutes);
+app.route('/api/admissions', admissionRoutes);
+app.route('/api/nurse-station', nurseStationRoutes);
+app.route('/api/doctor-schedules', doctorScheduleRoutes);
 
 
 // ─── Not Found handler ──────────────────────────────────────────────
