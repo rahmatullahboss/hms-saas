@@ -43,6 +43,10 @@ import appointmentRoutes from './routes/tenant/appointments';
 import admissionRoutes from './routes/tenant/admissions';
 import nurseStationRoutes from './routes/tenant/nurseStation';
 import doctorScheduleRoutes from './routes/tenant/doctorSchedules';
+import prescriptionRoutes from './routes/tenant/prescriptions';
+import dischargeRoutes from './routes/tenant/discharge';
+import telemedicineRoutes from './routes/tenant/telemedicine';
+import patientPortalRoutes from './routes/tenant/patientPortal';
 
 import type { Env } from './types';
 
@@ -159,6 +163,10 @@ app.route('/api/appointments', appointmentRoutes);
 app.route('/api/admissions', admissionRoutes);
 app.route('/api/nurse-station', nurseStationRoutes);
 app.route('/api/doctor-schedules', doctorScheduleRoutes);
+app.route('/api/prescriptions', prescriptionRoutes);
+app.route('/api/discharge', dischargeRoutes);
+app.route('/api/telemedicine', telemedicineRoutes);
+app.route('/api/patient-portal', patientPortalRoutes);
 
 
 // ─── Not Found handler ──────────────────────────────────────────────

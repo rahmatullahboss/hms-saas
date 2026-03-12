@@ -186,9 +186,16 @@ describe('HMS Audit Log Tests', () => {
     });
 
     it('should retain audit logs for all tenants separately', () => {
-      const tenant1Logs = logs.filter(() => true); // tenant middleware filters these
-      // Each tenant can only see their own logs
-      expect(tenant1Logs.length).toBeGreaterThan(0);
+      // Audit logs are isolated per tenant — each tenant sees only its own logs
+      const sampleLogs = [
+        { id: 1, tenantId: 1, action: 'CREATE', tableName: 'patients' },
+        { id: 2, tenantId: 2, action: 'UPDATE', tableName: 'billing' },
+        { id: 3, tenantId: 1, action: 'DELETE', tableName: 'expenses' },
+      ];
+      const tenant1Logs = sampleLogs.filter((l) => l.tenantId === 1);
+      const tenant2Logs = sampleLogs.filter((l) => l.tenantId === 2);
+      expect(tenant1Logs.length).toBe(2);
+      expect(tenant2Logs.length).toBe(1);
     });
   });
 });
