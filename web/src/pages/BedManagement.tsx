@@ -58,7 +58,7 @@ export default function BedManagement({ role = 'hospital_admin' }: { role?: stri
   const fetchBeds = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await axios.get('/api/admissions/beds/all', { headers: authHeaders() });
+      const res = await axios.get('/api/admissions/beds', { headers: authHeaders() });
       setBeds(res.data.beds ?? []);
     } catch {
       // Demo fallback

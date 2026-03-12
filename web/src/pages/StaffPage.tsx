@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
+import { useTranslation } from 'react-i18next';
 
 interface Staff {
   id: number;
@@ -19,6 +20,7 @@ export default function StaffPage({ role = 'md' }: { role?: string }) {
   const [staff, setStaff] = useState<Staff[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const { t } = useTranslation(['staff', 'common']);
 
   const fetchStaff = async () => {
     try {
@@ -54,21 +56,21 @@ export default function StaffPage({ role = 'md' }: { role?: string }) {
     <DashboardLayout role={role}>
       <div className="p-6">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-800">Staff Management</h1>
+          <h1 className="text-2xl font-bold text-gray-800">{t('title')}</h1>
         </div>
 
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="bg-white p-4 rounded-lg shadow">
-            <p className="text-sm text-gray-500">Total Staff</p>
+            <p className="text-sm text-gray-500">{t('totalStaff', { defaultValue: 'Total Staff' })}</p>
             <p className="text-2xl font-bold">{staff.length}</p>
           </div>
           <div className="bg-white p-4 rounded-lg shadow">
-            <p className="text-sm text-gray-500">Monthly Salary</p>
+            <p className="text-sm text-gray-500">{t('monthlySalary', { defaultValue: 'Monthly Salary' })}</p>
             <p className="text-2xl font-bold">{formatCurrency(totalSalary)}</p>
           </div>
           <div className="bg-white p-4 rounded-lg shadow">
-            <p className="text-sm text-gray-500">Active Staff</p>
+            <p className="text-sm text-gray-500">{t('activeStaff', { defaultValue: 'Active Staff' })}</p>
             <p className="text-2xl font-bold">{staff.filter(s => s.status === 'active').length}</p>
           </div>
         </div>
@@ -77,7 +79,7 @@ export default function StaffPage({ role = 'md' }: { role?: string }) {
         <div className="mb-4">
           <input
             type="text"
-            placeholder="Search by name, position, or mobile..."
+            placeholder={t('search', { ns: 'common' })}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full md:w-96 px-4 py-2 border rounded-lg"
@@ -89,13 +91,13 @@ export default function StaffPage({ role = 'md' }: { role?: string }) {
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Name</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Position</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Mobile</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Bank Account</th>
-                <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Salary</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Joined</th>
-                <th className="px-4 py-3 text-center text-sm font-medium text-gray-600">Status</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">{t('name', { ns: 'common' })}</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">{t('position', { defaultValue: 'Position' })}</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">{t('phone', { ns: 'common' })}</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">{t('bankAccount', { defaultValue: 'Bank Account' })}</th>
+                <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">{t('salary', { defaultValue: 'Salary' })}</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">{t('joined', { defaultValue: 'Joined' })}</th>
+                <th className="px-4 py-3 text-center text-sm font-medium text-gray-600">{t('status', { ns: 'common' })}</th>
               </tr>
             </thead>
             <tbody className="divide-y">

@@ -1,19 +1,7 @@
 import { Hono } from 'hono';
+import type { Env, Variables } from '../../types';
 
-const dashboardRoutes = new Hono<{
-  Bindings: {
-    DB: D1Database;
-    KV: KVNamespace;
-    UPLOADS: R2Bucket;
-    DASHBOARD_DO: DurableObjectNamespace;
-    ENVIRONMENT: string;
-  };
-  Variables: {
-    tenantId: string;
-    userId: string;
-    role: string;
-  };
-}>();
+const dashboardRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 dashboardRoutes.get('/summary', async (c) => {
   const tenantId = c.get('tenantId');
@@ -197,12 +185,25 @@ dashboardRoutes.get('/expense-breakdown', async (c) => {
   }
 });
 
+// WebSocket upgrade → Durable Object
 dashboardRoutes.get('/ws', async (c) => {
-  const tenantId = c.get('tenantId');
-  const doId = c.env.DASHBOARD_DO.idFromName(tenantId);
+  const upgradeHeader = c.req.header('Upgrade');
+  if (upgradeHeader !== 'websocket') {
+    return c.json({ error: 'Expected WebSocket upgrade' }, 426);
+  }
+
+  const tenantId = c.get('tenantId') || 'default';
+  // Each tenant gets its own DO instance — all dashboard viewers
+  // for the same hospital share one DO for broadcast.
+  const doId = c.env.DASHBOARD_DO.idFromName(`accounting-${tenantId}`);
   const doStub = c.env.DASHBOARD_DO.get(doId);
 
-  return doStub.fetch(c.req.raw);
+  // Forward the raw request (with Upgrade header) to the DO
+  const url = new URL(c.req.url);
+  url.searchParams.set('tenantId', tenantId);
+  const doReq = new Request(url.toString(), c.req.raw);
+  return doStub.fetch(doReq);
 });
 
 export default dashboardRoutes;
+

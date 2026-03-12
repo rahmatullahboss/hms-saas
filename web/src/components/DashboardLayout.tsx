@@ -1,5 +1,5 @@
-import { ReactNode } from 'react';
-import { useNavigate } from 'react-router';
+import { ReactNode, useRef, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router';
 import toast from 'react-hot-toast';
 import { useAuth, logout } from '../hooks/useAuth';
 import Sidebar from './dashboard/Sidebar';
@@ -20,6 +20,17 @@ interface DashboardLayoutProps {
 export default function DashboardLayout({ children, role }: DashboardLayoutProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const mainRef = useRef<HTMLElement>(null);
+
+  // Reset scroll to top whenever the route changes.
+  // React Router's `preventScrollReset` only resets window scroll;
+  // our `<main>` uses `overflow-y-auto` so we must reset it manually.
+  useEffect(() => {
+    if (mainRef.current) {
+      mainRef.current.scrollTop = 0;
+    }
+  }, [pathname]);
 
   const handleLogout = () => {
     logout();
@@ -38,7 +49,7 @@ export default function DashboardLayout({ children, role }: DashboardLayoutProps
             userRole={user?.role ?? role}
             onLogout={handleLogout}
           />
-          <main className="flex-1 overflow-y-auto p-6">
+          <main ref={mainRef} className="flex-1 overflow-y-auto p-6">
             {children}
           </main>
         </div>
@@ -46,3 +57,4 @@ export default function DashboardLayout({ children, role }: DashboardLayoutProps
     </div>
   );
 }
+

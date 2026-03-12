@@ -196,3 +196,7 @@ export default {
   fetch: app.fetch,
   scheduled: scheduledHandler.scheduled,
 };
+
+// ─── Durable Object exports ──────────────────────────────────────────
+// Cloudflare requires DO classes to be re-exported from the entry point
+export { AccountingDashboard } from './durable-objects/AccountingDO';

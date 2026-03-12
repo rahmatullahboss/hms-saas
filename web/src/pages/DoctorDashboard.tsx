@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Doctor {
@@ -140,6 +141,7 @@ function KpiCard({ label, value, icon: Icon, trend }: {
 export default function DoctorDashboard() {
   const { slug } = useParams<{ slug: string }>();
   const basePath = `/h/${slug}`;
+  const { t } = useTranslation(['dashboard', 'common']);
 
   const [data,    setData]    = useState<DashData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -153,7 +155,7 @@ export default function DoctorDashboard() {
 
   // Greet by time of day (BST)
   const hour = new Date(Date.now() + 6 * 3600 * 1000).getUTCHours();
-  const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
+  const greeting = hour < 12 ? t('goodMorning', { defaultValue: 'Good Morning' }) : hour < 17 ? t('goodAfternoon', { defaultValue: 'Good Afternoon' }) : t('goodEvening', { defaultValue: 'Good Evening' });
 
   const todayLabel = new Date().toLocaleDateString('en-BD', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
@@ -281,7 +283,7 @@ export default function DoctorDashboard() {
               {queue.length === 0 ? (
                 <div className="text-center py-12 text-[var(--color-text-muted)]">
                   <CalendarCheck className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                  <p>No appointments scheduled today</p>
+                  <p>{t('noAppointments', { defaultValue: 'No appointments scheduled today' })}</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -359,7 +361,7 @@ export default function DoctorDashboard() {
                 Visit Type Breakdown
               </h3>
               {visitTypes.length === 0 ? (
-                <p className="text-xs text-[var(--color-text-muted)] text-center py-4">No data today</p>
+                <p className="text-xs text-[var(--color-text-muted)] text-center py-4">{t('noData', { defaultValue: 'No data today' })}</p>
               ) : (
                 <div className="space-y-3">
                   {visitTypes.map(v => {
@@ -387,7 +389,7 @@ export default function DoctorDashboard() {
             <div className="card p-4">
               <h3 className="font-semibold text-sm text-[var(--color-text)] mb-3 flex items-center gap-2">
                 <FlaskConical className="w-4 h-4 text-[var(--color-primary)]" />
-                Recent Prescriptions
+                {t('recentPrescriptions', { defaultValue: 'Recent Prescriptions' })}
               </h3>
               {recentRx.length === 0 ? (
                 <p className="text-xs text-[var(--color-text-muted)] text-center py-3">No prescriptions yet</p>

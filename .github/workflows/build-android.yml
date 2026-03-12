@@ -64,9 +64,29 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
-      - name: Upload Release APK
+      - name: Upload Release APK (Artifact)
         uses: actions/upload-artifact@v4
         with:
           name: hms-android-release-${{ github.run_number }}
           path: web/android/app/build/outputs/apk/release/app-release.apk
           retention-days: 30
+
+      - name: Create GitHub Release with APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: HMS v1.0.${{ github.run_number }}
+          body: |
+            ## 🏥 HMS SaaS — Android Release
+
+            **Build:** #${{ github.run_number }}
+            **Commit:** ${{ github.sha }}
+            **Date:** ${{ github.event.head_commit.timestamp }}
+
+            ### Download
+            Install the APK on any Android device (Android 7+).
+          files: web/android/app/build/outputs/apk/release/app-release.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

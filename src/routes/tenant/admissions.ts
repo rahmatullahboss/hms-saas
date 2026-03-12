@@ -82,6 +82,48 @@ app.get('/beds', async (c) => {
   return c.json({ beds: results });
 });
 
+// POST /api/admissions/beds — add a new bed
+app.post('/beds', async (c) => {
+  const tenantId = c.get('tenantId');
+  if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
+
+  const body = await c.req.json<{
+    ward_name: string;
+    bed_number: string;
+    bed_type?: string;
+    floor?: string;
+    notes?: string;
+  }>();
+
+  if (!body.ward_name || !body.bed_number) {
+    throw new HTTPException(400, { message: 'ward_name and bed_number required' });
+  }
+
+  await c.env.DB.prepare(
+    `INSERT INTO beds (tenant_id, ward_name, bed_number, bed_type, floor, notes)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  ).bind(
+    tenantId, body.ward_name, body.bed_number,
+    body.bed_type ?? 'general', body.floor ?? null, body.notes ?? null
+  ).run();
+
+  return c.json({ success: true }, 201);
+});
+
+// PUT /api/admissions/beds/:id — update bed status
+app.put('/beds/:id', async (c) => {
+  const tenantId = c.get('tenantId');
+  if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
+  const id = c.req.param('id');
+  const body = await c.req.json<{ status?: string; notes?: string }>();
+
+  await c.env.DB.prepare(
+    `UPDATE beds SET status = COALESCE(?, status), notes = COALESCE(?, notes) WHERE id = ? AND tenant_id = ?`
+  ).bind(body.status ?? null, body.notes ?? null, id, tenantId).run();
+
+  return c.json({ success: true });
+});
+
 // POST /api/admissions
 app.post('/', async (c) => {
   const tenantId = c.get('tenantId');

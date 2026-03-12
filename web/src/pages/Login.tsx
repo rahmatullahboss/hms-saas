@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useParams } from 'react-router';
 import { api } from '../lib/apiClient';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 import {
   Lock,
   Mail,
@@ -30,6 +31,7 @@ const ROLE_ROUTES: Record<string, string> = {
 
 export default function Login() {
   const { slug } = useParams<{ slug?: string }>();
+  const { t } = useTranslation('auth');
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -141,10 +143,10 @@ export default function Login() {
         {/* Heading */}
         <div className="mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white leading-tight">
-            Sign in to your hospital account
+            {t('loginSubtitle')}
           </h1>
           <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-            Access your dashboard, manage patients, and more.
+            {t('loginDesc', { defaultValue: 'Access your dashboard, manage patients, and more.' })}
           </p>
         </div>
 
@@ -152,7 +154,7 @@ export default function Login() {
         {hospitals && !selectedTenantId && (
           <div className="mb-6 max-w-sm">
             <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">
-              Select your hospital:
+              {t('selectHospital', { defaultValue: 'Select your hospital:' })}
             </h3>
             <div className="space-y-2">
               {hospitals.map((h) => (
@@ -182,7 +184,7 @@ export default function Login() {
               onClick={() => { setHospitals(null); setSelectedTenantId(null); }}
               className="mt-3 text-sm text-cyan-600 hover:text-cyan-700 dark:text-cyan-400"
             >
-              ← Back to login
+              ← {t('login', { defaultValue: 'Back to login' })}
             </button>
           </div>
         )}
@@ -194,14 +196,14 @@ export default function Login() {
               {/* Email */}
               <div>
                 <label htmlFor="email" className="label">
-                  Email
+                  {t('email')}
                 </label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input
                     id="email"
                     type="email"
-                    placeholder="Enter your email"
+                    placeholder={t('emailPlaceholder', { defaultValue: 'Enter your email' })}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
@@ -214,14 +216,14 @@ export default function Login() {
               {/* Password */}
               <div>
                 <label htmlFor="password" className="label">
-                  Password
+                  {t('password')}
                 </label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input
                     id="password"
                     type="password"
-                    placeholder="Enter your password"
+                    placeholder={t('passwordPlaceholder', { defaultValue: 'Enter your password' })}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
@@ -239,13 +241,13 @@ export default function Login() {
                     onChange={(e) => setRememberMe(e.target.checked)}
                     className="w-4 h-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
                   />
-                  <span className="text-slate-600 dark:text-slate-400">Remember me</span>
+                  <span className="text-slate-600 dark:text-slate-400">{t('rememberMe', { defaultValue: 'Remember me' })}</span>
                 </label>
                 <a
                   href="#"
                   className="font-medium text-cyan-600 hover:text-cyan-700 dark:text-cyan-400"
                 >
-                  Forgot password?
+                  {t('forgotPassword')}
                 </a>
               </div>
 
@@ -261,10 +263,10 @@ export default function Login() {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                     </svg>
-                    Signing in…
+                    {t('loggingIn')}
                   </>
                 ) : (
-                  'Sign In'
+                  t('loginButton')
                 )}
               </button>
             </form>
@@ -276,7 +278,7 @@ export default function Login() {
               </div>
               <div className="relative flex justify-center text-xs">
                 <span className="bg-white dark:bg-slate-900 px-3 text-slate-400">
-                  or continue with
+                  {t('orContinueWith', { defaultValue: 'or continue with' })}
                 </span>
               </div>
             </div>
@@ -302,19 +304,19 @@ export default function Login() {
 
             {/* Register link */}
             <p className="mt-8 text-sm text-slate-500 dark:text-slate-400 max-w-sm">
-              Don&apos;t have a hospital account?{' '}
+              {t('noAccount', { defaultValue: "Don't have a hospital account?" })}{' '}
               <a
                 href="/signup"
                 className="font-semibold text-cyan-600 hover:text-cyan-700 dark:text-cyan-400"
               >
-                Register your hospital
+                {t('registerHospital')}
               </a>
             </p>
 
             {/* HIPAA badge */}
             <div className="mt-4 flex items-center gap-1.5 text-xs text-slate-400 max-w-sm">
               <ShieldCheck className="w-3.5 h-3.5" />
-              Protected by HIPAA-grade security
+              {t('hipaaProtected', { defaultValue: 'Protected by HIPAA-grade security' })}
             </div>
           </>
         )}
@@ -346,12 +348,10 @@ export default function Login() {
 
           {/* Tagline */}
           <h2 className="text-2xl font-bold text-slate-800 dark:text-white leading-snug">
-            Streamline your hospital
-            <br />
-            operations
+            {t('tagline', { defaultValue: 'Streamline your hospital operations' })}
           </h2>
           <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
-            Trusted by 50+ hospitals in Bangladesh
+            {t('trustedBy', { defaultValue: 'Trusted by 50+ hospitals in Bangladesh' })}
           </p>
         </div>
       </div>

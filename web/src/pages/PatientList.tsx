@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router';
 import { Users, Search, Plus, Eye, Pencil, Download, Filter, RefreshCw } from 'lucide-react';
 import axios from 'axios';
 import DashboardLayout from '../components/DashboardLayout';
+import { useTranslation } from 'react-i18next';
 
 interface Patient {
   id: number;
@@ -24,6 +25,7 @@ export default function PatientList({ role = 'hospital_admin' }: { role?: string
   const [page, setPage] = useState(1);
   const perPage = 20;
   const navigate = useNavigate();
+  const { t } = useTranslation(['patients', 'common']);
 
   const { slug = '' } = useParams<{ slug: string }>();
   const basePath = `/h/${slug}`;
@@ -66,24 +68,24 @@ export default function PatientList({ role = 'hospital_admin' }: { role?: string
         {/* ── Page Header ── */}
         <div className="page-header">
           <div>
-            <h1 className="page-title">Patients</h1>
+            <h1 className="page-title">{t('title')}</h1>
             <nav className="text-sm text-[var(--color-text-muted)] mt-1">
-              <span>Dashboard</span> <span className="mx-1.5">›</span> <span className="text-[var(--color-text-secondary)]">Patients</span>
+              <span>{t('dashboard', { ns: 'dashboard', defaultValue: 'Dashboard' })}</span> <span className="mx-1.5">›</span> <span className="text-[var(--color-text-secondary)]">{t('title')}</span>
             </nav>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={fetchPatients} className="btn-ghost" title="Refresh"><RefreshCw className="w-4 h-4" /></button>
-            <button className="btn-secondary"><Download className="w-4 h-4" /> Export</button>
+            <button className="btn-secondary"><Download className="w-4 h-4" /> {t('export', { ns: 'common', defaultValue: 'Export' })}</button>
             <button onClick={() => navigate(`${basePath}/patients/new`)} className="btn-primary">
-              <Plus className="w-4 h-4" /> New Patient
+              <Plus className="w-4 h-4" /> {t('newPatient')}
             </button>
           </div>
         </div>
 
         {/* ── Summary chips ── */}
         <div className="flex flex-wrap gap-2">
-          <span className="badge badge-primary">Total: {total.toLocaleString()}</span>
-          <span className="badge badge-info">Today: {loading ? '…' : patients.filter(p => new Date(p.created_at).toDateString() === today).length}</span>
+          <span className="badge badge-primary">{t('total', { ns: 'common' })}: {total.toLocaleString()}</span>
+          <span className="badge badge-info">{t('today', { ns: 'common', defaultValue: 'Today' })}: {loading ? '…' : patients.filter(p => new Date(p.created_at).toDateString() === today).length}</span>
         </div>
 
         {/* ── Search & Filter ── */}
@@ -92,7 +94,7 @@ export default function PatientList({ role = 'hospital_admin' }: { role?: string
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-muted)]" />
             <input
               type="text"
-              placeholder="Search by name, ID, mobile…"
+              placeholder={t('search', { ns: 'common' })}
               value={search}
               onChange={(e) => {
                 const v = e.target.value;
@@ -104,7 +106,7 @@ export default function PatientList({ role = 'hospital_admin' }: { role?: string
               className="input pl-9"
             />
           </div>
-          <button className="btn-secondary"><Filter className="w-4 h-4" /> Filter</button>
+          <button className="btn-secondary"><Filter className="w-4 h-4" /> {t('filter', { ns: 'common', defaultValue: 'Filter' })}</button>
         </div>
 
         {/* ── Table ── */}
@@ -114,12 +116,12 @@ export default function PatientList({ role = 'hospital_admin' }: { role?: string
               <thead>
                 <tr>
                   <th>#</th>
-                  <th>Patient ID</th>
-                  <th>Name</th>
-                  <th>Age / Gender</th>
-                  <th>Mobile</th>
-                  <th>Registered</th>
-                  <th>Actions</th>
+                  <th>{t('patientId')}</th>
+                  <th>{t('name', { ns: 'common' })}</th>
+                  <th>{t('age')} / {t('gender')}</th>
+                  <th>{t('phone', { ns: 'common' })}</th>
+                  <th>{t('date', { ns: 'common' })}</th>
+                  <th>{t('actions', { ns: 'common' })}</th>
                 </tr>
               </thead>
               <tbody>
@@ -136,9 +138,9 @@ export default function PatientList({ role = 'hospital_admin' }: { role?: string
                     <td colSpan={7} className="py-16 text-center">
                       <div className="flex flex-col items-center gap-3 text-[var(--color-text-muted)]">
                         <Users className="w-10 h-10 opacity-30" />
-                        <p className="font-medium">No patients found</p>
+                        <p className="font-medium">{t('noPatients', { defaultValue: 'No patients found' })}</p>
                         <button onClick={() => navigate(`${basePath}/patients/new`)} className="btn-primary">
-                          <Plus className="w-4 h-4" /> Add First Patient
+                          <Plus className="w-4 h-4" /> {t('addFirst', { defaultValue: 'Add First Patient' })}
                         </button>
                       </div>
                     </td>
@@ -179,14 +181,14 @@ export default function PatientList({ role = 'hospital_admin' }: { role?: string
           {!loading && patients.length > 0 && (
             <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--color-border)]">
               <span className="text-sm text-[var(--color-text-muted)]">
-                Showing {(page - 1) * perPage + 1}–{Math.min(page * perPage, total)} of {total.toLocaleString()} patients
+                {t('showing', { defaultValue: 'Showing' })} {(page - 1) * perPage + 1}–{Math.min(page * perPage, total)} {t('of', { defaultValue: 'of' })} {total.toLocaleString()} {t('patientsList', { defaultValue: 'patients' })}
               </span>
               <div className="flex items-center gap-1">
                 <button
                   disabled={page === 1}
                   onClick={() => setPage(p => p - 1)}
                   className="btn-ghost text-sm disabled:opacity-40"
-                >← Prev</button>
+                >← {t('prev', { ns: 'common', defaultValue: 'Prev' })}</button>
                 {[...Array(Math.min(5, totalPages))].map((_, i) => {
                   const pg = i + 1;
                   return (
@@ -202,7 +204,7 @@ export default function PatientList({ role = 'hospital_admin' }: { role?: string
                   disabled={page === totalPages}
                   onClick={() => setPage(p => p + 1)}
                   className="btn-ghost text-sm disabled:opacity-40"
-                >Next →</button>
+                >{t('next', { ns: 'common', defaultValue: 'Next' })} →</button>
               </div>
             </div>
           )}

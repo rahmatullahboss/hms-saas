@@ -6,6 +6,7 @@ import {
 import axios from 'axios';
 import DashboardLayout from '../components/DashboardLayout';
 import KPICard from '../components/dashboard/KPICard';
+import { useTranslation } from 'react-i18next';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -155,6 +156,7 @@ export default function ReportsDashboard({ role = 'hospital_admin' }: { role?: s
   const [summary, setSummary] = useState<SummaryData>({ totalIncome: 0, totalExpense: 0, netProfit: 0 });
   const [sources, setSources] = useState<SourceRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const { t } = useTranslation(['reports', 'common']);
 
 
 
@@ -214,8 +216,8 @@ export default function ReportsDashboard({ role = 'hospital_admin' }: { role?: s
         {/* ── Header ── */}
         <div className="page-header">
           <div>
-            <h1 className="page-title">Reports &amp; Analytics</h1>
-            <p className="section-subtitle mt-1">Financial overview and performance metrics</p>
+            <h1 className="page-title">{t('title')}</h1>
+            <p className="section-subtitle mt-1">{t('subtitle', { defaultValue: 'Financial overview and performance metrics' })}</p>
           </div>
           <div className="flex items-center gap-2">
             {/* Range toggle */}
@@ -253,7 +255,7 @@ export default function ReportsDashboard({ role = 'hospital_admin' }: { role?: s
               className="btn-secondary"
               disabled={loading || !monthly.length}
             >
-              <Download className="w-4 h-4" /> Export CSV
+              <Download className="w-4 h-4" /> {t('exportCsv', { defaultValue: 'Export CSV' })}
             </button>
           </div>
         </div>
@@ -261,7 +263,7 @@ export default function ReportsDashboard({ role = 'hospital_admin' }: { role?: s
         {/* ── KPI Row ── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <KPICard
-            title="Total Revenue"
+            title={t('totalRevenue', { defaultValue: 'Total Revenue' })}
             value={loading ? '' : fmtFull(summary.totalIncome)}
             icon={<DollarSign className="w-5 h-5" />}
             trend={summary.netProfit >= 0
@@ -270,13 +272,13 @@ export default function ReportsDashboard({ role = 'hospital_admin' }: { role?: s
             loading={loading}
           />
           <KPICard
-            title="Total Expenses"
+            title={t('totalExpenses', { defaultValue: 'Total Expenses' })}
             value={loading ? '' : fmtFull(summary.totalExpense)}
             icon={<TrendingDown className="w-5 h-5" />}
             loading={loading}
           />
           <KPICard
-            title="Net Profit"
+            title={t('netProfit', { defaultValue: 'Net Profit' })}
             value={loading ? '' : fmtFull(summary.netProfit)}
             icon={<TrendingUp className="w-5 h-5" />}
             trend={summary.netProfit >= 0
@@ -285,7 +287,7 @@ export default function ReportsDashboard({ role = 'hospital_admin' }: { role?: s
             loading={loading}
           />
           <KPICard
-            title="Revenue Sources"
+            title={t('revenueSources', { defaultValue: 'Revenue Sources' })}
             value={loading ? '' : String(sources.length)}
             icon={<Users className="w-5 h-5" />}
             loading={loading}
@@ -298,7 +300,7 @@ export default function ReportsDashboard({ role = 'hospital_admin' }: { role?: s
           {/* Monthly bar chart */}
           <div className="lg:col-span-2 card p-5">
             <div className="flex items-center justify-between mb-2">
-              <h2 className="section-title">Monthly Revenue vs Expenses</h2>
+              <h2 className="section-title">{t('monthlyRevenueVsExpenses', { defaultValue: 'Monthly Revenue vs Expenses' })}</h2>
               <div className="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
                 <Calendar className="w-3.5 h-3.5" /> {new Date().getFullYear()}
               </div>
@@ -312,7 +314,7 @@ export default function ReportsDashboard({ role = 'hospital_admin' }: { role?: s
 
           {/* Income by Source */}
           <div className="card p-5">
-            <h2 className="section-title mb-4">Revenue by Source</h2>
+            <h2 className="section-title mb-4">{t('revenueBySource', { defaultValue: 'Revenue by Source' })}</h2>
             {loading ? (
               <div className="space-y-3">
                 {[...Array(3)].map((_, i) => (
@@ -342,7 +344,7 @@ export default function ReportsDashboard({ role = 'hospital_admin' }: { role?: s
         {/* ── Monthly breakdown table ── */}
         <div className="card overflow-hidden">
           <div className="px-5 py-4 border-b border-[var(--color-border)] flex items-center justify-between">
-            <h2 className="section-title">Monthly Breakdown</h2>
+            <h2 className="section-title">{t('monthlyBreakdown', { defaultValue: 'Monthly Breakdown' })}</h2>
             <BarChart2 className="w-4 h-4 text-[var(--color-text-muted)]" />
           </div>
           <div className="overflow-x-auto">

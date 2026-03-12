@@ -7,6 +7,7 @@ import {
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
+import { useTranslation } from 'react-i18next';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -69,6 +70,7 @@ const DEMO_NOTIFICATIONS: Notification[] = [
 export default function NotificationsCenter({ role = 'hospital_admin' }: { role?: string }) {
   const { slug = '' } = useParams<{ slug: string }>();
   const basePath = `/h/${slug}`;
+  const { t } = useTranslation(['notifications', 'common']);
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -147,15 +149,15 @@ export default function NotificationsCenter({ role = 'hospital_admin' }: { role?
             <div className="text-xs text-[var(--color-text-muted)] flex items-center gap-1 mb-1">
               <Link to={`${basePath}/dashboard`} className="hover:underline">Dashboard</Link>
               <ChevronRight className="w-3 h-3" />
-              <span className="text-[var(--color-text)] font-medium">Notifications</span>
+              <span className="text-[var(--color-text)] font-medium">{t('title')}</span>
             </div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-[var(--color-text)] flex items-center gap-2">
-                <Bell className="w-6 h-6" /> Notifications
+                <Bell className="w-6 h-6" /> {t('title')}
               </h1>
               {unreadCount > 0 && (
                 <span className="text-xs bg-[var(--color-primary)] text-white rounded-full px-2.5 py-0.5 font-medium">
-                  {unreadCount} unread
+                  {unreadCount} {t('unread')}
                 </span>
               )}
             </div>
@@ -163,14 +165,14 @@ export default function NotificationsCenter({ role = 'hospital_admin' }: { role?
           <div className="flex items-center gap-2">
             {unreadCount > 0 && (
               <button onClick={markAllRead} className="text-sm text-[var(--color-primary)] hover:underline flex items-center gap-1">
-                <CheckCheck className="w-4 h-4" /> Mark All Read
+                <CheckCheck className="w-4 h-4" /> {t('markAllRead')}
               </button>
             )}
             <select value={filter} onChange={e => setFilter(e.target.value as FilterType)}
               className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white">
-              <option value="all">All</option>
-              <option value="unread">Unread</option>
-              <option value="read">Read</option>
+              <option value="all">{t('all')}</option>
+              <option value="unread">{t('unread')}</option>
+              <option value="read">{t('read')}</option>
             </select>
           </div>
         </div>
@@ -178,11 +180,11 @@ export default function NotificationsCenter({ role = 'hospital_admin' }: { role?
         {/* Notification List */}
         <div className="space-y-2">
           {loading ? (
-            <div className="card p-8 text-center text-[var(--color-text-muted)]">Loading...</div>
+            <div className="card p-8 text-center text-[var(--color-text-muted)]">{t('loading', { ns: 'common' })}</div>
           ) : notifications.length === 0 ? (
             <div className="card p-12 text-center">
               <Bell className="w-10 h-10 mx-auto mb-2 text-[var(--color-text-muted)] opacity-40" />
-              <p className="text-[var(--color-text-muted)]">No notifications</p>
+              <p className="text-[var(--color-text-muted)]">{t('none')}</p>
             </div>
           ) : (
             notifications.map(n => {
@@ -226,7 +228,7 @@ export default function NotificationsCenter({ role = 'hospital_admin' }: { role?
           <div className="text-center">
             <button onClick={loadMore} disabled={loadingMore}
               className="btn btn-outline text-sm inline-flex items-center gap-1">
-              {loadingMore ? <><Loader2 className="w-4 h-4 animate-spin" /> Loading...</> : 'Load More'}
+              {loadingMore ? <><Loader2 className="w-4 h-4 animate-spin" /> {t('loading', { ns: 'common' })}</> : t('loadMore', { defaultValue: 'Load More' })}
             </button>
           </div>
         )}

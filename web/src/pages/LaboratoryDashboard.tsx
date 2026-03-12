@@ -4,6 +4,7 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
 import KPICard from '../components/dashboard/KPICard';
+import { useTranslation } from 'react-i18next';
 
 interface Test {
   id: number;
@@ -23,6 +24,7 @@ export default function LaboratoryDashboard({ role = 'laboratory' }: { role?: st
   const [selectedTest, setSelectedTest] = useState<Test | null>(null);
   const [result,       setResult]       = useState('');
   const [saving,       setSaving]       = useState(false);
+  const { t } = useTranslation(['laboratory', 'common']);
 
   useEffect(() => { fetchTests(); }, []);
 
@@ -49,7 +51,7 @@ export default function LaboratoryDashboard({ role = 'laboratory' }: { role?: st
   };
 
   const handleResultSubmit = async (testId: number) => {
-    if (!result.trim()) { toast.error('Result cannot be empty'); return; }
+    if (!result.trim()) { toast.error(t('resultRequired', { defaultValue: 'Result cannot be empty' })); return; }
     setSaving(true);
     try {
       const token = localStorage.getItem('hms_token');
@@ -106,9 +108,9 @@ export default function LaboratoryDashboard({ role = 'laboratory' }: { role?: st
   });
 
   const statusBadge = (status: string) => {
-    if (status === 'completed') return <span className="badge badge-success">Completed</span>;
-    if (status === 'in_progress') return <span className="badge badge-info">In Progress</span>;
-    return <span className="badge badge-warning">Pending</span>;
+    if (status === 'completed') return <span className="badge badge-success">{t('completed')}</span>;
+    if (status === 'in_progress') return <span className="badge badge-info">{t('inProgress', { defaultValue: 'In Progress' })}</span>;
+    return <span className="badge badge-warning">{t('pending')}</span>;
   };
 
   return (
@@ -118,8 +120,8 @@ export default function LaboratoryDashboard({ role = 'laboratory' }: { role?: st
         {/* ── Header ── */}
         <div className="page-header">
           <div>
-            <h1 className="page-title">Laboratory Tests</h1>
-            <p className="section-subtitle mt-1">Manage test requests and results</p>
+            <h1 className="page-title">{t('title')}</h1>
+            <p className="section-subtitle mt-1">{t('manageTests', { defaultValue: 'Manage test requests and results' })}</p>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={fetchTests} className="btn-ghost" title="Refresh"><RefreshCw className="w-4 h-4" /></button>
@@ -128,9 +130,9 @@ export default function LaboratoryDashboard({ role = 'laboratory' }: { role?: st
 
         {/* ── KPI Cards ── */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <KPICard title="Pending Tests"   value={pending}   loading={loading} icon={<FlaskConical className="w-5 h-5"/>} iconBg="bg-amber-50 text-amber-600" />
-          <KPICard title="Completed Tests" value={completed} loading={loading} icon={<ClipboardList className="w-5 h-5"/>} iconBg="bg-emerald-50 text-emerald-600" />
-          <KPICard title="Total Tests"     value={tests.length} loading={loading} icon={<FlaskConical className="w-5 h-5"/>} iconBg="bg-[var(--color-primary-light)] text-[var(--color-primary)]" />
+          <KPICard title={t('pending')}   value={pending}   loading={loading} icon={<FlaskConical className="w-5 h-5"/>} iconBg="bg-amber-50 text-amber-600" />
+          <KPICard title={t('completed')} value={completed} loading={loading} icon={<ClipboardList className="w-5 h-5"/>} iconBg="bg-emerald-50 text-emerald-600" />
+          <KPICard title={t('tests')}     value={tests.length} loading={loading} icon={<FlaskConical className="w-5 h-5"/>} iconBg="bg-[var(--color-primary-light)] text-[var(--color-primary)]" />
         </div>
 
         {/* ── Search + Filter tabs ── */}
@@ -139,7 +141,7 @@ export default function LaboratoryDashboard({ role = 'laboratory' }: { role?: st
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-muted)]" />
             <input
               type="text"
-              placeholder="Search patient or test name…"
+              placeholder={t('searchPlaceholder', { defaultValue: 'Search patient or test name…' })}
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="input pl-9"
@@ -156,7 +158,7 @@ export default function LaboratoryDashboard({ role = 'laboratory' }: { role?: st
                     : 'bg-white text-[var(--color-text-secondary)] hover:bg-[var(--color-border-light)]'
                 }`}
               >
-                {f.charAt(0).toUpperCase() + f.slice(1)}
+                {f === 'all' ? t('all', { ns: 'notifications', defaultValue: 'All' }) : f === 'pending' ? t('pending') : t('completed')}
                 {f === 'pending' && pending > 0 && <span className="ml-1.5 bg-amber-500 text-white text-xs rounded-full px-1.5">{pending}</span>}
               </button>
             ))}
@@ -169,13 +171,13 @@ export default function LaboratoryDashboard({ role = 'laboratory' }: { role?: st
             <table className="table-base">
               <thead>
                 <tr>
-                  <th>Patient ID</th>
-                  <th>Patient Name</th>
-                  <th>Test Name</th>
-                  <th>Date</th>
-                  <th>Status</th>
-                  <th>Result</th>
-                  <th>Actions</th>
+                  <th>{t('patientId', { defaultValue: 'Patient ID' })}</th>
+                  <th>{t('patientName', { defaultValue: 'Patient Name' })}</th>
+                  <th>{t('testName')}</th>
+                  <th>{t('date', { ns: 'common' })}</th>
+                  <th>{t('status', { ns: 'common' })}</th>
+                  <th>{t('result')}</th>
+                  <th>{t('actions', { ns: 'common' })}</th>
                 </tr>
               </thead>
               <tbody>
@@ -188,7 +190,7 @@ export default function LaboratoryDashboard({ role = 'laboratory' }: { role?: st
                     <td colSpan={7} className="py-16 text-center">
                       <div className="flex flex-col items-center gap-2 text-[var(--color-text-muted)]">
                         <FlaskConical className="w-10 h-10 opacity-30" />
-                        <p>No tests found</p>
+                        <p>{t('noTests')}</p>
                       </div>
                     </td>
                   </tr>
@@ -210,11 +212,11 @@ export default function LaboratoryDashboard({ role = 'laboratory' }: { role?: st
                               onClick={() => { setSelectedTest(test); setResult(test.result || ''); }}
                               className="btn-primary text-xs py-1 px-2.5"
                             >
-                              <Plus className="w-3.5 h-3.5" /> Enter Result
+                              <Plus className="w-3.5 h-3.5" /> {t('enterResult', { defaultValue: 'Enter Result' })}
                             </button>
                           ) : (
                             <button onClick={() => handlePrint(test)} className="btn-secondary text-xs py-1 px-2.5">
-                              <Printer className="w-3.5 h-3.5" /> Print
+                              <Printer className="w-3.5 h-3.5" /> {t('print', { ns: 'common' })}
                             </button>
                           )}
                         </div>
@@ -233,7 +235,7 @@ export default function LaboratoryDashboard({ role = 'laboratory' }: { role?: st
             <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-modal w-full max-w-md">
               <div className="flex items-center justify-between p-5 border-b border-[var(--color-border)]">
                 <div>
-                  <h3 className="font-semibold text-[var(--color-text-primary)]">Enter Test Result</h3>
+                  <h3 className="font-semibold text-[var(--color-text-primary)]">{t('enterResult', { defaultValue: 'Enter Test Result' })}</h3>
                   <p className="text-sm text-[var(--color-text-muted)] mt-0.5">{selectedTest.test_name} — {selectedTest.patient_name}</p>
                 </div>
                 <button onClick={() => { setSelectedTest(null); setResult(''); }} className="btn-ghost p-1.5">
@@ -242,7 +244,7 @@ export default function LaboratoryDashboard({ role = 'laboratory' }: { role?: st
               </div>
               <div className="p-5 space-y-4">
                 <div>
-                  <label className="label">Result *</label>
+                  <label className="label">{t('result')} *</label>
                   <textarea
                     value={result}
                     onChange={e => setResult(e.target.value)}
@@ -253,9 +255,9 @@ export default function LaboratoryDashboard({ role = 'laboratory' }: { role?: st
                 </div>
               </div>
               <div className="flex justify-end gap-3 px-5 pb-5">
-                <button onClick={() => { setSelectedTest(null); setResult(''); }} className="btn-secondary">Cancel</button>
+                <button onClick={() => { setSelectedTest(null); setResult(''); }} className="btn-secondary">{t('cancel', { ns: 'common' })}</button>
                 <button onClick={() => handleResultSubmit(selectedTest.id)} disabled={saving} className="btn-primary">
-                  {saving ? 'Saving…' : 'Save Result'}
+                  {saving ? t('loading', { ns: 'common' }) : t('save', { ns: 'common' })}
                 </button>
               </div>
             </div>
