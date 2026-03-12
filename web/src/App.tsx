@@ -40,6 +40,10 @@ import PrescriptionPrint from './pages/PrescriptionPrint';
 import DoctorSchedule from './pages/DoctorSchedule';
 import SystemAuditLog from './pages/SystemAuditLog';
 import LabReportPrint from './pages/LabReportPrint';
+import PatientTimeline from './pages/PatientTimeline';
+import InsuranceClaims from './pages/InsuranceClaims';
+import MultiBranchDashboard from './pages/MultiBranchDashboard';
+import PatientPortal from './pages/PatientPortal';
 
 function Unauthorized() {
   return (
@@ -115,6 +119,10 @@ function App() {
             <Route path="doctor-schedule" element={<DoctorSchedule role="hospital_admin" />} />
             <Route path="system-audit" element={<SystemAuditLog role="hospital_admin" />} />
             <Route path="lab/:labId/report" element={<LabReportPrint role="hospital_admin" />} />
+            <Route path="patients/:id/timeline" element={<PatientTimeline role="hospital_admin" />} />
+            <Route path="insurance-claims" element={<InsuranceClaims role="hospital_admin" />} />
+            <Route path="multi-branch" element={<MultiBranchDashboard role="hospital_admin" />} />
+            <Route path="patient-portal" element={<PatientPortal role="hospital_admin" />} />
           </Route>
 
           {/* ─── Laboratory ──────────────────────────────────────────── */}
