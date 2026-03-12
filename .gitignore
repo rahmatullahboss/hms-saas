@@ -15,3 +15,4 @@ web/android/app/build/
 web/android/build/
 *.ipa
 *.apk
+docs/android-signing-secrets.md
