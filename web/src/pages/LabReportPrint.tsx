@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router';
 import { ChevronRight, Printer, Download, FileText } from 'lucide-react';
 import axios from 'axios';
 import DashboardLayout from '../components/DashboardLayout';
+import { useTranslation } from 'react-i18next';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -90,7 +91,10 @@ const FLAG_LABEL: Record<string, string> = {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export default function LabReportPrint({ role = 'hospital_admin' }: { role?: string }) {
+export default function LabReportPrint({
+ role = 'hospital_admin' }: { role?: string }) {
+  const { t } = useTranslation(['laboratory', 'common']);
+
   const { slug = '', labId = '' } = useParams<{ slug: string; labId: string }>();
   const basePath = `/h/${slug}`;
 
@@ -137,7 +141,7 @@ export default function LabReportPrint({ role = 'hospital_admin' }: { role?: str
           {/* Controls */}
           <div className="flex flex-wrap items-center justify-between gap-3 no-print">
             <div className="text-xs text-[var(--color-text-muted)] flex items-center gap-1">
-              <Link to={`${basePath}/dashboard`} className="hover:underline">Dashboard</Link>
+              <Link to={`${basePath}/dashboard`} className="hover:underline">{t('dashboard', { defaultValue: 'Dashboard' })}</Link>
               <ChevronRight className="w-3 h-3" />
               <Link to={`${basePath}/tests`} className="hover:underline">Laboratory</Link>
               <ChevronRight className="w-3 h-3" />

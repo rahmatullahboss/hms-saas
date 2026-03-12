@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api, ApiClientError } from '../lib/apiClient';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 
 
 const ROLES = [
@@ -32,6 +33,8 @@ interface InviteResult {
 }
 
 export default function InviteStaff() {
+  const { t } = useTranslation('staff');
+
   const [showModal, setShowModal] = useState(false);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -131,7 +134,7 @@ export default function InviteStaff() {
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>Invite Staff Member</h3>
+              <h3>{t('inviteStaff', { defaultValue: 'Invite Staff Member' })}</h3>
               <button className="modal-close" onClick={() => setShowModal(false)}>✕</button>
             </div>
 

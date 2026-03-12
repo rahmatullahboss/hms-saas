@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { ChevronRight, Search, FileText, AlertTriangle, CheckCircle, Clock, Plus, Filter, DollarSign } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
+import { useTranslation } from 'react-i18next';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -48,7 +49,10 @@ function fmtDate(d: string): string {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export default function InsuranceClaims({ role = 'hospital_admin' }: { role?: string }) {
+export default function InsuranceClaims({
+ role = 'hospital_admin' }: { role?: string }) {
+  const { t } = useTranslation(['billing', 'common']);
+
   const { slug = '' } = useParams<{ slug: string }>();
   const basePath = `/h/${slug}`;
 
@@ -83,7 +87,7 @@ export default function InsuranceClaims({ role = 'hospital_admin' }: { role?: st
             <div className="text-xs text-[var(--color-text-muted)] flex items-center gap-1 mb-1">
               <Link to={`${basePath}/dashboard`} className="hover:underline">Dashboard</Link>
               <ChevronRight className="w-3 h-3" />
-              <span className="text-[var(--color-text)] font-medium">Insurance Claims</span>
+              <span className="text-[var(--color-text)] font-medium">{t('insuranceClaims', { ns: 'billing', defaultValue: 'Insurance Claims' })}</span>
             </div>
             <h1 className="text-2xl font-bold text-[var(--color-text)]">Insurance Claims Management</h1>
             <p className="text-sm text-[var(--color-text-muted)]">Submit and track insurance claims</p>

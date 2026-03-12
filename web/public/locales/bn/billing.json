@@ -16,6 +16,13 @@
   "card": "কার্ড",
   "bank": "ব্যাংক ট্রান্সফার",
   "insurance": "বিমা",
+  "insuranceClaims": "বিমা দাবি",
+  "newClaim": "নতুন দাবি",
   "printBill": "বিল প্রিন্ট করুন",
+  "billPrint": "বিল প্রিন্ট",
+  "hospitalBill": "হাসপাতালের বিল",
+  "invoice": "চালান",
+  "billTo": "যাকে বিল করা হয়েছে",
+  "billNotFound": "বিল পাওয়া যায়নি",
   "noBills": "কোনো বিল পাওয়া যায়নি"
 }

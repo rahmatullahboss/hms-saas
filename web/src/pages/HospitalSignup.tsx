@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router';
 import { api } from '../lib/apiClient';
 import { saveToken } from '../hooks/useAuth';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 import {
   Building2,
   User,
@@ -25,6 +26,8 @@ interface FormData {
 }
 
 export default function HospitalSignup() {
+  const { t } = useTranslation('auth');
+
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState<FormData>({
@@ -106,10 +109,10 @@ export default function HospitalSignup() {
         {/* Heading */}
         <div className="mb-6">
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white leading-tight">
-            Register your hospital
+            {t('registerHospital', { defaultValue: 'Register your hospital' })}
           </h1>
           <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-            Set up your hospital management system in minutes — completely free.
+            {t('signupSubtitle', { defaultValue: 'Set up your hospital management system in minutes — completely free.' })}
           </p>
         </div>
 

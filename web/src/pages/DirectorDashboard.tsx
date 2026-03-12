@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
+import { useTranslation } from 'react-i18next';
 
 interface Shareholder {
   id: number;
@@ -24,6 +25,7 @@ interface ProfitCalculation {
 }
 
 export default function DirectorDashboard({ role = 'director' }: { role?: string }) {
+  const { t } = useTranslation('common');
   const [shareholders, setShareholders] = useState<Shareholder[]>([]);
   const [profitCalc, setProfitCalc] = useState<ProfitCalculation | null>(null);
   const [loading, setLoading] = useState(true);
@@ -95,30 +97,30 @@ export default function DirectorDashboard({ role = 'director' }: { role?: string
     <DashboardLayout role={role}>
       <div className="space-y-6">
         <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold">Director Dashboard</h1>
+          <h1 className="text-2xl font-bold">{t('directorDashboard', { defaultValue: 'Director Dashboard' })}</h1>
           <button
             onClick={() => setShowAddShareholder(true)}
             className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700"
           >
-            + Add Shareholder
+            + {t('addShareholder', { defaultValue: 'Add Shareholder' })}
           </button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="bg-white rounded-lg shadow p-4">
-            <div className="text-sm text-gray-500">Total Shares</div>
+            <div className="text-sm text-gray-500">{t('totalShares', { defaultValue: 'Total Shares' })}</div>
             <div className="text-2xl font-bold text-primary-600">{totalShares}</div>
           </div>
           <div className="bg-white rounded-lg shadow p-4">
-            <div className="text-sm text-gray-500">Profit Partners</div>
+            <div className="text-sm text-gray-500">{t('profitPartners', { defaultValue: 'Profit Partners' })}</div>
             <div className="text-2xl font-bold text-green-600">{profitPartners.length}</div>
           </div>
           <div className="bg-white rounded-lg shadow p-4">
-            <div className="text-sm text-gray-500">Owner Partners</div>
+            <div className="text-sm text-gray-500">{t('ownerPartners', { defaultValue: 'Owner Partners' })}</div>
             <div className="text-2xl font-bold text-blue-600">{ownerPartners.length}</div>
           </div>
           <div className="bg-white rounded-lg shadow p-4">
-            <div className="text-sm text-gray-500">Total Investment</div>
+            <div className="text-sm text-gray-500">{t('totalInvestment', { defaultValue: 'Total Investment' })}</div>
             <div className="text-2xl font-bold text-gray-600">
               {shareholders.reduce((sum, s) => sum + s.investment, 0).toFixed(0)} Taka
             </div>
@@ -166,7 +168,7 @@ export default function DirectorDashboard({ role = 'director' }: { role?: string
 
         <div className="bg-white rounded-lg shadow">
           <div className="px-6 py-4 border-b">
-            <h2 className="font-semibold">Shareholders</h2>
+            <h2 className="font-semibold">{t('shareholders', { defaultValue: 'Shareholders' })}</h2>
           </div>
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -207,7 +209,7 @@ export default function DirectorDashboard({ role = 'director' }: { role?: string
         {showAddShareholder && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-lg shadow p-6 max-w-lg w-full">
-              <h3 className="text-lg font-bold mb-4">Add New Shareholder</h3>
+              <h3 className="text-lg font-bold mb-4">{t('addNewShareholder', { defaultValue: 'Add New Shareholder' })}</h3>
               
               <div className="space-y-4">
                 <input
@@ -262,13 +264,13 @@ export default function DirectorDashboard({ role = 'director' }: { role?: string
                   onClick={handleAddShareholder}
                   className="flex-1 bg-primary-600 text-white py-2 rounded-lg hover:bg-primary-700"
                 >
-                  Add Shareholder
+                  {t('addShareholder', { defaultValue: 'Add Shareholder' })}
                 </button>
                 <button
                   onClick={() => setShowAddShareholder(false)}
                   className="px-6 py-2 border rounded-lg hover:bg-gray-50"
                 >
-                  Cancel
+                  {t('cancel')}
                 </button>
               </div>
             </div>

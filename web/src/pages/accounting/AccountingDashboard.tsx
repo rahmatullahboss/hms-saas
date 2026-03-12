@@ -102,16 +102,21 @@ export default function AccountingDashboard({ role = 'md' }: { role?: string }) 
   }, [fetchData]);
 
   useEffect(() => {
-    const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/accounting/ws`;
+    const token = localStorage.getItem('hms_token');
+    if (!token) return; // Can't connect without auth
+
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${wsProtocol}//${window.location.host}/api/accounting/ws?token=${encodeURIComponent(token)}`;
     let ws: WebSocket | null = null;
     let reconnectTimeout: ReturnType<typeof setTimeout>;
+    let reconnectDelay = 3000;
 
     const connect = () => {
       ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {
         setWsConnected(true);
-        console.log('WebSocket connected');
+        reconnectDelay = 3000; // reset on successful connect
       };
 
       ws.onmessage = (event) => {
@@ -140,11 +145,12 @@ export default function AccountingDashboard({ role = 'md' }: { role?: string }) 
 
       ws.onclose = () => {
         setWsConnected(false);
-        reconnectTimeout = setTimeout(connect, 3000);
+        // Exponential backoff capped at 30s
+        reconnectTimeout = setTimeout(connect, reconnectDelay);
+        reconnectDelay = Math.min(reconnectDelay * 1.5, 30000);
       };
 
-      ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
+      ws.onerror = () => {
         ws?.close();
       };
     };

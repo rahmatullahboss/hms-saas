@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface PrescriptionItem {
@@ -62,6 +63,8 @@ function authHeaders() {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function DigitalPrescription() {
+  const { t } = useTranslation(['patients', 'common']);
+
   const { slug, rxId: rxIdRouteParam } = useParams<{ slug: string; rxId?: string }>();
   const [searchParams] = useSearchParams();
   const basePath = `/h/${slug}`;
@@ -234,7 +237,7 @@ export default function DigitalPrescription() {
         </Link>
         <div className="flex items-center gap-2">
           <Stethoscope className="w-5 h-5 text-[var(--color-primary)]" />
-          <h1 className="text-lg font-semibold text-[var(--color-text)]">Digital Prescription</h1>
+          <h1 className="text-lg font-semibold text-[var(--color-text)]">{t('digitalPrescription', { ns: 'patients', defaultValue: 'Digital Prescription' })}</h1>
           {rxNo && <span className="text-xs bg-[var(--color-primary)]/10 text-[var(--color-primary)] px-2 py-0.5 rounded-full font-mono">{rxNo}</span>}
         </div>
         <div className="ml-auto text-sm text-[var(--color-text-muted)]">{today}</div>

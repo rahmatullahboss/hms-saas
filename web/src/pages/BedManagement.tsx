@@ -6,6 +6,7 @@ import {
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
+import { useTranslation } from 'react-i18next';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -41,7 +42,10 @@ function authHeaders() {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export default function BedManagement({ role = 'hospital_admin' }: { role?: string }) {
+export default function BedManagement({
+ role = 'hospital_admin' }: { role?: string }) {
+  const { t } = useTranslation(['ipd', 'common']);
+
   const { slug = '' } = useParams<{ slug: string }>();
   const basePath = `/h/${slug}`;
 
@@ -138,7 +142,7 @@ export default function BedManagement({ role = 'hospital_admin' }: { role?: stri
               <ChevronRight className="w-3 h-3" />
               <Link to={`${basePath}/admissions`} className="hover:underline">Admissions</Link>
               <ChevronRight className="w-3 h-3" />
-              <span className="text-[var(--color-text)] font-medium">Bed Management</span>
+              <span className="text-[var(--color-text)] font-medium">{t('bedManagement', { defaultValue: 'Bed Management' })}</span>
             </div>
             <h1 className="text-2xl font-bold text-[var(--color-text)]">Bed Management</h1>
           </div>
@@ -236,7 +240,7 @@ export default function BedManagement({ role = 'hospital_admin' }: { role?: stri
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowAddModal(false)}>
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-5">
-                <h2 className="text-lg font-bold text-[var(--color-text)]">Add Bed</h2>
+                <h2 className="text-lg font-bold text-[var(--color-text)]">{t('addBed', { defaultValue: 'Add Bed' })}</h2>
                 <button onClick={() => setShowAddModal(false)} className="p-1 hover:bg-gray-100 rounded-lg">
                   <X className="w-5 h-5" />
                 </button>

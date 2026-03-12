@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router';
 import { ChevronRight, Clock, Pill, FlaskConical, BedDouble, FileText, Stethoscope, Calendar } from 'lucide-react';
 import axios from 'axios';
 import DashboardLayout from '../components/DashboardLayout';
+import { useTranslation } from 'react-i18next';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -56,6 +57,8 @@ const DEMO_EVENTS: TimelineEvent[] = [
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function PatientTimeline({ role = 'hospital_admin' }: { role?: string }) {
+  const { t } = useTranslation(['patients', 'common']);
+
   const { slug = '', id = '' } = useParams<{ slug: string; id: string }>();
   const basePath = `/h/${slug}`;
 
@@ -89,7 +92,7 @@ export default function PatientTimeline({ role = 'hospital_admin' }: { role?: st
             <ChevronRight className="w-3 h-3" />
             <Link to={`${basePath}/patients/${id}`} className="hover:underline">{patientName}</Link>
             <ChevronRight className="w-3 h-3" />
-            <span className="text-[var(--color-text)] font-medium">Timeline</span>
+            <span className="text-[var(--color-text)] font-medium">{t('timeline', { defaultValue: 'Timeline' })}</span>
           </div>
           <h1 className="text-2xl font-bold text-[var(--color-text)]">Medical Timeline</h1>
           <p className="text-sm text-[var(--color-text-muted)]">Complete medical history for {patientName}</p>

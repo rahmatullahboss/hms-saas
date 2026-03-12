@@ -7,6 +7,7 @@ import {
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
+import { useTranslation } from 'react-i18next';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -59,7 +60,10 @@ function daysBetween(a: string, b?: string) {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export default function DischargeSummary({ role = 'hospital_admin' }: { role?: string }) {
+export default function DischargeSummary({
+ role = 'hospital_admin' }: { role?: string }) {
+  const { t } = useTranslation(['ipd', 'common']);
+
   const { slug = '', admissionId = '' } = useParams<{ slug: string; admissionId: string }>();
   const basePath = `/h/${slug}`;
 
@@ -174,7 +178,7 @@ export default function DischargeSummary({ role = 'hospital_admin' }: { role?: s
               <ChevronRight className="w-3 h-3" />
               <Link to={`${basePath}/admissions`} className="hover:underline">Admissions</Link>
               <ChevronRight className="w-3 h-3" />
-              <span className="text-[var(--color-text)] font-medium">Discharge Summary</span>
+              <span className="text-[var(--color-text)] font-medium">{t('dischargeSummary', { defaultValue: 'Discharge Summary' })}</span>
             </div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-[var(--color-text)]">Discharge Summary</h1>

@@ -7,6 +7,7 @@ import {
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
+import { useTranslation } from 'react-i18next';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -254,7 +255,7 @@ function BookModal({ date, doctors, onClose, onBooked }: BookModalProps) {
 
 export default function AppointmentScheduler({ role = 'hospital_admin' }: { role?: string }) {
   const { slug = '' } = useParams<{ slug: string }>();
-
+  const { t } = useTranslation(['appointments', 'common']);
   const [selectedDate, setSelectedDate]     = useState(isoToday());
   const [appointments, setAppointments]     = useState<Appointment[]>([]);
   const [doctors, setDoctors]               = useState<Doctor[]>([]);
@@ -335,11 +336,11 @@ export default function AppointmentScheduler({ role = 'hospital_admin' }: { role
         {/* ── Header ── */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-xl font-bold text-[var(--color-text-primary)]">Appointment Scheduler</h1>
+            <h1 className="text-xl font-bold text-[var(--color-text-primary)]">{t('title', { defaultValue: 'Appointment Scheduler' })}</h1>
             <p className="text-sm text-[var(--color-text-muted)]">{fmtDate(selectedDate)}</p>
           </div>
           <button onClick={() => setShowBook(true)} className="btn-primary self-start sm:self-auto">
-            <Plus className="w-4 h-4" /> Book Appointment
+            <Plus className="w-4 h-4" /> {t('bookAppointment', { defaultValue: 'Book Appointment' })}
           </button>
         </div>
 
@@ -404,7 +405,7 @@ export default function AppointmentScheduler({ role = 'hospital_admin' }: { role
           ) : appointments.length === 0 ? (
             <div className="py-16 text-center">
               <Calendar className="w-10 h-10 text-[var(--color-text-muted)] mx-auto mb-3" />
-              <p className="text-[var(--color-text-muted)]">No appointments for this date.</p>
+              <p className="text-[var(--color-text-muted)]">{t('noAppointments', { defaultValue: 'No appointments for this date.' })}</p>
               <button onClick={() => setShowBook(true)} className="btn-primary mt-4">
                 <Plus className="w-4 h-4" /> Book First Appointment
               </button>

@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router';
 import { ArrowLeft, Printer, Download } from 'lucide-react';
 import axios from 'axios';
 import DashboardLayout from '../components/DashboardLayout';
+import { useTranslation } from 'react-i18next';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -140,7 +141,10 @@ const PRINT_STYLES = `
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export default function BillPrint({ role = 'hospital_admin' }: { role?: string }) {
+export default function BillPrint({
+ role = 'hospital_admin' }: { role?: string }) {
+  const { t } = useTranslation(['billing', 'common']);
+
   const { slug = '', billId = '' } = useParams<{ slug: string; billId: string }>();
   const navigate = useNavigate();
   const basePath = `/h/${slug}`;
@@ -213,7 +217,7 @@ export default function BillPrint({ role = 'hospital_admin' }: { role?: string }
     return (
       <DashboardLayout role={role}>
         <div className="card p-12 text-center max-w-md mx-auto">
-          <p className="text-[var(--color-text-muted)]">Bill not found.</p>
+          <p className="text-[var(--color-text-muted)]">{t('billNotFound', { ns: 'billing', defaultValue: 'Bill not found.' })}</p>
           <button onClick={() => navigate(-1)} className="btn-primary mt-4">← Go Back</button>
         </div>
       </DashboardLayout>

@@ -23,11 +23,23 @@ export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
   }
 
   const authHeader = c.req.header('Authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  let token: string | undefined;
+
+  if (authHeader?.startsWith('Bearer ')) {
+    token = authHeader.substring(7);
+  } else {
+    // WebSocket connections can't send custom headers — allow token via query param.
+    // This is only used for WebSocket upgrade requests (Upgrade: websocket).
+    const queryToken = c.req.query('token');
+    if (queryToken && c.req.header('Upgrade') === 'websocket') {
+      token = queryToken;
+    }
+  }
+
+  if (!token) {
     return c.json({ error: 'No token provided' }, 401);
   }
 
-  const token = authHeader.substring(7);
   const secret = c.env.JWT_SECRET;
 
   if (!secret) {

@@ -7,6 +7,7 @@ import {
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
+import { useTranslation } from 'react-i18next';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -80,6 +81,7 @@ function authHeaders() {
 export default function AdmissionIPD({ role = 'hospital_admin' }: { role?: string }) {
   const { slug = '' } = useParams<{ slug: string }>();
   const basePath = `/h/${slug}`;
+  const { t } = useTranslation(['ipd', 'common']);
 
   const [admissions, setAdmissions] = useState<Admission[]>([]);
   const [stats, setStats] = useState<Stats>({ currentAdmissions: 0, totalBeds: 0, availableBeds: 0, dischargesToday: 0, avgStayDays: 0 });
@@ -225,11 +227,11 @@ export default function AdmissionIPD({ role = 'hospital_admin' }: { role?: strin
               <ChevronRight className="w-3 h-3" />
               <span className="text-[var(--color-text)] font-medium">Admissions</span>
             </div>
-            <h1 className="text-2xl font-bold text-[var(--color-text)]">Admission / IPD</h1>
+            <h1 className="text-2xl font-bold text-[var(--color-text)]">{t('title', { defaultValue: 'Admission / IPD' })}</h1>
           </div>
           <div className="flex gap-2">
             <button onClick={() => setShowAdmitModal(true)} className="btn btn-primary text-sm">
-              <UserPlus className="w-4 h-4" /> Admit Patient
+              <UserPlus className="w-4 h-4" /> {t('admitPatient', { defaultValue: 'Admit Patient' })}
             </button>
             <button onClick={fetchAll} className="btn btn-outline text-sm p-2" aria-label="Refresh">
               <RefreshCw className="w-4 h-4" />
@@ -281,7 +283,7 @@ export default function AdmissionIPD({ role = 'hospital_admin' }: { role?: strin
           ) : admissions.length === 0 ? (
             <div className="p-12 text-center">
               <BedDouble className="w-10 h-10 mx-auto mb-2 text-[var(--color-text-muted)] opacity-40" />
-              <p className="text-[var(--color-text-muted)]">No admissions found</p>
+              <p className="text-[var(--color-text-muted)]">{t('noAdmissions', { defaultValue: 'No admissions found' })}</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -346,7 +348,7 @@ export default function AdmissionIPD({ role = 'hospital_admin' }: { role?: strin
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowAdmitModal(false)}>
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-5">
-                <h2 className="text-lg font-bold text-[var(--color-text)]">Admit Patient</h2>
+                <h2 className="text-lg font-bold text-[var(--color-text)]">{t('admitPatient', { defaultValue: 'Admit Patient' })}</h2>
                 <button onClick={() => setShowAdmitModal(false)} className="p-1 hover:bg-gray-100 rounded-lg">
                   <X className="w-5 h-5" />
                 </button>
@@ -428,7 +430,7 @@ export default function AdmissionIPD({ role = 'hospital_admin' }: { role?: strin
               <div className="flex justify-end gap-2 mt-6">
                 <button onClick={() => setShowAdmitModal(false)} className="btn btn-outline text-sm">Cancel</button>
                 <button onClick={handleAdmit} disabled={submitting || !admitForm.patient_id} className="btn btn-primary text-sm">
-                  {submitting ? 'Admitting...' : 'Confirm Admission'}
+                  {submitting ? t('loading', { ns: 'common' }) : t('confirmAdmission', { defaultValue: 'Confirm Admission' })}
                 </button>
               </div>
             </div>
@@ -444,7 +446,7 @@ export default function AdmissionIPD({ role = 'hospital_admin' }: { role?: strin
                   <AlertTriangle className="w-5 h-5 text-amber-600" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-[var(--color-text)]">Confirm Discharge</h2>
+                  <h2 className="text-lg font-bold text-[var(--color-text)]">{t('confirmDischarge', { defaultValue: 'Confirm Discharge' })}</h2>
                   <p className="text-sm text-[var(--color-text-muted)]">
                     Discharge <strong>{selectedAdmission.patient_name}</strong> ({selectedAdmission.admission_no})?
                   </p>
@@ -456,7 +458,7 @@ export default function AdmissionIPD({ role = 'hospital_admin' }: { role?: strin
               <div className="flex justify-end gap-2">
                 <button onClick={() => setShowDischargeModal(false)} className="btn btn-outline text-sm">Cancel</button>
                 <button onClick={handleDischarge} disabled={submitting} className="btn btn-primary text-sm bg-amber-500 hover:bg-amber-600">
-                  {submitting ? 'Discharging...' : 'Discharge Patient'}
+                  {submitting ? t('loading', { ns: 'common' }) : t('dischargePatient', { defaultValue: 'Discharge Patient' })}
                 </button>
               </div>
             </div>

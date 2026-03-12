@@ -3,6 +3,7 @@ import { Link, useParams, useNavigate } from 'react-router';
 import { ChevronRight, Video, Phone, Clock, Users, Plus, Search, Calendar, Activity } from 'lucide-react';
 import axios from 'axios';
 import DashboardLayout from '../components/DashboardLayout';
+import { useTranslation } from 'react-i18next';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -54,6 +55,8 @@ const DEMO_CONSULTATIONS: UpcomingConsultation[] = [
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function TelemedicineDashboard({ role = 'hospital_admin' }: { role?: string }) {
+  const { t } = useTranslation(['telemedicine', 'common']);
+
   const { slug = '' } = useParams<{ slug: string }>();
   const basePath = `/h/${slug}`;
   const navigate = useNavigate();
@@ -111,7 +114,7 @@ export default function TelemedicineDashboard({ role = 'hospital_admin' }: { rol
             <div className="text-xs text-[var(--color-text-muted)] flex items-center gap-1 mb-1">
               <Link to={`${basePath}/dashboard`} className="hover:underline">Dashboard</Link>
               <ChevronRight className="w-3 h-3" />
-              <span className="text-[var(--color-text)] font-medium">Telemedicine</span>
+              <span className="text-[var(--color-text)] font-medium">{t('title', { ns: 'telemedicine', defaultValue: 'Telemedicine' })}</span>
             </div>
             <h1 className="text-2xl font-bold text-[var(--color-text)]">Telemedicine Dashboard</h1>
             <p className="text-sm text-[var(--color-text-muted)]">Video consultations powered by Cloudflare Calls</p>

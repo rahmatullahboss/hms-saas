@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams, useParams } from 'react-router';
 import { api } from '../lib/apiClient';
 import { saveToken } from '../hooks/useAuth';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 
 interface InviteInfo {
   email: string;
@@ -22,6 +23,9 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 export default function AcceptInvite() {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { t } = useTranslation('auth');
+
   const navigate = useNavigate();
   const { slug } = useParams<{ slug: string }>();
   const [searchParams] = useSearchParams();
@@ -94,7 +98,7 @@ export default function AcceptInvite() {
       <div className="invite-page">
         <div className="invite-card invite-error-card">
           <div className="invite-error-icon">❌</div>
-          <h2>Invalid Invitation</h2>
+          <h2>{t('invalidInvitation', { defaultValue: 'Invalid Invitation' })}</h2>
           <p>{inviteError || 'This invitation is invalid or has expired.'}</p>
           <a href="/signup" className="btn-secondary">Register your own hospital</a>
         </div>
