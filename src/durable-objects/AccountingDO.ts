@@ -1,4 +1,4 @@
-import { DurableObject, DurableObjectState, WebSocketRequestResponsePair, WebSocketPair } from 'cloudflare:workers';
+import { DurableObject } from 'cloudflare:workers';
 import type { Env } from '../types';
 
 /**
