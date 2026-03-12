@@ -131,19 +131,19 @@ export default function DirectorDashboard({ role = 'director' }: { role?: string
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
               <div>
                 <div className="text-sm text-gray-500">Total Income</div>
-                <div className="text-xl font-bold text-green-600">{profitCalc.totalIncome.toFixed(0)}</div>
+                <div className="text-xl font-bold text-green-600">{(profitCalc.totalIncome ?? 0).toFixed(0)}</div>
               </div>
               <div>
                 <div className="text-sm text-gray-500">Total Expenses</div>
-                <div className="text-xl font-bold text-red-600">{profitCalc.totalExpenses.toFixed(0)}</div>
+                <div className="text-xl font-bold text-red-600">{(profitCalc.totalExpenses ?? 0).toFixed(0)}</div>
               </div>
               <div>
                 <div className="text-sm text-gray-500">Net Profit</div>
-                <div className="text-xl font-bold text-primary-600">{profitCalc.profit.toFixed(0)}</div>
+                <div className="text-xl font-bold text-primary-600">{(profitCalc.profit ?? 0).toFixed(0)}</div>
               </div>
               <div>
                 <div className="text-sm text-gray-500">Distributable ({profitCalc.profitPercentage}%)</div>
-                <div className="text-xl font-bold text-green-600">{profitCalc.distributableProfit.toFixed(0)}</div>
+                <div className="text-xl font-bold text-green-600">{(profitCalc.distributableProfit ?? 0).toFixed(0)}</div>
               </div>
             </div>
             
@@ -196,7 +196,7 @@ export default function DirectorDashboard({ role = 'director' }: { role?: string
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm">{sh.share_count}</td>
-                    <td className="px-6 py-4 text-sm">{sh.investment.toFixed(0)} Taka</td>
+                    <td className="px-6 py-4 text-sm">{(sh.investment ?? 0).toFixed(0)} Taka</td>
                   </tr>
                 ))
               )}
