@@ -74,7 +74,14 @@ export class AccountingDashboard extends DurableObject<Env> {
   }
 
   async webSocketClose(ws: WebSocket, code: number, reason: string, _wasClean: boolean): Promise<void> {
-    ws.close(code, reason || 'Client disconnected');
+    // Codes 1005, 1006, and 1015 are reserved and cannot be sent in a close frame.
+    // If the client disconnected abnormally (1006), just use 1000 (normal closure).
+    const safeCode = [1005, 1006, 1015].includes(code) ? 1000 : code;
+    try {
+      ws.close(safeCode, reason || 'Client disconnected');
+    } catch {
+      // WebSocket may already be closed — ignore
+    }
   }
 
   async webSocketError(ws: WebSocket, _error: unknown): Promise<void> {
