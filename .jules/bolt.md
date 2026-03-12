@@ -1,0 +1,1 @@
+## 2024-05-24 - Initial Review\n**Learning:** The dashboard stats endpoint (`/api/dashboard/stats`) has severe performance issues.\n**Action:** Optimize `dashboard.ts` by using aggregate queries instead of fetching full tables.

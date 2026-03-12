@@ -10,67 +10,56 @@ dashboardRoutes.get('/stats', async (c) => {
   const tenantId = c.get('tenantId');
   
   try {
-    // Get patients
-    const patients = await c.env.DB.prepare(
-      'SELECT id, name, mobile, created_at FROM patients WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 100'
-    ).bind(tenantId).all();
-    
-    // Get tests
-    const tests = await c.env.DB.prepare(
-      'SELECT id, patient_id, test_name, status, created_at FROM tests WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 100'
-    ).bind(tenantId).all();
-    
-    // Get bills
-    const bills = await c.env.DB.prepare(
-      'SELECT id, patient_id, total, paid, due, created_at FROM bills WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 100'
-    ).bind(tenantId).all();
-    
-    // Get staff
-    const staff = await c.env.DB.prepare(
-      'SELECT id, name, position, salary FROM staff WHERE tenant_id = ?'
-    ).bind(tenantId).all();
-    
-    // Get medicines for low stock
-    const medicines = await c.env.DB.prepare(
-      'SELECT id, name, quantity FROM medicines WHERE tenant_id = ? AND quantity < 10'
-    ).bind(tenantId).all();
-    
-    // Get income for last 7 days
+    const today = new Date().toISOString().split('T')[0];
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
-    
-    let incomeList: { date: string; total: number }[] = [];
-    try {
-      const incomeResult = await c.env.DB.prepare(
-        `SELECT date, SUM(amount) as total FROM income 
-         WHERE tenant_id = ? AND date >= ? 
-         GROUP BY date ORDER BY date`
-      ).bind(tenantId, sevenDaysAgoStr).all();
-      incomeList = (incomeResult.results || []).map((inc: Record<string, unknown>) => ({
-        date: String(inc.date || ''),
-        total: Number(inc.total) || 0
-      }));
-    } catch {
-      incomeList = [];
-    }
-    
-    const today = new Date().toISOString().split('T')[0];
-    
-    const patientList = (patients.results || []) as { id: number; name: string; mobile: string; created_at: string }[];
-    const testList = (tests.results || []) as { id: number; patient_id: number; test_name: string; status: string; created_at: string }[];
-    const billList = (bills.results || []) as { id: number; patient_id: number; total: number; paid: number; due: number; created_at: string }[];
-    const staffList = (staff.results || []) as { id: number; name: string; position: string; salary: number }[];
-    const medicineList = (medicines.results || []) as { id: number; name: string; quantity: number }[];
-    
-    const todayPatients = patientList.filter((p) => 
-      p.created_at && p.created_at.startsWith(today)
-    ).length;
-    
-    // Calculate pending bills (where due > 0)
-    const pendingBills = billList.filter((b) => b.due > 0).length;
+
+    // Build concurrent queries
+    const [
+      totalPatientsResult,
+      todayPatientsResult,
+      testStatsResult,
+      billStatsResult,
+      staffCountResult,
+      lowStockResult,
+      incomeResult,
+      recentPatientsResult
+    ] = await Promise.all([
+      // Total patients
+      c.env.DB.prepare('SELECT COUNT(*) as count FROM patients WHERE tenant_id = ?').bind(tenantId).first<{count: number}>(),
+      // Today's patients
+      c.env.DB.prepare('SELECT COUNT(*) as count FROM patients WHERE tenant_id = ? AND date(created_at) = ?').bind(tenantId, today).first<{count: number}>(),
+      // Test stats (pending and completed)
+      c.env.DB.prepare(`
+        SELECT
+          SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+          SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed
+        FROM tests WHERE tenant_id = ?
+      `).bind(tenantId).first<{pending: number, completed: number}>(),
+      // Bill stats (pending bills and total revenue)
+      c.env.DB.prepare(`
+        SELECT
+          SUM(CASE WHEN due > 0 THEN 1 ELSE 0 END) as pending_bills,
+          SUM(total) as total_revenue
+        FROM bills WHERE tenant_id = ?
+      `).bind(tenantId).first<{pending_bills: number, total_revenue: number}>(),
+      // Staff count
+      c.env.DB.prepare('SELECT COUNT(*) as count FROM staff WHERE tenant_id = ?').bind(tenantId).first<{count: number}>(),
+      // Low stock medicines count
+      c.env.DB.prepare('SELECT COUNT(*) as count FROM medicines WHERE tenant_id = ? AND quantity < 10').bind(tenantId).first<{count: number}>(),
+      // Income for the last 7 days
+      c.env.DB.prepare(`
+        SELECT date, SUM(amount) as total FROM income
+        WHERE tenant_id = ? AND date >= ?
+        GROUP BY date ORDER BY date
+      `).bind(tenantId, sevenDaysAgoStr).all<{date: string, total: number}>(),
+      // Recent 5 patients
+      c.env.DB.prepare('SELECT id, name, mobile, created_at FROM patients WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 5').bind(tenantId).all()
+    ]);
     
     // Format revenue data for chart
+    const incomeList = incomeResult.results || [];
     const revenueData: { day: string; revenue: number }[] = [];
     for (let i = 6; i >= 0; i--) {
       const date = new Date();
@@ -81,22 +70,22 @@ dashboardRoutes.get('/stats', async (c) => {
       const found = incomeList.find((inc) => inc.date === dateStr);
       revenueData.push({
         day: dayName,
-        revenue: found ? found.total : 0
+        revenue: found ? Number(found.total) : 0
       });
     }
     
     return c.json({
       stats: {
-        totalPatients: patientList.length,
-        todayPatients,
-        pendingTests: testList.filter((t) => t.status === 'pending').length,
-        completedTests: testList.filter((t) => t.status === 'completed').length,
-        pendingBills,
-        totalRevenue: billList.reduce((sum, b) => sum + (b.total || 0), 0),
-        staffCount: staffList.length,
-        lowStockItems: medicineList.length,
+        totalPatients: totalPatientsResult?.count || 0,
+        todayPatients: todayPatientsResult?.count || 0,
+        pendingTests: testStatsResult?.pending || 0,
+        completedTests: testStatsResult?.completed || 0,
+        pendingBills: billStatsResult?.pending_bills || 0,
+        totalRevenue: billStatsResult?.total_revenue || 0,
+        staffCount: staffCountResult?.count || 0,
+        lowStockItems: lowStockResult?.count || 0,
       },
-      recentPatients: patientList.slice(0, 5),
+      recentPatients: recentPatientsResult.results || [],
       revenueData,
     });
   } catch (error) {
