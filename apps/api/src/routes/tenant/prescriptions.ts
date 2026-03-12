@@ -70,8 +70,11 @@ prescriptionRoutes.get('/:id', async (c) => {
     if (!rx) throw new HTTPException(404, { message: 'Prescription not found' });
 
     const { results: items } = await c.env.DB.prepare(
-      'SELECT * FROM prescription_items WHERE prescription_id = ? ORDER BY sort_order ASC'
-    ).bind(id).all();
+      `SELECT pi.* FROM prescription_items pi
+       JOIN prescriptions p ON pi.prescription_id = p.id
+       WHERE pi.prescription_id = ? AND p.tenant_id = ?
+       ORDER BY pi.sort_order ASC`
+    ).bind(id, tenantId).all();
 
     return c.json({ ...rx, items });
   } catch (e) {
@@ -156,9 +159,10 @@ prescriptionRoutes.put('/:id', zValidator('json', updatePrescriptionSchema), asy
     // 🔴 Guard: do not allow editing a finalised prescription (except dispense_status)
     if (existing.status === 'final' && data.status !== 'draft' && !data.dispense_status) {
       // Only allow dispense_status updates on final prescriptions
-      const hasContentChanges = data.bp || data.temperature || data.weight || data.spo2 ||
-        data.chiefComplaint || data.diagnosis || data.examinationNotes || data.advice ||
-        data.labTests || data.followUpDate || data.items;
+      // Use !== undefined to avoid truthiness bugs (0, "" are valid values)
+      const hasContentChanges = data.bp !== undefined || data.temperature !== undefined || data.weight !== undefined || data.spo2 !== undefined ||
+        data.chiefComplaint !== undefined || data.diagnosis !== undefined || data.examinationNotes !== undefined || data.advice !== undefined ||
+        data.labTests !== undefined || data.followUpDate !== undefined || data.items !== undefined;
       if (hasContentChanges) {
         throw new HTTPException(409, { message: 'Cannot edit a finalised prescription. Revert to draft first.' });
       }
@@ -189,7 +193,10 @@ prescriptionRoutes.put('/:id', zValidator('json', updatePrescriptionSchema), asy
 
     // Replace items if provided
     if (data.items !== undefined) {
-      await c.env.DB.prepare('DELETE FROM prescription_items WHERE prescription_id = ?').bind(id).run();
+      await c.env.DB.prepare(
+        `DELETE FROM prescription_items WHERE prescription_id = ?
+         AND prescription_id IN (SELECT id FROM prescriptions WHERE tenant_id = ?)`
+      ).bind(id, tenantId).run();
       if (data.items.length > 0) {
         const itemStmt = c.env.DB.prepare(`
           INSERT INTO prescription_items
