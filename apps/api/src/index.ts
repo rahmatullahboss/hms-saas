@@ -38,6 +38,7 @@ import notificationRoutes from './routes/tenant/notifications';
 import nurseStationRoutes from './routes/tenant/nurseStation';
 import dischargeRoutes from './routes/tenant/discharge';
 import doctorScheduleRoutes from './routes/tenant/doctorSchedule';
+import ipdChargeRoutes from './routes/tenant/ipdCharges';
 
 import type { Env } from './types';
 
@@ -152,6 +153,7 @@ app.route('/api/notifications', notificationRoutes);
 app.route('/api/nurse-station', nurseStationRoutes);
 app.route('/api/discharge', dischargeRoutes);
 app.route('/api/doctor-schedules', doctorScheduleRoutes);
+app.route('/api/ipd-charges', ipdChargeRoutes);
 
 // 404 handler
 app.notFound((c) => c.json({ error: 'Not found' }, 404));

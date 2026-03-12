@@ -15,6 +15,49 @@ const auditRoutes = new Hono<{
   };
 }>();
 
+// ─── GET /api/audit/logs — for System Audit Log page ─────────────────────────
+// Tries both audit_log and audit_logs tables (project uses both)
+auditRoutes.get('/logs', async (c) => {
+  const tenantId = c.get('tenantId');
+  const { action, entity, limit = '200' } = c.req.query();
+
+  let conditions = 'tenant_id = ?';
+  const params: (string | number)[] = [tenantId!];
+
+  if (action) { conditions += ' AND action = ?'; params.push(action); }
+  if (entity) { conditions += ' AND entity = ?'; params.push(entity); }
+
+  // Try audit_log first (used by newer routes), then audit_logs
+  for (const tableName of ['audit_log', 'audit_logs']) {
+    try {
+      const { results } = await c.env.DB.prepare(`
+        SELECT * FROM ${tableName}
+        WHERE ${conditions}
+        ORDER BY created_at DESC
+        LIMIT ?
+      `).bind(...params, parseInt(limit)).all();
+
+      // Normalize field names for frontend
+      const logs = (results as Record<string, unknown>[]).map(r => ({
+        id: r.id,
+        user_id: r.user_id,
+        user_name: r.user_name || `User #${r.user_id || 'system'}`,
+        action: r.action || r.operation || 'update',
+        entity: r.entity || r.table_name || '—',
+        entity_id: r.entity_id || r.record_id || null,
+        details: r.details || r.changes || null,
+        created_at: r.created_at,
+      }));
+
+      return c.json({ logs });
+    } catch {
+      continue; // try next table name
+    }
+  }
+
+  return c.json({ logs: [] });
+});
+
 auditRoutes.get('/', async (c) => {
   const tenantId = c.get('tenantId');
   const { userId, tableName, startDate, endDate, limit = '50' } = c.req.query();

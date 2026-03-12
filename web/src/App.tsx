@@ -38,6 +38,8 @@ import NurseStation from './pages/NurseStation';
 import DischargeSummary from './pages/DischargeSummary';
 import PrescriptionPrint from './pages/PrescriptionPrint';
 import DoctorSchedule from './pages/DoctorSchedule';
+import SystemAuditLog from './pages/SystemAuditLog';
+import LabReportPrint from './pages/LabReportPrint';
 
 function Unauthorized() {
   return (
@@ -111,6 +113,8 @@ function App() {
             <Route path="admissions/:admissionId/discharge" element={<DischargeSummary role="hospital_admin" />} />
             <Route path="prescriptions/:prescriptionId/print" element={<PrescriptionPrint role="hospital_admin" />} />
             <Route path="doctor-schedule" element={<DoctorSchedule role="hospital_admin" />} />
+            <Route path="system-audit" element={<SystemAuditLog role="hospital_admin" />} />
+            <Route path="lab/:labId/report" element={<LabReportPrint role="hospital_admin" />} />
           </Route>
 
           {/* ─── Laboratory ──────────────────────────────────────────── */}
