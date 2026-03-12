@@ -49,7 +49,7 @@ export default function HospitalAdminDashboard({ role = 'hospital_admin' }: { ro
   const fetchData = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       const { data } = await axios.get('/api/dashboard/stats', {
         headers: { Authorization: `Bearer ${token}` },
       });

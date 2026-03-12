@@ -1,42 +1,28 @@
-import { useState, useEffect, ReactNode } from 'react';
+import { ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 import toast from 'react-hot-toast';
+import { useAuth, logout } from '../hooks/useAuth';
 import Sidebar from './dashboard/Sidebar';
 import Header from './dashboard/Header';
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  tenantId?: string;
-}
 
 interface DashboardLayoutProps {
   children: ReactNode;
   role: string;
 }
 
+/**
+ * DashboardLayout — shell for every authenticated dashboard page.
+ *
+ * Auth is already enforced by ProtectedRoute (wrapper route element).
+ * This layout reads user info from the JWT via useAuth() — no separate
+ * localStorage check needed, no redundant redirect.
+ */
 export default function DashboardLayout({ children, role }: DashboardLayoutProps) {
-  const [user, setUser] = useState<User | null>(null);
+  const { user } = useAuth();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const token   = localStorage.getItem('token');
-    const userStr = localStorage.getItem('user');
-    if (!token) { navigate('/login'); return; }
-    if (userStr) {
-      try { setUser(JSON.parse(userStr)); }
-      catch { setUser({ id: '1', name: 'User', email: 'user@hms.com', role }); }
-    } else {
-      setUser({ id: '1', name: 'User', email: 'user@hms.com', role });
-    }
-  }, [navigate, role]);
-
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    localStorage.removeItem('tenant');
+    logout();
     toast.success('Signed out');
     navigate('/login');
   };
@@ -47,8 +33,8 @@ export default function DashboardLayout({ children, role }: DashboardLayoutProps
         <Sidebar role={role} onLogout={handleLogout} />
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           <Header
-            userName={user?.name ?? 'User'}
-            userEmail={user?.email}
+            userName={user?.userId ?? 'User'}
+            userEmail=""
             userRole={user?.role ?? role}
             onLogout={handleLogout}
           />
