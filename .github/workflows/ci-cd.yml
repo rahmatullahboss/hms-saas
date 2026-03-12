@@ -92,6 +92,11 @@ jobs:
         run: pnpm build
 
       - name: Apply D1 migrations (production)
+        # continue-on-error because production D1 may have manually-applied
+        # migrations that the migration tracker doesn't know about (causing
+        # "duplicate column" errors). Until we reconcile the migration state,
+        # failures here should not block deployment.
+        continue-on-error: true
         run: |
           pnpm exec wrangler d1 migrations apply DB --env production --remote
         env:
