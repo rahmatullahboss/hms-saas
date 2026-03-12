@@ -34,7 +34,8 @@ export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
     // pipeline may strip it before the worker sees the request.
     const queryToken = c.req.query('token');
     const isWsPath = c.req.path.endsWith('/ws');
-    const isWsUpgrade = c.req.header('Upgrade') === 'websocket';
+    const upgradeHeader = c.req.header('Upgrade')?.toLowerCase();
+    const isWsUpgrade = upgradeHeader === 'websocket';
     if (queryToken && (isWsUpgrade || isWsPath)) {
       token = queryToken;
     }

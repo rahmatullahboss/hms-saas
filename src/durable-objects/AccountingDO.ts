@@ -28,7 +28,7 @@ export class AccountingDashboard extends DurableObject<Env> {
     const url = new URL(request.url);
 
     // ── WebSocket upgrade ─────────────────────────────────────────────
-    const upgradeHeader = request.headers.get('Upgrade');
+    const upgradeHeader = request.headers.get('Upgrade')?.toLowerCase();
     if (upgradeHeader === 'websocket') {
       const pair = new WebSocketPair();
       const [client, server] = Object.values(pair);
