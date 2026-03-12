@@ -4,6 +4,7 @@ import {
   UserCog, PieChart, Settings, LogOut, Menu, X,
   Building2, Wallet, TrendingUp, TrendingDown, Repeat,
   BookOpen, FileText, Video, ChevronRight,
+  BedDouble, Stethoscope, Calendar, Shield, ClipboardList,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -39,8 +40,12 @@ const roleNavItems: Record<string, NavItem[]> = {
     { label: 'Accounts',     path: '/hospital_admin/accounts',     icon: <BookOpen        className="w-4.5 h-4.5" /> },
     { label: 'Staff',        path: '/hospital_admin/staff',        icon: <UserCog         className="w-4.5 h-4.5" /> },
     { label: 'Shareholders', path: '/hospital_admin/shareholders', icon: <Users           className="w-4.5 h-4.5" /> },
+    { label: 'IPD / Admissions', path: '/hospital_admin/admissions', icon: <BedDouble      className="w-4.5 h-4.5" /> },
+    { label: 'Beds',         path: '/hospital_admin/beds',         icon: <ClipboardList   className="w-4.5 h-4.5" /> },
+    { label: 'Nurse Station', path: '/hospital_admin/nurse-station', icon: <Stethoscope   className="w-4.5 h-4.5" /> },
+    { label: 'Doctor Schedule', path: '/hospital_admin/doctor-schedule', icon: <Calendar   className="w-4.5 h-4.5" /> },
     { label: 'Reports',      path: '/hospital_admin/reports',      icon: <PieChart        className="w-4.5 h-4.5" /> },
-    { label: 'Audit',        path: '/hospital_admin/audit',        icon: <FileText        className="w-4.5 h-4.5" /> },
+    { label: 'System Audit', path: '/hospital_admin/system-audit', icon: <Shield          className="w-4.5 h-4.5" /> },
     { label: 'Settings',     path: '/hospital_admin/settings',     icon: <Settings        className="w-4.5 h-4.5" /> },
   ],
   laboratory: [
