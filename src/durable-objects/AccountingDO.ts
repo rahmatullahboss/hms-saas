@@ -29,7 +29,9 @@ export class AccountingDashboard extends DurableObject<Env> {
 
     // ── WebSocket upgrade ─────────────────────────────────────────────
     const upgradeHeader = request.headers.get('Upgrade');
-    if (upgradeHeader === 'websocket') {
+    const hasWsKey = request.headers.get('Sec-WebSocket-Key');
+    const isWsPath = url.pathname.endsWith('/ws');
+    if (upgradeHeader === 'websocket' || hasWsKey || isWsPath) {
       const pair = new WebSocketPair();
       const [client, server] = Object.values(pair);
 

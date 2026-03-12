@@ -31,6 +31,12 @@ i18n
       caches: ['localStorage'],
       lookupLocalStorage: 'hms_language',
     },
+  })
+  .then(() => {
+    if (import.meta.env.PROD) {
+      // Silence informational i18next logs in production
+      i18n.services.logger.log = () => {};
+    }
   });
 
 export default i18n;
