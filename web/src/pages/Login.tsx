@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useParams } from 'react-router';
 import { api } from '../lib/apiClient';
-import { saveToken } from '../hooks/useAuth';
 import toast from 'react-hot-toast';
 import {
   Lock,
@@ -31,7 +30,6 @@ const ROLE_ROUTES: Record<string, string> = {
 
 export default function Login() {
   const { slug } = useParams<{ slug?: string }>();
-  const navigate = useNavigate();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -42,10 +40,12 @@ export default function Login() {
   const [hospitals, setHospitals] = useState<HospitalChoice[] | null>(null);
   const [selectedTenantId, setSelectedTenantId] = useState<number | null>(null);
 
-  function redirectToDashboard(resultSlug: string, role: string) {
+  function redirectToDashboard(resultSlug: string, role: string, token: string) {
     const dest = ROLE_ROUTES[role] ?? 'dashboard';
-    // Use full page navigation (not SPA navigate) when crossing from
-    // slug-free /login → slug-based /h/:slug/* to ensure clean context
+    // Save token to localStorage before redirect
+    localStorage.setItem('hms_token', token);
+    // Full page load — the service worker no longer caches index.html,
+    // so the Worker serves fresh HTML referencing the latest JS bundles
     window.location.href = `/h/${resultSlug}/${dest}`;
   }
 
@@ -64,9 +64,8 @@ export default function Login() {
           { email, password },
           { 'X-Tenant-Subdomain': slug }
         );
-        saveToken(res.token);
-        toast.success('Login successful!');
-        redirectToDashboard(slug, res.user.role);
+        redirectToDashboard(slug, res.user.role, res.token);
+        return; // Prevent finally from running and triggering re-render
       } else {
         // ─── Direct login (no slug — /login) ───────────────────────
         const res = await api.post<{
@@ -90,9 +89,8 @@ export default function Login() {
         }
 
         if (res.token && res.slug && res.user) {
-          saveToken(res.token);
-          toast.success('Login successful!');
-          redirectToDashboard(res.slug, res.user.role);
+          redirectToDashboard(res.slug, res.user.role, res.token);
+          return; // Prevent finally from running and triggering re-render
         }
       }
     } catch (err) {
@@ -114,9 +112,8 @@ export default function Login() {
         user: { id: number; name: string; email: string; role: string };
       }>('/api/auth/login-direct', { email, password, tenantId });
 
-      saveToken(res.token);
-      toast.success('Login successful!');
-      redirectToDashboard(res.slug, res.user.role);
+      redirectToDashboard(res.slug, res.user.role, res.token);
+      return; // Prevent finally from triggering re-render
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Login failed';
       toast.error(msg);

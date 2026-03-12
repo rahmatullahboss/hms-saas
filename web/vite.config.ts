@@ -34,7 +34,18 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        // Exclude HTML from precache so index.html is always fetched from the
+        // network (served by the Cloudflare Worker). This ensures users always
+        // get the latest JS bundle references after deployment.
+        globPatterns: ['**/*.{js,css,ico,png,svg,woff2}'],
+        // Immediately activate new service workers (no waiting for tab close)
+        skipWaiting: true,
+        clientsClaim: true,
+        // Remove old precache entries when a new SW activates
+        cleanupOutdatedCaches: true,
+        // For SPA navigation, fall back to index.html from the network
+        navigateFallback: 'index.html',
+        navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [
           {
             // Network-first for all API calls

@@ -70,18 +70,24 @@ function isExpired(payload: JWTPayload): boolean {
 export function useAuth(): AuthState {
   const token = useSyncExternalStore(subscribe, getSnapshot);
 
+  console.log('[useAuth] token from store:', token ? `${token.substring(0, 20)}...` : 'null');
+  console.log('[useAuth] localStorage direct check:', localStorage.getItem('hms_token') ? 'EXISTS' : 'NULL');
+
   if (!token) {
     return { isAuthenticated: false, user: null, token: null };
   }
 
   const payload = parseToken(token);
+  console.log('[useAuth] parsed payload:', payload ? { userId: payload.userId, role: payload.role, exp: payload.exp } : 'null');
 
   if (!payload || isExpired(payload)) {
+    console.log('[useAuth] Token invalid/expired! payload:', !!payload, 'expired:', payload ? isExpired(payload) : 'N/A');
     // Token is invalid/expired — clean up without emitting (avoids loop)
     localStorage.removeItem(TOKEN_KEY);
     return { isAuthenticated: false, user: null, token: null };
   }
 
+  console.log('[useAuth] Authenticated! role:', payload.role);
   return {
     isAuthenticated: true,
     user: {
