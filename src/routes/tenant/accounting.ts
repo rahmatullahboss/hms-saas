@@ -186,19 +186,17 @@ dashboardRoutes.get('/expense-breakdown', async (c) => {
 });
 
 // WebSocket upgrade → Durable Object
+// NOTE: We don't check for Upgrade header here because Cloudflare's
+// asset pipeline (run_worker_first) may strip it before the worker
+// sees the request. The DO is responsible for handling the upgrade.
 dashboardRoutes.get('/ws', async (c) => {
-  const upgradeHeader = c.req.header('Upgrade');
-  if (upgradeHeader !== 'websocket') {
-    return c.json({ error: 'Expected WebSocket upgrade' }, 426);
-  }
-
   const tenantId = c.get('tenantId') || 'default';
   // Each tenant gets its own DO instance — all dashboard viewers
   // for the same hospital share one DO for broadcast.
   const doId = c.env.DASHBOARD_DO.idFromName(`accounting-${tenantId}`);
   const doStub = c.env.DASHBOARD_DO.get(doId);
 
-  // Forward the raw request (with Upgrade header) to the DO
+  // Forward the raw request to the DO
   const url = new URL(c.req.url);
   url.searchParams.set('tenantId', tenantId);
   const doReq = new Request(url.toString(), c.req.raw);

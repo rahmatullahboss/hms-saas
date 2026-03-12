@@ -14,5 +14,19 @@
   "addMedicine": "Add Medicine",
   "dispenseMedicine": "Dispense Medicine",
   "prescription": "Prescription",
-  "batch": "Batch"
+  "batch": "Batch",
+  "unitPrice": "Unit Price",
+  "searchPlaceholder": "Search...",
+  "critical": "Critical",
+  "company": "Company",
+  "all": "All",
+  "medicineName": "Medicine Name",
+  "subtitle": "Subtitle",
+  "noMedicines": "No medicines found",
+  "totalValue": "Total Value",
+  "stockLevel": "Stock Level",
+  "medicines": "Medicines",
+  "stockValue": "Stock Value",
+  "totalUnits": "Total Units",
+  "editMedicine": "Edit Medicine"
 }

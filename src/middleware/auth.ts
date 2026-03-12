@@ -28,10 +28,14 @@ export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
   if (authHeader?.startsWith('Bearer ')) {
     token = authHeader.substring(7);
   } else {
-    // WebSocket connections can't send custom headers — allow token via query param.
-    // This is only used for WebSocket upgrade requests (Upgrade: websocket).
+    // WebSocket connections can't send custom headers.
+    // Accept token via query param for WebSocket-style paths.
+    // NOTE: we also check Upgrade header, but Cloudflare's asset
+    // pipeline may strip it before the worker sees the request.
     const queryToken = c.req.query('token');
-    if (queryToken && c.req.header('Upgrade') === 'websocket') {
+    const isWsPath = c.req.path.endsWith('/ws');
+    const isWsUpgrade = c.req.header('Upgrade') === 'websocket';
+    if (queryToken && (isWsUpgrade || isWsPath)) {
       token = queryToken;
     }
   }

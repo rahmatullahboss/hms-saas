@@ -8,5 +8,8 @@
   "unmute": "Unmute",
   "videoOff": "Video Off",
   "videoOn": "Video On",
-  "noRooms": "No active rooms"
+  "noRooms": "No active rooms",
+  "chat": "Chat",
+  "consultationRoom": "Consultation Room",
+  "scheduleSession": "Schedule Session"
 }

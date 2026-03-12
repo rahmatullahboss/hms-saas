@@ -15,5 +15,6 @@
   "changePassword": "Change Password",
   "currentPassword": "Current Password",
   "newPassword": "New Password",
-  "confirmPassword": "Confirm Password"
+  "confirmPassword": "Confirm Password",
+  "subtitle": "Subtitle"
 }

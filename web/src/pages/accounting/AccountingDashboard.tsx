@@ -110,13 +110,22 @@ export default function AccountingDashboard({ role = 'md' }: { role?: string }) 
     let ws: WebSocket | null = null;
     let reconnectTimeout: ReturnType<typeof setTimeout>;
     let reconnectDelay = 3000;
+    let attempts = 0;
+    const maxAttempts = 3; // Stop retrying after 3 failures — polling is the fallback
+    let disposed = false;
 
     const connect = () => {
+      if (disposed || attempts >= maxAttempts) {
+        // Silently fall back to HTTP polling (already running via setInterval)
+        return;
+      }
+      attempts++;
       ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {
         setWsConnected(true);
-        reconnectDelay = 3000; // reset on successful connect
+        reconnectDelay = 3000;
+        attempts = 0; // reset on successful connect
       };
 
       ws.onmessage = (event) => {
@@ -139,18 +148,20 @@ export default function AccountingDashboard({ role = 'md' }: { role?: string }) 
             } : null);
           }
         } catch (e) {
-          console.error('WebSocket message error:', e);
+          // silently ignore parse errors
         }
       };
 
       ws.onclose = () => {
         setWsConnected(false);
-        // Exponential backoff capped at 30s
-        reconnectTimeout = setTimeout(connect, reconnectDelay);
-        reconnectDelay = Math.min(reconnectDelay * 1.5, 30000);
+        if (!disposed && attempts < maxAttempts) {
+          reconnectTimeout = setTimeout(connect, reconnectDelay);
+          reconnectDelay = Math.min(reconnectDelay * 2, 30000);
+        }
       };
 
       ws.onerror = () => {
+        // Don't log — just close and let onclose handler retry
         ws?.close();
       };
     };
@@ -158,6 +169,7 @@ export default function AccountingDashboard({ role = 'md' }: { role?: string }) 
     connect();
 
     return () => {
+      disposed = true;
       if (ws) ws.close();
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
     };
