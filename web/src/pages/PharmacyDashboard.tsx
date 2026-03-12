@@ -50,7 +50,7 @@ export default function PharmacyDashboard({ role = 'hospital_admin' }: { role?: 
   const fetchMedicines = useCallback(async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       const { data } = await axios.get('/api/pharmacy/medicines', {
         params: search ? { search } : {},
         headers: { Authorization: `Bearer ${token}` },
@@ -83,7 +83,7 @@ export default function PharmacyDashboard({ role = 'hospital_admin' }: { role?: 
       quantity:  parseInt(form.quantity)    || 0,
     };
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       if (editing) {
         await axios.put(`/api/pharmacy/medicines/${editing.id}`, payload, { headers: { Authorization: `Bearer ${token}` } });
         toast.success('Medicine updated');

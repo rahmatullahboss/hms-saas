@@ -29,7 +29,7 @@ export default function LaboratoryDashboard({ role = 'laboratory' }: { role?: st
   const fetchTests = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       const { data } = await axios.get('/api/tests', {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -52,7 +52,7 @@ export default function LaboratoryDashboard({ role = 'laboratory' }: { role?: st
     if (!result.trim()) { toast.error('Result cannot be empty'); return; }
     setSaving(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       await axios.put(`/api/tests/${testId}/result`, { result }, {
         headers: { Authorization: `Bearer ${token}` },
       });

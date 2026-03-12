@@ -18,7 +18,7 @@ interface TimelineEvent {
 }
 
 function authHeaders() {
-  return { Authorization: `Bearer ${localStorage.getItem('token')}` };
+  return { Authorization: `Bearer ${localStorage.getItem('hms_token')}` };
 }
 
 const TYPE_CONFIG: Record<string, { icon: React.ReactNode; color: string; bg: string }> = {

@@ -104,7 +104,7 @@ function BookModal({ date, doctors, onClose, onBooked }: BookModalProps) {
     if (patientQuery.length < 2) { setPatients([]); return; }
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       axios.get(`/api/patients?search=${encodeURIComponent(patientQuery)}`, {
         headers: { Authorization: `Bearer ${token}` },
       }).then(r => setPatients(r.data.patients ?? [])).catch(() => setPatients([]));
@@ -124,7 +124,7 @@ function BookModal({ date, doctors, onClose, onBooked }: BookModalProps) {
 
     setSaving(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       const res = await axios.post('/api/appointments', {
         patientId:      selectedPatient.id,
         doctorId:       doctorId ? Number(doctorId) : undefined,
@@ -265,7 +265,7 @@ export default function AppointmentScheduler({ role = 'hospital_admin' }: { role
 
   const fetchAppointments = useCallback(async () => {
     setLoading(true);
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('hms_token');
     const headers = { Authorization: `Bearer ${token}` };
     try {
       const params = new URLSearchParams({ date: selectedDate });
@@ -297,7 +297,7 @@ export default function AppointmentScheduler({ role = 'hospital_admin' }: { role
   useEffect(() => { fetchAppointments(); }, [fetchAppointments]);
 
   const updateStatus = async (id: number, status: string) => {
-    const tok = localStorage.getItem('token');
+    const tok = localStorage.getItem('hms_token');
     try {
       await axios.put(`/api/appointments/${id}`, { status }, {
         headers: { Authorization: `Bearer ${tok}` },

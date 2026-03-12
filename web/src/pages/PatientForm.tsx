@@ -22,7 +22,7 @@ export default function PatientForm({ role = 'hospital_admin' }: { role?: string
     e.preventDefault();
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       const { data } = await axios.post('/api/patients', formData, {
         headers: { Authorization: `Bearer ${token}` },
       });

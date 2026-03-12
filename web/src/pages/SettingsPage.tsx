@@ -75,7 +75,7 @@ export default function SettingsPage({ role = 'hospital_admin' }: { role?: strin
   const fetchSettings = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       const { data } = await axios.get('/api/settings', { headers: { Authorization: `Bearer ${token}` } });
       if (data.settings) setSettings(s => ({ ...s, ...data.settings }));
       if (data.hospital_info) setHospitalInfo(h => ({ ...h, ...data.hospital_info }));
@@ -91,7 +91,7 @@ export default function SettingsPage({ role = 'hospital_admin' }: { role?: strin
   const handleSave = async () => {
     setSaving(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       await axios.put('/api/settings', { ...settings, hospital_info: hospitalInfo, notifications }, {
         headers: { Authorization: `Bearer ${token}` },
       });

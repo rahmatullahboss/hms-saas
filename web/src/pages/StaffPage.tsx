@@ -22,7 +22,7 @@ export default function StaffPage({ role = 'md' }: { role?: string }) {
 
   const fetchStaff = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       const res = await axios.get('/api/staff', {
         headers: { Authorization: `Bearer ${token}` }
       });

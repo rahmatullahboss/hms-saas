@@ -57,7 +57,7 @@ function calcAge(dob?: string): string {
 }
 
 function authHeaders() {
-  return { Authorization: `Bearer ${localStorage.getItem('token')}` };
+  return { Authorization: `Bearer ${localStorage.getItem('hms_token')}` };
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────

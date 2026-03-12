@@ -43,7 +43,7 @@ export default function DirectorDashboard({ role = 'director' }: { role?: string
 
   const fetchData = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       const headers = { Authorization: `Bearer ${token}` };
       
       const [shRes, calcRes] = await Promise.all([
@@ -62,7 +62,7 @@ export default function DirectorDashboard({ role = 'director' }: { role?: string
 
   const handleAddShareholder = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       await axios.post('/api/shareholders', newShareholder, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -77,7 +77,7 @@ export default function DirectorDashboard({ role = 'director' }: { role?: string
 
   const handleApproveProfit = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       await axios.post('/api/shareholders/approve', { month: profitCalc?.month }, {
         headers: { Authorization: `Bearer ${token}` },
       });

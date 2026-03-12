@@ -52,7 +52,7 @@ export default function ReceptionDashboard({ role = 'reception' }: { role?: stri
   const fetchData = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       const [ptRes, billRes] = await Promise.all([
         axios.get('/api/patients', { headers: { Authorization: `Bearer ${token}` } }),
         axios.get('/api/billing', { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { bills: [] } })),
@@ -82,7 +82,7 @@ export default function ReceptionDashboard({ role = 'reception' }: { role?: stri
     if (!selectedPt) { toast.error('Please select a patient'); return; }
     setSaving(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       await axios.post('/api/billing', { patientId: selectedPt.id, ...billData }, {
         headers: { Authorization: `Bearer ${token}` },
       });

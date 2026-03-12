@@ -161,7 +161,7 @@ export default function ReportsDashboard({ role = 'hospital_admin' }: { role?: s
   // ── Fetch \u2014 useCallback must be declared BEFORE useEffect ─────────────────
   const fetchAll = useCallback(async () => {
     setLoading(true);
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('hms_token');
     const headers = { Authorization: `Bearer ${token}` };
     const { startDate, endDate } = getDateRange(range);
     const year = new Date().getFullYear().toString();

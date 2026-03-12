@@ -31,7 +31,7 @@ export default function ChartOfAccounts({ role = 'md' }: { role?: string }) {
 
   const fetchAccounts = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       const headers = { Authorization: `Bearer ${token}` };
       const params = new URLSearchParams();
       if (typeFilter) params.append('type', typeFilter);
@@ -52,7 +52,7 @@ export default function ChartOfAccounts({ role = 'md' }: { role?: string }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       const headers = { Authorization: `Bearer ${token}` };
       const payload = {
         ...formData,
@@ -76,7 +76,7 @@ export default function ChartOfAccounts({ role = 'md' }: { role?: string }) {
   const handleDelete = async (id: number) => {
     if (!confirm('Are you sure you want to delete this account?')) return;
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       const headers = { Authorization: `Bearer ${token}` };
       await axios.delete(`/api/accounts/${id}`, { headers });
       fetchAccounts();

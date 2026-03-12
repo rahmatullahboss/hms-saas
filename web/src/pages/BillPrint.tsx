@@ -157,7 +157,7 @@ export default function BillPrint({ role = 'hospital_admin' }: { role?: string }
 
   const fetchBill = useCallback(async () => {
     setLoading(true);
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('hms_token');
     const headers = { Authorization: `Bearer ${token}` };
     try {
       const res = await axios.get(`/api/billing/${billId}`, { headers });

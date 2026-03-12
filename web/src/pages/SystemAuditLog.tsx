@@ -18,7 +18,7 @@ interface AuditEntry {
 }
 
 function authHeaders() {
-  return { Authorization: `Bearer ${localStorage.getItem('token')}` };
+  return { Authorization: `Bearer ${localStorage.getItem('hms_token')}` };
 }
 
 const ACTION_COLORS: Record<string, string> = {

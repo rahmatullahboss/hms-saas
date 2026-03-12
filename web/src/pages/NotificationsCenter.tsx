@@ -51,7 +51,7 @@ function timeAgo(dateStr: string): string {
 }
 
 function authHeaders() {
-  return { Authorization: `Bearer ${localStorage.getItem('token')}` };
+  return { Authorization: `Bearer ${localStorage.getItem('hms_token')}` };
 }
 
 // Demo data

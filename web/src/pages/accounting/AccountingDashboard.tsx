@@ -75,7 +75,7 @@ export default function AccountingDashboard({ role = 'md' }: { role?: string }) 
 
   const fetchData = useCallback(async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       const headers = { Authorization: `Bearer ${token}` };
       const [summaryRes, incomeRes, expenseRes, trendsRes] = await Promise.all([
         axios.get(`${API_BASE}/summary`, { headers }),
@@ -160,7 +160,7 @@ export default function AccountingDashboard({ role = 'md' }: { role?: string }) 
   const handleAddIncome = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       const headers = { Authorization: `Bearer ${token}` };
       await axios.post('/api/income', incomeForm, { headers });
       setShowIncomeModal(false);
@@ -174,7 +174,7 @@ export default function AccountingDashboard({ role = 'md' }: { role?: string }) 
   const handleAddExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       const headers = { Authorization: `Bearer ${token}` };
       await axios.post('/api/expenses', expenseForm, { headers });
       setShowExpenseModal(false);

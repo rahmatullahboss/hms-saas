@@ -38,7 +38,7 @@ export default function MDDashboard({ role = 'md' }: { role?: string }) {
 
   const fetchData = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       const headers = { Authorization: `Bearer ${token}` };
       
       const [incomeRes, expensesRes, monthlyRes, staffRes] = await Promise.all([

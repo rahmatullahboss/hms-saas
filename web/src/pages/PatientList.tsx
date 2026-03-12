@@ -33,7 +33,7 @@ export default function PatientList({ role = 'hospital_admin' }: { role?: string
   const fetchPatients = useCallback(async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       const { data } = await axios.get('/api/patients', {
         params: { search, page, perPage },
         headers: { Authorization: `Bearer ${token}` },

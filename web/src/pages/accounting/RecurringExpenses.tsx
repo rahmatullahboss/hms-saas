@@ -56,7 +56,7 @@ export default function RecurringExpenses({ role = 'md' }: { role?: string }) {
 
   const fetchExpenses = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       const headers = { Authorization: `Bearer ${token}` };
       const res = await axios.get('/api/recurring', { headers });
       setExpenses(res.data.recurringExpenses || []);
@@ -74,7 +74,7 @@ export default function RecurringExpenses({ role = 'md' }: { role?: string }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       const headers = { Authorization: `Bearer ${token}` };
       await axios.post('/api/recurring', formData, { headers });
       setShowModal(false);
@@ -94,7 +94,7 @@ export default function RecurringExpenses({ role = 'md' }: { role?: string }) {
 
   const handleToggle = async (id: number, currentStatus: number) => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       const headers = { Authorization: `Bearer ${token}` };
       if (currentStatus === 1) {
         await axios.delete(`/api/recurring/${id}`, { headers });
@@ -109,7 +109,7 @@ export default function RecurringExpenses({ role = 'md' }: { role?: string }) {
 
   const handleRun = async (id: number) => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       const headers = { Authorization: `Bearer ${token}` };
       await axios.post(`/api/recurring/${id}/run`, {}, { headers });
       alert('Expense executed successfully!');

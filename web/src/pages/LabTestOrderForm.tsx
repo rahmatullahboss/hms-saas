@@ -46,7 +46,7 @@ const PRIORITIES = [
 const SPECIMEN_TYPES = ['Blood', 'Urine', 'Stool', 'Sputum', 'Swab', 'CSF', 'Other'];
 
 function authHeaders() {
-  return { Authorization: `Bearer ${localStorage.getItem('token')}` };
+  return { Authorization: `Bearer ${localStorage.getItem('hms_token')}` };
 }
 
 function calcAge(dob?: string): string {

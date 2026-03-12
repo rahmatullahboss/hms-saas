@@ -172,6 +172,7 @@ export default function Sidebar({ role, onLogout }: SidebarProps) {
               <Link
                 key={item.path}
                 to={fullPath}
+                preventScrollReset
                 onClick={() => setIsOpen(false)}
                 aria-current={isActive ? 'page' : undefined}
                 className={`
