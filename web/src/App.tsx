@@ -73,7 +73,8 @@ function App() {
       <PWAUpdatePrompt />
       <Routes>
         {/* ─── Public: Landing / Marketing ─────────────────────────── */}
-        <Route path="/" element={<Navigate to="/signup" replace />} />
+        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<HospitalSignup />} />
         <Route path="/unauthorized" element={<Unauthorized />} />
 

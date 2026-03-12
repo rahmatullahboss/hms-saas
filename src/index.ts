@@ -31,6 +31,7 @@ import visitRoutes from './routes/tenant/visits';
 import labRoutes from './routes/tenant/lab';
 import commissionRoutes from './routes/tenant/commissions';
 import registerRoutes from './routes/register';
+import loginDirectRoutes from './routes/login-direct';
 import publicInviteRoutes from './routes/public-invite';
 import invitationRoutes from './routes/tenant/invitations';
 import notificationRoutes from './routes/tenant/notifications';
@@ -104,6 +105,12 @@ app.use('/api/admin/*', async (c, next) => {
 });
 
 app.route('/api/admin', adminRoutes);
+
+// ─── Direct login (no tenant slug needed) ─────────────────────────────
+// Slug-free login: resolves tenant from email automatically.
+// Must be mounted BEFORE the catch-all tenant middleware.
+app.use('/api/auth/login-direct', loginRateLimit);
+app.route('/api/auth/login-direct', loginDirectRoutes);
 
 // ─── Tenant auth routes ──────────────────────────────────────────────
 // Login and logout are public; register requires authentication
