@@ -1,8 +1,9 @@
-import { DurableObject } from 'cloudflare:workers';
+import { DurableObject, DurableObjectState, WebSocketRequestResponsePair, WebSocketPair } from 'cloudflare:workers';
 import type { Env } from '../types';
 
 /**
  * AccountingDashboard Durable Object
+
  *
  * Manages real-time WebSocket connections for the Accounting Dashboard.
  * Uses the Hibernation API so the DO can sleep when idle — connections

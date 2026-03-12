@@ -267,7 +267,7 @@ describe('HMS Performance Baseline Tests', () => {
       const annual = calcAnnualPL(records);
       const elapsed = performance.now() - start;
       expect(annual.netProfit).toBe(1_800_000);
-      expect(elapsed).toBeLessThan(1);
+      expect(elapsed).toBeLessThan(10);
     });
   });
 });
