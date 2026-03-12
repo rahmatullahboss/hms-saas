@@ -7,5 +7,8 @@
   "billDue": "Bill Due",
   "all": "All",
   "unread": "Unread",
-  "system": "System"
+  "system": "System",
+  "read": "Read",
+  "loadMore": "Load More",
+  "none": "No notifications"
 }

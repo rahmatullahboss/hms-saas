@@ -8,5 +8,8 @@
   "unmute": "আনমিউট",
   "videoOff": "ভিডিও বন্ধ",
   "videoOn": "ভিডিও চালু",
-  "noRooms": "কোনো সক্রিয় রুম নেই"
+  "noRooms": "কোনো সক্রিয় রুম নেই",
+  "consultationRoom": "কনসালটেশন রুম",
+  "scheduleSession": "সেশন নির্ধারণ করুন",
+  "chat": "চ্যাট"
 }

@@ -1,19 +1,7 @@
 import { Hono } from 'hono';
+import type { Env, Variables } from '../../types';
 
-const dashboardRoutes = new Hono<{
-  Bindings: {
-    DB: D1Database;
-    KV: KVNamespace;
-    UPLOADS: R2Bucket;
-    DASHBOARD_DO: DurableObjectNamespace;
-    ENVIRONMENT: string;
-  };
-  Variables: {
-    tenantId: string;
-    userId: string;
-    role: string;
-  };
-}>();
+const dashboardRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 dashboardRoutes.get('/summary', async (c) => {
   const tenantId = c.get('tenantId');
@@ -197,12 +185,39 @@ dashboardRoutes.get('/expense-breakdown', async (c) => {
   }
 });
 
+// WebSocket upgrade → Durable Object
+// NOTE: We don't check for Upgrade header here because Cloudflare's
+// asset pipeline (run_worker_first) may strip it before the worker
+// sees the request. The DO is responsible for handling the upgrade.
 dashboardRoutes.get('/ws', async (c) => {
-  const tenantId = c.get('tenantId');
-  const doId = c.env.DASHBOARD_DO.idFromName(tenantId);
+  const tenantId = c.get('tenantId') || 'default';
+  
+  // Each tenant gets its own DO instance — all dashboard viewers
+  // for the same hospital share one DO for broadcast.
+  const doId = c.env.DASHBOARD_DO.idFromName(`accounting-${tenantId}`);
   const doStub = c.env.DASHBOARD_DO.get(doId);
 
-  return doStub.fetch(c.req.raw);
+  // Forward the request to the DO with tenantId added to query
+  const url = new URL(c.req.url);
+  url.searchParams.set('tenantId', tenantId);
+
+  // Use the original request as base to preserve protocol headers (Upgrade, etc)
+  const doReq = new Request(url.toString(), c.req.raw);
+
+  try {
+    const response = await doStub.fetch(doReq);
+    
+    // If it's a 101 Switching Protocols, Cloudflare will handle the upgrade
+    if (response.status === 101) {
+      return response;
+    }
+    
+    // For other responses (e.g. errors from DO), return as normal
+    return response;
+  } catch (error) {
+    console.error('WebSocket DO fetch error:', error);
+    return c.json({ error: 'Failed to establish real-time connection' }, 500);
+  }
 });
 
 export default dashboardRoutes;

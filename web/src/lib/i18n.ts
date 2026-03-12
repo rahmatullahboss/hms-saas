@@ -3,13 +3,28 @@ import { initReactI18next } from 'react-i18next';
 import Backend from 'i18next-http-backend';
 import LanguageDetector from 'i18next-browser-languagedetector';
 
+const isProd = import.meta.env.PROD;
+const silentLogger = {
+  log: () => {},
+  warn: () => {},
+  error: () => {},
+  debug: () => {},
+};
+
+if (isProd) {
+  // i18next reads logger early during init; set a silent logger up-front
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (i18n as any).logger = silentLogger;
+}
+
 i18n
   .use(Backend)
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
     fallbackLng: 'en',
-    debug: import.meta.env.DEV,
+    debug: !isProd,
+    ...(isProd ? { logger: silentLogger } : {}),
 
     // Each namespace corresponds to a feature area / file
     ns: ['common', 'sidebar', 'dashboard', 'auth', 'patients', 'billing',

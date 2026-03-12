@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Patient {
@@ -46,7 +47,7 @@ const PRIORITIES = [
 const SPECIMEN_TYPES = ['Blood', 'Urine', 'Stool', 'Sputum', 'Swab', 'CSF', 'Other'];
 
 function authHeaders() {
-  return { Authorization: `Bearer ${localStorage.getItem('token')}` };
+  return { Authorization: `Bearer ${localStorage.getItem('hms_token')}` };
 }
 
 function calcAge(dob?: string): string {
@@ -57,6 +58,8 @@ function calcAge(dob?: string): string {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function LabTestOrderForm() {
+  const { t } = useTranslation(['laboratory', 'common']);
+
   const { slug } = useParams<{ slug: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -210,7 +213,7 @@ export default function LabTestOrderForm() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-xs text-[var(--color-text-muted)] flex items-center gap-1 mb-1">
-              <Link to={`${basePath}/dashboard`} className="hover:underline">Dashboard</Link>
+              <Link to={`${basePath}/dashboard`} className="hover:underline">{t('dashboard', { defaultValue: 'Dashboard' })}</Link>
               <ChevronRight className="w-3 h-3" />
               <Link to={`${basePath}/laboratory`} className="hover:underline">Laboratory</Link>
               <ChevronRight className="w-3 h-3" />

@@ -17,5 +17,12 @@
   "bank": "Bank Transfer",
   "insurance": "Insurance",
   "printBill": "Print Bill",
-  "noBills": "No bills found"
+  "noBills": "No bills found",
+  "invoice": "Invoice",
+  "billPrint": "Bill Print",
+  "newClaim": "New Claim",
+  "billTo": "Bill To",
+  "insuranceClaims": "Insurance Claims",
+  "hospitalBill": "Hospital Bill",
+  "billNotFound": "Bill not found."
 }

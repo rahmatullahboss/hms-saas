@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { ChevronRight, Building2, Users, BedDouble, DollarSign, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
+import { useTranslation } from 'react-i18next';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -33,7 +34,10 @@ function fmtTaka(n: number): string {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export default function MultiBranchDashboard({ role = 'hospital_admin' }: { role?: string }) {
+export default function MultiBranchDashboard({
+ role = 'hospital_admin' }: { role?: string }) {
+  const { t } = useTranslation('dashboard');
+
   const { slug = '' } = useParams<{ slug: string }>();
   const basePath = `/h/${slug}`;
   const [branches] = useState<Branch[]>(DEMO_BRANCHES);
@@ -51,7 +55,7 @@ export default function MultiBranchDashboard({ role = 'hospital_admin' }: { role
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-xs text-[var(--color-text-muted)] flex items-center gap-1 mb-1">
-              <Link to={`${basePath}/dashboard`} className="hover:underline">Dashboard</Link>
+              <Link to={`${basePath}/dashboard`} className="hover:underline">{t('dashboard', { defaultValue: 'Dashboard' })}</Link>
               <ChevronRight className="w-3 h-3" />
               <span className="text-[var(--color-text)] font-medium">Multi-Branch</span>
             </div>

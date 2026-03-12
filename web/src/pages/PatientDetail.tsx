@@ -8,6 +8,7 @@ import {
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
+import { useTranslation } from 'react-i18next';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -106,12 +107,15 @@ function daysSince(date: string): string {
 }
 
 function authHeaders() {
-  return { Authorization: `Bearer ${localStorage.getItem('token')}` };
+  return { Authorization: `Bearer ${localStorage.getItem('hms_token')}` };
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export default function PatientDetail({ role = 'hospital_admin' }: { role?: string }) {
+export default function PatientDetail({
+ role = 'hospital_admin' }: { role?: string }) {
+  const { t } = useTranslation(['patients', 'common']);
+
   const { slug = '', id = '' } = useParams<{ slug: string; id: string }>();
   const navigate = useNavigate();
   const basePath = `/h/${slug}`;
@@ -201,7 +205,7 @@ export default function PatientDetail({ role = 'hospital_admin' }: { role?: stri
     if (!win) { toast.error('Pop-up blocked'); return; }
     win.document.write(`<html><head><title>Patient Summary — ${patient.name}</title>
       <style>body{font-family:Inter,sans-serif;padding:2rem;} h1{font-size:1.4rem;} table{width:100%;border-collapse:collapse;margin-top:1rem;} td,th{border:1px solid #ccc;padding:8px;} th{background:#f5f5f5;}</style>
-      </head><body><h1>Patient Summary</h1>
+      </head><body><h1>{t('patient_summary', { defaultValue: 'Patient Summary' })}</h1>
       <p><strong>${patient.name}</strong> | ${patient.patient_code} | ${patient.mobile}</p>
       <p>${patient.address}</p>
       <table><thead><tr><th>Invoice</th><th>Total</th><th>Paid</th><th>Status</th><th>Date</th></tr></thead><tbody>

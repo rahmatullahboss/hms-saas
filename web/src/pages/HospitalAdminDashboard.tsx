@@ -11,6 +11,7 @@ import {
 } from 'recharts';
 import DashboardLayout from '../components/DashboardLayout';
 import KPICard from '../components/dashboard/KPICard';
+import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 
 interface DashboardStats {
@@ -43,13 +44,14 @@ export default function HospitalAdminDashboard({ role = 'hospital_admin' }: { ro
   const [revenueData,    setRevenueData]    = useState<RevenueData[]>([]);
   const [loading,        setLoading]        = useState(true);
   const navigate = useNavigate();
+  const { t } = useTranslation(['dashboard', 'patients', 'common']);
 
   useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       const { data } = await axios.get('/api/dashboard/stats', {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -83,52 +85,52 @@ export default function HospitalAdminDashboard({ role = 'hospital_admin' }: { ro
 
   const kpiCards = [
     {
-      title: 'Total Patients',
+      title: t('totalPatients'),
       value: stats?.totalPatients.toLocaleString() ?? 0,
       icon:  <Users className="w-5 h-5" />,
       iconBg:'bg-blue-50 text-blue-600',
-      trend: { value: 12, isPositive: true, label: 'vs last month' },
+      trend: { value: 12, isPositive: true, label: t('vsLastMonth', { defaultValue: 'vs last month' }) },
     },
     {
-      title: "Today's Patients",
+      title: t('todayAppointments', { defaultValue: "Today's Patients" }),
       value: stats?.todayPatients ?? 0,
       icon:  <Activity className="w-5 h-5" />,
       iconBg:'bg-[var(--color-primary-light)] text-[var(--color-primary)]',
     },
     {
-      title: 'Monthly Revenue',
+      title: t('revenue'),
       value: `৳${(stats?.totalRevenue ?? 0).toLocaleString()}`,
       icon:  <TrendingUp className="w-5 h-5" />,
       iconBg:'bg-emerald-50 text-emerald-600',
-      trend: { value: 8, isPositive: true, label: 'vs last month' },
+      trend: { value: 8, isPositive: true, label: t('vsLastMonth', { defaultValue: 'vs last month' }) },
     },
     {
-      title: 'Pending Bills',
+      title: t('pendingBills'),
       value: stats?.pendingBills ?? 0,
       icon:  <Receipt className="w-5 h-5" />,
       iconBg:'bg-amber-50 text-amber-600',
       trend: { value: 3, isPositive: false },
     },
     {
-      title: 'Pending Tests',
+      title: t('labPending'),
       value: stats?.pendingTests ?? 0,
       icon:  <FlaskConical className="w-5 h-5" />,
       iconBg:'bg-purple-50 text-purple-600',
     },
     {
-      title: 'Completed Tests',
+      title: t('pharmacySales', { defaultValue: 'Completed Tests' }),
       value: stats?.completedTests ?? 0,
       icon:  <FlaskConical className="w-5 h-5" />,
       iconBg:'bg-emerald-50 text-emerald-600',
     },
     {
-      title: 'Staff Count',
+      title: t('activeDoctors', { defaultValue: 'Staff Count' }),
       value: stats?.staffCount ?? 0,
       icon:  <UserCog className="w-5 h-5" />,
       iconBg:'bg-slate-100 text-slate-600',
     },
     {
-      title: 'Low Stock Items',
+      title: t('lowStock', { defaultValue: 'Low Stock Items' }),
       value: stats?.lowStockItems ?? 0,
       icon:  <AlertCircle className="w-5 h-5" />,
       iconBg:'bg-red-50 text-red-500',
@@ -137,10 +139,10 @@ export default function HospitalAdminDashboard({ role = 'hospital_admin' }: { ro
   ];
 
   const quickActions = [
-    { label: 'New Patient',      icon: <Plus className="w-4 h-4" />,     path: 'patients/new',  color: 'btn-primary' },
-    { label: 'Lab Test',         icon: <FlaskConical className="w-4 h-4"/>, path: 'tests',       color: 'btn-secondary' },
-    { label: 'New Bill',         icon: <Receipt className="w-4 h-4" />,  path: 'billing',        color: 'btn-secondary' },
-    { label: 'Add Staff',        icon: <UserCog className="w-4 h-4" />,  path: 'staff',          color: 'btn-secondary' },
+    { label: t('newPatient', { ns: 'patients', defaultValue: 'New Patient' }), icon: <Plus className="w-4 h-4" />,       path: 'patients/new', color: 'btn-primary' },
+    { label: t('labTests', { defaultValue: 'Lab Tests' }),                     icon: <FlaskConical className="w-4 h-4"/>, path: 'tests',       color: 'btn-secondary' },
+    { label: t('newBill', { ns: 'billing', defaultValue: 'New Bill' }),        icon: <Receipt className="w-4 h-4" />,     path: 'billing',      color: 'btn-secondary' },
+    { label: t('staff', { ns: 'staff', defaultValue: 'Add Staff' }),           icon: <UserCog className="w-4 h-4" />,     path: 'staff',        color: 'btn-secondary' },
   ];
 
   return (
@@ -150,10 +152,10 @@ export default function HospitalAdminDashboard({ role = 'hospital_admin' }: { ro
         {/* ── Page header ── */}
         <div className="page-header">
           <div>
-            <h1 className="page-title">Dashboard</h1>
+            <h1 className="page-title">{t('title')}</h1>
             <p className="section-subtitle flex items-center gap-1.5 mt-1">
               <Clock className="w-3.5 h-3.5" />
-              {new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+              {new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -161,7 +163,7 @@ export default function HospitalAdminDashboard({ role = 'hospital_admin' }: { ro
               <RefreshCw className="w-4 h-4" />
             </button>
             <button onClick={() => navigate('patients/new')} className="btn-primary">
-              <Plus className="w-4 h-4" /> New Patient
+              <Plus className="w-4 h-4" /> {t('newPatient', { ns: 'patients', defaultValue: 'New Patient' })}
             </button>
           </div>
         </div>
@@ -182,7 +184,7 @@ export default function HospitalAdminDashboard({ role = 'hospital_admin' }: { ro
 
         {/* ── Quick Actions ── */}
         <div className="card p-5">
-          <h3 className="section-title mb-4">Quick Actions</h3>
+          <h3 className="section-title mb-4">{t('quickActions', { defaultValue: 'Quick Actions' })}</h3>
           <div className="flex flex-wrap gap-3">
             {quickActions.map((action) => (
               <button
@@ -203,8 +205,8 @@ export default function HospitalAdminDashboard({ role = 'hospital_admin' }: { ro
           {/* Revenue trend — wider */}
           <div className="card p-6 xl:col-span-3">
             <div className="flex items-center justify-between mb-5">
-              <h3 className="section-title">Revenue Overview</h3>
-              <span className="section-subtitle">Last 7 days</span>
+              <h3 className="section-title">{t('revenue')}</h3>
+              <span className="section-subtitle">{t('last7days', { defaultValue: 'Last 7 days' })}</span>
             </div>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
@@ -227,8 +229,8 @@ export default function HospitalAdminDashboard({ role = 'hospital_admin' }: { ro
           {/* Lab Tests — narrower */}
           <div className="card p-6 xl:col-span-2">
             <div className="flex items-center justify-between mb-5">
-              <h3 className="section-title">Lab Tests</h3>
-              <span className="section-subtitle">This week</span>
+              <h3 className="section-title">{t('labTests', { defaultValue: 'Lab Tests' })}</h3>
+              <span className="section-subtitle">{t('thisWeek', { defaultValue: 'This week' })}</span>
             </div>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
@@ -258,20 +260,20 @@ export default function HospitalAdminDashboard({ role = 'hospital_admin' }: { ro
         {/* ── Recent Patients ── */}
         <div className="card overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)]">
-            <h3 className="section-title">Recent Patients</h3>
+            <h3 className="section-title">{t('recentActivity')}</h3>
             <button onClick={() => navigate('patients')} className="text-sm text-[var(--color-primary)] hover:underline font-medium">
-              View All →
+              {t('view', { ns: 'common' })} →
             </button>
           </div>
           <div className="overflow-x-auto">
             <table className="table-base">
               <thead>
                 <tr>
-                  <th>Patient ID</th>
-                  <th>Name</th>
-                  <th>Mobile</th>
-                  <th>Registered</th>
-                  <th>Action</th>
+                  <th>{t('patientId', { ns: 'patients', defaultValue: 'Patient ID' })}</th>
+                  <th>{t('name', { ns: 'common' })}</th>
+                  <th>{t('phone', { ns: 'common' })}</th>
+                  <th>{t('date', { ns: 'common' })}</th>
+                  <th>{t('actions', { ns: 'common' })}</th>
                 </tr>
               </thead>
               <tbody>
@@ -286,7 +288,7 @@ export default function HospitalAdminDashboard({ role = 'hospital_admin' }: { ro
                 ) : recentPatients.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="py-10 text-center text-[var(--color-text-muted)]">
-                      No patients found
+                      {t('noPatients', { ns: 'patients', defaultValue: 'No patients found' })}
                     </td>
                   </tr>
                 ) : (
@@ -303,7 +305,7 @@ export default function HospitalAdminDashboard({ role = 'hospital_admin' }: { ro
                           onClick={(e) => { e.stopPropagation(); navigate(`patients/${p.id}`); }}
                           className="text-[var(--color-primary)] text-sm font-medium hover:underline"
                         >
-                          View
+                          {t('view', { ns: 'common' })}
                         </button>
                       </td>
                     </tr>

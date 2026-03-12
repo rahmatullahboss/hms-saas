@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router';
 import { ChevronRight, Mic, MicOff, Video as VideoIcon, VideoOff, Phone, MessageSquare, Clock, Users } from 'lucide-react';
 import axios from 'axios';
 import DashboardLayout from '../components/DashboardLayout';
+import { useTranslation } from 'react-i18next';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -16,7 +17,7 @@ interface RoomData {
 }
 
 function authHeaders() {
-  return { Authorization: `Bearer ${localStorage.getItem('token')}` };
+  return { Authorization: `Bearer ${localStorage.getItem('hms_token')}` };
 }
 
 function formatDuration(seconds: number): string {
@@ -28,6 +29,8 @@ function formatDuration(seconds: number): string {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function TelemedicineRoom({ role = 'hospital_admin' }: { role?: string }) {
+  const { t } = useTranslation(['telemedicine', 'common']);
+
   const { slug = '', roomId = '' } = useParams<{ slug: string; roomId: string }>();
   const basePath = `/h/${slug}`;
   const navigate = useNavigate();
@@ -319,7 +322,7 @@ export default function TelemedicineRoom({ role = 'hospital_admin' }: { role?: s
             {showChat && (
               <div className="w-72 card flex flex-col">
                 <div className="px-4 py-3 border-b border-[var(--color-border)]">
-                  <h3 className="font-semibold text-sm">Chat</h3>
+                  <h3 className="font-semibold text-sm">{t('chat', { defaultValue: 'Chat' })}</h3>
                 </div>
                 <div className="flex-1 overflow-y-auto p-3 space-y-2 max-h-80">
                   {chatMessages.length === 0 && (

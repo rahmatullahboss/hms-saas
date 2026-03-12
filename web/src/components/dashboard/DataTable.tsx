@@ -95,15 +95,17 @@ export default function DataTable<T>({
               {columns.map((col) => (
                 <th 
                   key={String(col.key)}
-                  className="cursor-pointer hover:bg-[var(--color-border-light)]"
-                  onClick={() => handleSort(String(col.key))}
+                  aria-sort={sortKey === col.key ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
                 >
-                  <div className="flex items-center gap-1">
+                  <button
+                    className="flex items-center gap-1 w-full font-inherit cursor-pointer hover:bg-[var(--color-border-light)] p-2 -m-2 rounded"
+                    onClick={() => handleSort(String(col.key))}
+                  >
                     {col.header}
                     {sortKey === col.key && (
-                      sortDirection === 'asc' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
+                      sortDirection === 'asc' ? <ChevronUp className="w-4 h-4" aria-hidden="true" /> : <ChevronDown className="w-4 h-4" aria-hidden="true" />
                     )}
-                  </div>
+                  </button>
                 </th>
               ))}
             </tr>
@@ -127,13 +129,14 @@ export default function DataTable<T>({
           <p className="text-sm text-[var(--color-text-muted)]">
             Showing {(currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, data.length)} of {data.length}
           </p>
-          <div className="flex gap-1">
+          <div className="flex gap-1" role="navigation" aria-label="Pagination">
             <button
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               disabled={currentPage === 1}
+              aria-label="Previous page"
               className="p-2 rounded hover:bg-[var(--color-border-light)] disabled:opacity-50"
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="w-4 h-4" aria-hidden="true" />
             </button>
             {[...Array(Math.min(5, totalPages))].map((_, i) => {
               const page = i + 1;
@@ -141,6 +144,8 @@ export default function DataTable<T>({
                 <button
                   key={page}
                   onClick={() => setCurrentPage(page)}
+                  aria-label={`Page ${page}`}
+                  aria-current={currentPage === page ? 'page' : undefined}
                   className={`px-3 py-1 rounded ${currentPage === page ? 'bg-[var(--color-primary)] text-white' : 'hover:bg-[var(--color-border-light)]'}`}
                 >
                   {page}
@@ -150,9 +155,10 @@ export default function DataTable<T>({
             <button
               onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
+              aria-label="Next page"
               className="p-2 rounded hover:bg-[var(--color-border-light)] disabled:opacity-50"
             >
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
         </div>

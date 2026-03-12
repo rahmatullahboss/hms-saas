@@ -13,5 +13,10 @@
   "cancelled": "Cancelled",
   "pending": "Pending",
   "noAppointments": "No appointments found",
-  "scheduleAppointment": "Schedule Appointment"
+  "scheduleAppointment": "Schedule Appointment",
+  "bookAppointment": "Book Appointment",
+  "schedule": "Schedule",
+  "noSchedules": "No schedules found",
+  "doctorSchedule": "Doctor Schedule",
+  "addSchedule": "Add Schedule"
 }

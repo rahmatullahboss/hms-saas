@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
+import { useTranslation } from 'react-i18next';
 
 interface DailyData {
   date: string;
@@ -26,6 +27,7 @@ interface Staff {
 }
 
 export default function MDDashboard({ role = 'md' }: { role?: string }) {
+  const { t } = useTranslation(['dashboard', 'common']);
   const [dailyIncome, setDailyIncome] = useState<DailyData>({ date: '', total: 0 });
   const [dailyExpenses, setDailyExpenses] = useState<DailyData>({ date: '', total: 0 });
   const [monthly, setMonthly] = useState<MonthlyData | null>(null);
@@ -38,7 +40,7 @@ export default function MDDashboard({ role = 'md' }: { role?: string }) {
 
   const fetchData = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       const headers = { Authorization: `Bearer ${token}` };
       
       const [incomeRes, expensesRes, monthlyRes, staffRes] = await Promise.all([
@@ -62,25 +64,25 @@ export default function MDDashboard({ role = 'md' }: { role?: string }) {
   return (
     <DashboardLayout role={role}>
       <div className="space-y-6">
-        <h1 className="text-2xl font-bold">Managing Director Dashboard</h1>
+        <h1 className="text-2xl font-bold">{t('managingDirectorDashboard', { defaultValue: 'Managing Director Dashboard' })}</h1>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="bg-white rounded-lg shadow p-4">
-            <div className="text-sm text-gray-500">Today's Income</div>
+            <div className="text-sm text-gray-500">{t('todaysIncome', { defaultValue: "Today's Income" })}</div>
             <div className="text-2xl font-bold text-green-600">{dailyIncome.total.toFixed(0)} Taka</div>
           </div>
           <div className="bg-white rounded-lg shadow p-4">
-            <div className="text-sm text-gray-500">Today's Expenses</div>
+            <div className="text-sm text-gray-500">{t('todaysExpenses', { defaultValue: "Today's Expenses" })}</div>
             <div className="text-2xl font-bold text-red-600">{dailyExpenses.total.toFixed(0)} Taka</div>
           </div>
           <div className="bg-white rounded-lg shadow p-4">
-            <div className="text-sm text-gray-500">Today's Profit</div>
+            <div className="text-sm text-gray-500">{t('todaysProfit', { defaultValue: "Today's Profit" })}</div>
             <div className="text-2xl font-bold text-primary-600">
               {(dailyIncome.total - dailyExpenses.total).toFixed(0)} Taka
             </div>
           </div>
           <div className="bg-white rounded-lg shadow p-4">
-            <div className="text-sm text-gray-500">Total Staff</div>
+            <div className="text-sm text-gray-500">{t('totalStaff', { ns: 'staff', defaultValue: 'Total Staff' })}</div>
             <div className="text-2xl font-bold text-gray-600">{staff.length}</div>
           </div>
         </div>
@@ -108,7 +110,7 @@ export default function MDDashboard({ role = 'md' }: { role?: string }) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-white rounded-lg shadow">
             <div className="px-6 py-4 border-b">
-              <h2 className="font-semibold">Income Sources Today</h2>
+              <h2 className="font-semibold">{t('incomeSourcesToday', { defaultValue: 'Income Sources Today' })}</h2>
             </div>
             <div className="p-4">
               {dailyIncome.bySource?.length ? (
@@ -128,7 +130,7 @@ export default function MDDashboard({ role = 'md' }: { role?: string }) {
 
           <div className="bg-white rounded-lg shadow">
             <div className="px-6 py-4 border-b">
-              <h2 className="font-semibold">Expenses Today</h2>
+              <h2 className="font-semibold">{t('expensesToday', { defaultValue: 'Expenses Today' })}</h2>
             </div>
             <div className="p-4">
               {dailyExpenses.bySource?.length ? (
@@ -149,7 +151,7 @@ export default function MDDashboard({ role = 'md' }: { role?: string }) {
 
         <div className="bg-white rounded-lg shadow">
           <div className="px-6 py-4 border-b flex justify-between items-center">
-            <h2 className="font-semibold">Staff Overview</h2>
+            <h2 className="font-semibold">{t('staffOverview', { defaultValue: 'Staff Overview' })}</h2>
           </div>
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">

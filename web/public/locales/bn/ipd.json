@@ -7,10 +7,16 @@
   "admissionDate": "ভর্তির তারিখ",
   "dischargeDate": "ছাড়পত্রের তারিখ",
   "dischargePatient": "রোগী ছাড়",
+  "confirmDischarge": "ছাড় নিশ্চিত করুন",
+  "confirmAdmission": "ভর্তি নিশ্চিত করুন",
   "admitted": "ভর্তি",
   "discharged": "ছাড়প্রাপ্ত",
   "bedManagement": "বেড ব্যবস্থাপনা",
   "availableBeds": "উপলব্ধ বেড",
   "occupiedBeds": "অধিকৃত বেড",
-  "noAdmissions": "কোনো ভর্তি পাওয়া যায়নি"
+  "noAdmissions": "কোনো ভর্তি পাওয়া যায়নি",
+  "addBed": "বেড যোগ করুন",
+  "noBeds": "কোনো বেড পাওয়া যায়নি",
+  "dischargeSummary": "ছাড় সারাংশ",
+  "saveSummary": "সারাংশ সংরক্ষণ করুন"
 }

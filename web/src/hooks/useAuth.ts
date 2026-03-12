@@ -50,11 +50,18 @@ function getSnapshot(): string | null {
 }
 
 // ─── Token helpers ────────────────────────────────────────────────────
+function decodeBase64Url(input: string): string {
+  const normalized = input.replace(/-/g, '+').replace(/_/g, '/');
+  const padLength = (4 - (normalized.length % 4)) % 4;
+  const padded = normalized + '='.repeat(padLength);
+  return atob(padded);
+}
+
 function parseToken(token: string): JWTPayload | null {
   try {
     const parts = token.split('.');
     if (parts.length !== 3) return null;
-    return JSON.parse(atob(parts[1])) as JWTPayload;
+    return JSON.parse(decodeBase64Url(parts[1])) as JWTPayload;
   } catch {
     return null;
   }

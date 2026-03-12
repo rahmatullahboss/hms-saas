@@ -37,7 +37,7 @@ export default function IncomeList({ role = 'md' }: { role?: string }) {
 
   const fetchIncomes = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       const headers = { Authorization: `Bearer ${token}` };
       const params = new URLSearchParams();
       if (filters.startDate) params.append('startDate', filters.startDate);
@@ -60,7 +60,7 @@ export default function IncomeList({ role = 'md' }: { role?: string }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       const headers = { Authorization: `Bearer ${token}` };
       if (editingIncome) {
         await axios.put(`/api/income/${editingIncome.id}`, formData, { headers });
@@ -79,7 +79,7 @@ export default function IncomeList({ role = 'md' }: { role?: string }) {
   const handleDelete = async (id: number) => {
     if (!confirm('Are you sure you want to delete this income?')) return;
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       const headers = { Authorization: `Bearer ${token}` };
       await axios.delete(`/api/income/${id}`, { headers });
       fetchIncomes();

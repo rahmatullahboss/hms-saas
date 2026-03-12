@@ -38,6 +38,15 @@ id = "ed8650b9af6549ecbaf5cc90b187d53b"
 binding = "UPLOADS"
 bucket_name = "hms-uploads"
 
+# ─── Durable Objects ──────────────────────────────────────────────────
+[[durable_objects.bindings]]
+name = "DASHBOARD_DO"
+class_name = "AccountingDashboard"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["AccountingDashboard"]
+
 # ─── Default (development) vars ───────────────────────────────────────
 # JWT_SECRET must be set as a Wrangler secret (never in vars!):
 #   wrangler secret put JWT_SECRET
@@ -95,6 +104,10 @@ id = "7907d8fc866848e3ba115fbe975a0fde"
 binding = "UPLOADS"
 bucket_name = "hms-uploads-staging"
 
+[[env.staging.durable_objects.bindings]]
+name = "DASHBOARD_DO"
+class_name = "AccountingDashboard"
+
 # ─── Production environment ───────────────────────────────────────────
 [env.production]
 name = "hms-saas-production"
@@ -126,3 +139,7 @@ id = "ed8650b9af6549ecbaf5cc90b187d53b"
 [[env.production.r2_buckets]]
 binding = "UPLOADS"
 bucket_name = "hms-uploads-production"
+
+[[env.production.durable_objects.bindings]]
+name = "DASHBOARD_DO"
+class_name = "AccountingDashboard"

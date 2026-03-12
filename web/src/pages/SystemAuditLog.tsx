@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router';
 import { ChevronRight, Download, Filter, Search, RefreshCw, Info } from 'lucide-react';
 import axios from 'axios';
 import DashboardLayout from '../components/DashboardLayout';
+import { useTranslation } from 'react-i18next';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -18,7 +19,7 @@ interface AuditEntry {
 }
 
 function authHeaders() {
-  return { Authorization: `Bearer ${localStorage.getItem('token')}` };
+  return { Authorization: `Bearer ${localStorage.getItem('hms_token')}` };
 }
 
 const ACTION_COLORS: Record<string, string> = {
@@ -41,6 +42,8 @@ function fmtTime(d: string): string {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function SystemAuditLog({ role = 'hospital_admin' }: { role?: string }) {
+  const { t } = useTranslation('common');
+
   const { slug = '' } = useParams<{ slug: string }>();
   const basePath = `/h/${slug}`;
 
@@ -113,7 +116,7 @@ export default function SystemAuditLog({ role = 'hospital_admin' }: { role?: str
               <ChevronRight className="w-3 h-3" />
               <span className="text-[var(--color-text)] font-medium">Audit Log</span>
             </div>
-            <h1 className="text-2xl font-bold text-[var(--color-text)]">System Audit Log</h1>
+            <h1 className="text-2xl font-bold text-[var(--color-text)]">{t('auditLog', { defaultValue: 'System Audit Log' })}</h1>
             <p className="text-sm text-[var(--color-text-muted)]">Track all system changes and user activity</p>
           </div>
           <div className="flex gap-2">

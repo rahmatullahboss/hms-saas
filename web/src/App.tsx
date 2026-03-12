@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router';
 import { PWAUpdatePrompt } from './components/PWAUpdatePrompt';
 import { Toaster } from 'react-hot-toast';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { useTranslation } from 'react-i18next';
 import Login from './pages/Login';
 import HospitalSignup from './pages/HospitalSignup';
 import AcceptInvite from './pages/AcceptInvite';
@@ -48,20 +49,22 @@ import TelemedicineDashboard from './pages/TelemedicineDashboard';
 import TelemedicineRoom from './pages/TelemedicineRoom';
 
 function Unauthorized() {
+  const { t } = useTranslation('common');
   return (
     <div style={{ padding: '2rem', textAlign: 'center' }}>
-      <h1>403 — Access Denied</h1>
-      <p>You do not have permission to view this page.</p>
-      <a href="javascript:history.back()">Go back</a>
+      <h1>{t('accessDenied')}</h1>
+      <p>{t('noPermission')}</p>
+      <a href="javascript:history.back()">{t('goBack')}</a>
     </div>
   );
 }
 
 function NotFound() {
+  const { t } = useTranslation('common');
   return (
     <div style={{ padding: '2rem', textAlign: 'center' }}>
-      <h1>404 — Page Not Found</h1>
-      <a href="/">Home</a>
+      <h1>{t('pageNotFound')}</h1>
+      <a href="/">{t('home')}</a>
     </div>
   );
 }

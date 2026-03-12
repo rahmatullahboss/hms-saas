@@ -12,5 +12,11 @@
   "bedManagement": "Bed Management",
   "availableBeds": "Available Beds",
   "occupiedBeds": "Occupied Beds",
-  "noAdmissions": "No admissions found"
+  "noAdmissions": "No admissions found",
+  "noBeds": "No beds found",
+  "confirmAdmission": "Confirm Admission",
+  "dischargeSummary": "Discharge Summary",
+  "saveSummary": "Save Summary",
+  "addBed": "Add Bed",
+  "confirmDischarge": "Confirm Discharge"
 }

@@ -23,11 +23,28 @@ export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
   }
 
   const authHeader = c.req.header('Authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  let token: string | undefined;
+
+  if (authHeader?.startsWith('Bearer ')) {
+    token = authHeader.substring(7);
+  } else {
+    // WebSocket connections can't send custom headers.
+    // Accept token via query param for WebSocket-style paths.
+    // NOTE: we also check Upgrade header, but Cloudflare's asset
+    // pipeline may strip it before the worker sees the request.
+    const queryToken = c.req.query('token');
+    const isWsPath = c.req.path.endsWith('/ws');
+    const upgradeHeader = c.req.header('Upgrade')?.toLowerCase();
+    const isWsUpgrade = upgradeHeader === 'websocket';
+    if (queryToken && (isWsUpgrade || isWsPath)) {
+      token = queryToken;
+    }
+  }
+
+  if (!token) {
     return c.json({ error: 'No token provided' }, 401);
   }
 
-  const token = authHeader.substring(7);
   const secret = c.env.JWT_SECRET;
 
   if (!secret) {

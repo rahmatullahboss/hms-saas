@@ -7,6 +7,7 @@ import {
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
+import { useTranslation } from 'react-i18next';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -53,7 +54,7 @@ interface Stats {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function authHeaders() {
-  return { Authorization: `Bearer ${localStorage.getItem('token')}` };
+  return { Authorization: `Bearer ${localStorage.getItem('hms_token')}` };
 }
 
 function vitalStatus(v: PatientWithVitals['latestVitals']): { label: string; color: string } {
@@ -95,6 +96,7 @@ const DEMO_VITALS_LOG: VitalLog[] = [
 export default function NurseStation({ role = 'hospital_admin' }: { role?: string }) {
   const { slug = '' } = useParams<{ slug: string }>();
   const basePath = `/h/${slug}`;
+  const { t } = useTranslation(['dashboard', 'common']);
 
   const [patients, setPatients] = useState<PatientWithVitals[]>([]);
   const [vitalsLog, setVitalsLog] = useState<VitalLog[]>([]);
@@ -177,10 +179,10 @@ export default function NurseStation({ role = 'hospital_admin' }: { role?: strin
             <div className="text-xs text-[var(--color-text-muted)] flex items-center gap-1 mb-1">
               <Link to={`${basePath}/dashboard`} className="hover:underline">Dashboard</Link>
               <ChevronRight className="w-3 h-3" />
-              <span className="text-[var(--color-text)] font-medium">Nurse Station</span>
+              <span className="text-[var(--color-text)] font-medium">{t('nurseStation', { defaultValue: 'Nurse Station' })}</span>
             </div>
             <h1 className="text-2xl font-bold text-[var(--color-text)] flex items-center gap-2">
-              <Stethoscope className="w-6 h-6" /> Nurse Station
+              <Stethoscope className="w-6 h-6" /> {t('nurseStation', { defaultValue: 'Nurse Station' })}
             </h1>
           </div>
           <button onClick={fetchAll} className="btn btn-outline text-sm p-2" aria-label="Refresh">
@@ -206,11 +208,11 @@ export default function NurseStation({ role = 'hospital_admin' }: { role?: strin
 
           {/* Left: Inpatient List */}
           <div className="lg:col-span-3 space-y-3">
-            <h2 className="text-sm font-semibold text-[var(--color-text)]">Inpatients</h2>
+            <h2 className="text-sm font-semibold text-[var(--color-text)]">{t('inpatients', { defaultValue: 'Inpatients' })}</h2>
             {loading ? (
-              <div className="card p-8 text-center text-[var(--color-text-muted)]">Loading...</div>
+              <div className="card p-8 text-center text-[var(--color-text-muted)]">{t('loading', { ns: 'common' })}</div>
             ) : patients.length === 0 ? (
-              <div className="card p-8 text-center text-[var(--color-text-muted)]">No active inpatients</div>
+              <div className="card p-8 text-center text-[var(--color-text-muted)]">{t('noInpatients', { defaultValue: 'No active inpatients' })}</div>
             ) : (
               patients.map(p => {
                 const vs = vitalStatus(p.latestVitals);
@@ -269,7 +271,7 @@ export default function NurseStation({ role = 'hospital_admin' }: { role?: strin
           <div className="lg:col-span-2">
             <div className="card p-5 sticky top-4">
               <h2 className="text-sm font-semibold text-[var(--color-text)] mb-4 flex items-center gap-2">
-                <HeartPulse className="w-4 h-4 text-[var(--color-primary)]" /> Record Vitals
+                <HeartPulse className="w-4 h-4 text-[var(--color-primary)]" /> {t('recordVitals', { defaultValue: 'Record Vitals' })}
               </h2>
 
               <div className="space-y-3">
@@ -349,7 +351,7 @@ export default function NurseStation({ role = 'hospital_admin' }: { role?: strin
 
                 <button onClick={handleRecordVitals} disabled={submitting || !vitalsForm.patient_id}
                   className="btn btn-primary text-sm w-full">
-                  {submitting ? 'Recording...' : 'Submit Recording'}
+                  {submitting ? t('loading', { ns: 'common' }) : t('submitRecording', { defaultValue: 'Submit Recording' })}
                 </button>
               </div>
             </div>
@@ -359,7 +361,7 @@ export default function NurseStation({ role = 'hospital_admin' }: { role?: strin
         {/* Recent Vitals Log */}
         <div className="card overflow-hidden">
           <div className="px-4 py-3 border-b border-[var(--color-border)]">
-            <h2 className="text-sm font-semibold text-[var(--color-text)]">Recent Vitals Log</h2>
+            <h2 className="text-sm font-semibold text-[var(--color-text)]">{t('recentVitalsLog', { defaultValue: 'Recent Vitals Log' })}</h2>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

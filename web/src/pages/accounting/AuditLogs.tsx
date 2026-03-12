@@ -28,7 +28,7 @@ export default function AuditLogs({ role = 'md' }: { role?: string }) {
 
   const fetchLogs = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       const headers = { Authorization: `Bearer ${token}` };
       const params = new URLSearchParams();
       if (filters.userId) params.append('userId', filters.userId);

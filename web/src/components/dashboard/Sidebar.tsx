@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router';
+import { Link, useLocation, useParams } from 'react-router';
 import {
   LayoutDashboard, Users, FlaskConical, Receipt, Pill,
   UserCog, PieChart, Settings, LogOut, Menu, X,
@@ -15,8 +15,13 @@ interface SidebarProps {
   onLogout: () => void;
 }
 
+/**
+ * Sidebar nav items use paths RELATIVE to `/h/:slug/`.
+ * The component reads `slug` from route params and prefixes every link.
+ */
 export default function Sidebar({ role, onLogout }: SidebarProps) {
   const location = useLocation();
+  const { slug } = useParams<{ slug: string }>();
   const [isOpen, setIsOpen] = useState(false);
   const { t, i18n } = useTranslation('sidebar');
 
@@ -25,79 +30,85 @@ export default function Sidebar({ role, onLogout }: SidebarProps) {
   };
 
   const lang = i18n.language;
+  const base = `/h/${slug}`;
 
-  const roleNavItems = {
+  // Paths are RELATIVE — prefixed with `/h/:slug/` at render time
+  const roleNavItems: Record<string, { labelKey: string; path: string; icon: React.ReactNode }[]> = {
     super_admin: [
       { labelKey: 'dashboard', path: '/super_admin/dashboard', icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
       { labelKey: 'hospitals',  path: '/super_admin/hospitals', icon: <Building2 className="w-4.5 h-4.5" /> },
       { labelKey: 'settings',   path: '/super_admin/settings',  icon: <Settings className="w-4.5 h-4.5" /> },
     ],
     hospital_admin: [
-      { labelKey: 'dashboard',     path: '/hospital_admin/dashboard',    icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
-      { labelKey: 'appointments',  path: '/hospital_admin/appointments', icon: <BookOpen        className="w-4.5 h-4.5" /> },
-      { labelKey: 'patients',      path: '/hospital_admin/patients',     icon: <Users           className="w-4.5 h-4.5" /> },
-      { labelKey: 'labTests',      path: '/hospital_admin/tests',        icon: <FlaskConical    className="w-4.5 h-4.5" /> },
-      { labelKey: 'billing',       path: '/hospital_admin/billing',      icon: <Receipt         className="w-4.5 h-4.5" /> },
-      { labelKey: 'pharmacy',      path: '/hospital_admin/pharmacy',     icon: <Pill            className="w-4.5 h-4.5" /> },
-      { labelKey: 'accounting',    path: '/hospital_admin/accounting',   icon: <Wallet          className="w-4.5 h-4.5" /> },
-      { labelKey: 'income',        path: '/hospital_admin/income',       icon: <TrendingUp      className="w-4.5 h-4.5" /> },
-      { labelKey: 'expenses',      path: '/hospital_admin/expenses',     icon: <TrendingDown    className="w-4.5 h-4.5" /> },
-      { labelKey: 'recurring',     path: '/hospital_admin/recurring',    icon: <Repeat          className="w-4.5 h-4.5" /> },
-      { labelKey: 'accounts',      path: '/hospital_admin/accounts',     icon: <BookOpen        className="w-4.5 h-4.5" /> },
-      { labelKey: 'staff',         path: '/hospital_admin/staff',        icon: <UserCog         className="w-4.5 h-4.5" /> },
-      { labelKey: 'shareholders',  path: '/hospital_admin/shareholders', icon: <Users           className="w-4.5 h-4.5" /> },
-      { labelKey: 'ipdAdmissions', path: '/hospital_admin/admissions',  icon: <BedDouble       className="w-4.5 h-4.5" /> },
-      { labelKey: 'beds',          path: '/hospital_admin/beds',         icon: <ClipboardList   className="w-4.5 h-4.5" /> },
-      { labelKey: 'nurseStation',  path: '/hospital_admin/nurse-station', icon: <Stethoscope   className="w-4.5 h-4.5" /> },
-      { labelKey: 'doctorSchedule', path: '/hospital_admin/doctor-schedule', icon: <Calendar   className="w-4.5 h-4.5" /> },
-      { labelKey: 'reports',       path: '/hospital_admin/reports',      icon: <PieChart        className="w-4.5 h-4.5" /> },
-      { labelKey: 'systemAudit',   path: '/hospital_admin/system-audit', icon: <Shield         className="w-4.5 h-4.5" /> },
-      { labelKey: 'insurance',     path: '/hospital_admin/insurance-claims', icon: <FileText   className="w-4.5 h-4.5" /> },
-      { labelKey: 'telemedicine',  path: '/hospital_admin/telemedicine', icon: <Video           className="w-4.5 h-4.5" /> },
-      { labelKey: 'multiBranch',   path: '/hospital_admin/multi-branch', icon: <Building2       className="w-4.5 h-4.5" /> },
-      { labelKey: 'settings',      path: '/hospital_admin/settings',     icon: <Settings        className="w-4.5 h-4.5" /> },
+      { labelKey: 'dashboard',     path: 'dashboard',         icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
+      { labelKey: 'appointments',  path: 'appointments',      icon: <BookOpen        className="w-4.5 h-4.5" /> },
+      { labelKey: 'patients',      path: 'patients',          icon: <Users           className="w-4.5 h-4.5" /> },
+      { labelKey: 'labTests',      path: 'tests',             icon: <FlaskConical    className="w-4.5 h-4.5" /> },
+      { labelKey: 'billing',       path: 'billing',           icon: <Receipt         className="w-4.5 h-4.5" /> },
+      { labelKey: 'pharmacy',      path: 'pharmacy',          icon: <Pill            className="w-4.5 h-4.5" /> },
+      { labelKey: 'accounting',    path: 'accounting',        icon: <Wallet          className="w-4.5 h-4.5" /> },
+      { labelKey: 'income',        path: 'income',            icon: <TrendingUp      className="w-4.5 h-4.5" /> },
+      { labelKey: 'expenses',      path: 'expenses',          icon: <TrendingDown    className="w-4.5 h-4.5" /> },
+      { labelKey: 'recurring',     path: 'recurring',         icon: <Repeat          className="w-4.5 h-4.5" /> },
+      { labelKey: 'accounts',      path: 'accounts',          icon: <BookOpen        className="w-4.5 h-4.5" /> },
+      { labelKey: 'staff',         path: 'staff',             icon: <UserCog         className="w-4.5 h-4.5" /> },
+      { labelKey: 'shareholders',  path: 'shareholders',      icon: <Users           className="w-4.5 h-4.5" /> },
+      { labelKey: 'ipdAdmissions', path: 'admissions',        icon: <BedDouble       className="w-4.5 h-4.5" /> },
+      { labelKey: 'beds',          path: 'beds',              icon: <ClipboardList   className="w-4.5 h-4.5" /> },
+      { labelKey: 'nurseStation',  path: 'nurse-station',     icon: <Stethoscope     className="w-4.5 h-4.5" /> },
+      { labelKey: 'doctorSchedule', path: 'doctor-schedule',  icon: <Calendar        className="w-4.5 h-4.5" /> },
+      { labelKey: 'reports',       path: 'reports',           icon: <PieChart        className="w-4.5 h-4.5" /> },
+      { labelKey: 'systemAudit',   path: 'system-audit',      icon: <Shield          className="w-4.5 h-4.5" /> },
+      { labelKey: 'insurance',     path: 'insurance-claims',  icon: <FileText        className="w-4.5 h-4.5" /> },
+      { labelKey: 'telemedicine',  path: 'telemedicine',      icon: <Video           className="w-4.5 h-4.5" /> },
+      { labelKey: 'multiBranch',   path: 'multi-branch',      icon: <Building2       className="w-4.5 h-4.5" /> },
+      { labelKey: 'settings',      path: 'settings',          icon: <Settings        className="w-4.5 h-4.5" /> },
     ],
     laboratory: [
-      { labelKey: 'dashboard', path: '/laboratory/dashboard', icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
-      { labelKey: 'tests',     path: '/laboratory/tests',     icon: <FlaskConical    className="w-4.5 h-4.5" /> },
+      { labelKey: 'dashboard', path: 'lab/dashboard', icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
+      { labelKey: 'tests',     path: 'lab/tests',     icon: <FlaskConical    className="w-4.5 h-4.5" /> },
     ],
     reception: [
-      { labelKey: 'dashboard',    path: '/reception/dashboard',     icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
-      { labelKey: 'appointments', path: '/reception/appointments',  icon: <BookOpen        className="w-4.5 h-4.5" /> },
-      { labelKey: 'patients',     path: '/reception/patients',      icon: <Users           className="w-4.5 h-4.5" /> },
-      { labelKey: 'billing',      path: '/reception/billing',       icon: <Receipt         className="w-4.5 h-4.5" /> },
+      { labelKey: 'dashboard',    path: 'reception/dashboard',    icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
+      { labelKey: 'appointments', path: 'reception/appointments', icon: <BookOpen        className="w-4.5 h-4.5" /> },
+      { labelKey: 'patients',     path: 'reception/patients',     icon: <Users           className="w-4.5 h-4.5" /> },
+      { labelKey: 'billing',      path: 'reception/billing',      icon: <Receipt         className="w-4.5 h-4.5" /> },
     ],
     md: [
-      { labelKey: 'dashboard',  path: '/md/dashboard',  icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
-      { labelKey: 'accounting', path: '/md/accounting', icon: <Wallet          className="w-4.5 h-4.5" /> },
-      { labelKey: 'income',     path: '/md/income',     icon: <TrendingUp      className="w-4.5 h-4.5" /> },
-      { labelKey: 'expenses',   path: '/md/expenses',   icon: <TrendingDown    className="w-4.5 h-4.5" /> },
-      { labelKey: 'recurring',  path: '/md/recurring',  icon: <Repeat          className="w-4.5 h-4.5" /> },
-      { labelKey: 'accounts',   path: '/md/accounts',   icon: <BookOpen        className="w-4.5 h-4.5" /> },
-      { labelKey: 'reports',    path: '/md/reports',    icon: <PieChart        className="w-4.5 h-4.5" /> },
-      { labelKey: 'audit',      path: '/md/audit',      icon: <FileText        className="w-4.5 h-4.5" /> },
-      { labelKey: 'staff',      path: '/md/staff',      icon: <UserCog         className="w-4.5 h-4.5" /> },
-      { labelKey: 'profit',     path: '/md/profit',     icon: <TrendingUp      className="w-4.5 h-4.5" /> },
+      { labelKey: 'dashboard',  path: 'md/dashboard',  icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
+      { labelKey: 'accounting', path: 'md/accounting', icon: <Wallet          className="w-4.5 h-4.5" /> },
+      { labelKey: 'income',     path: 'md/income',     icon: <TrendingUp      className="w-4.5 h-4.5" /> },
+      { labelKey: 'expenses',   path: 'md/expenses',   icon: <TrendingDown    className="w-4.5 h-4.5" /> },
+      { labelKey: 'recurring',  path: 'md/recurring',  icon: <Repeat          className="w-4.5 h-4.5" /> },
+      { labelKey: 'accounts',   path: 'md/accounts',   icon: <BookOpen        className="w-4.5 h-4.5" /> },
+      { labelKey: 'reports',    path: 'md/reports',     icon: <PieChart        className="w-4.5 h-4.5" /> },
+      { labelKey: 'audit',      path: 'md/audit',       icon: <FileText        className="w-4.5 h-4.5" /> },
+      { labelKey: 'staff',      path: 'md/staff',       icon: <UserCog         className="w-4.5 h-4.5" /> },
+      { labelKey: 'profit',     path: 'md/profit',      icon: <TrendingUp      className="w-4.5 h-4.5" /> },
     ],
     director: [
-      { labelKey: 'dashboard',    path: '/director/dashboard',   icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
-      { labelKey: 'accounting',   path: '/director/accounting',  icon: <Wallet          className="w-4.5 h-4.5" /> },
-      { labelKey: 'income',       path: '/director/income',      icon: <TrendingUp      className="w-4.5 h-4.5" /> },
-      { labelKey: 'expenses',     path: '/director/expenses',    icon: <TrendingDown    className="w-4.5 h-4.5" /> },
-      { labelKey: 'reports',      path: '/director/reports',     icon: <PieChart        className="w-4.5 h-4.5" /> },
-      { labelKey: 'audit',        path: '/director/audit',       icon: <FileText        className="w-4.5 h-4.5" /> },
-      { labelKey: 'shareholders', path: '/director/shareholders',icon: <Users           className="w-4.5 h-4.5" /> },
-      { labelKey: 'profit',       path: '/director/profit',      icon: <TrendingUp      className="w-4.5 h-4.5" /> },
-      { labelKey: 'settings',     path: '/director/settings',    icon: <Settings        className="w-4.5 h-4.5" /> },
+      { labelKey: 'dashboard',    path: 'director/dashboard',    icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
+      { labelKey: 'accounting',   path: 'director/accounting',   icon: <Wallet          className="w-4.5 h-4.5" /> },
+      { labelKey: 'income',       path: 'director/income',       icon: <TrendingUp      className="w-4.5 h-4.5" /> },
+      { labelKey: 'expenses',     path: 'director/expenses',     icon: <TrendingDown    className="w-4.5 h-4.5" /> },
+      { labelKey: 'reports',      path: 'director/reports',      icon: <PieChart        className="w-4.5 h-4.5" /> },
+      { labelKey: 'audit',        path: 'director/audit',        icon: <FileText        className="w-4.5 h-4.5" /> },
+      { labelKey: 'shareholders', path: 'director/shareholders', icon: <Users           className="w-4.5 h-4.5" /> },
+      { labelKey: 'profit',       path: 'director/profit',       icon: <TrendingUp      className="w-4.5 h-4.5" /> },
+      { labelKey: 'settings',     path: 'director/settings',     icon: <Settings        className="w-4.5 h-4.5" /> },
     ],
     pharmacist: [
-      { labelKey: 'dashboard', path: '/pharmacy/dashboard', icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
-      { labelKey: 'inventory',  path: '/pharmacy/inventory', icon: <Pill            className="w-4.5 h-4.5" /> },
+      { labelKey: 'dashboard', path: 'pharmacy/dashboard', icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
+      { labelKey: 'inventory',  path: 'pharmacy/inventory', icon: <Pill            className="w-4.5 h-4.5" /> },
     ],
-  } as Record<string, { labelKey: string; path: string; icon: React.ReactNode }[]>;
+  };
 
   const navItems = roleNavItems[role] ?? roleNavItems.hospital_admin;
   const roleLabel = t(`roleLabels.${role}`, { defaultValue: role });
+
+  // Resolve full path: for super_admin keep absolute, for others prefix with /h/:slug/
+  const resolvePath = (path: string) =>
+    path.startsWith('/') ? path : `${base}/${path}`;
 
   return (
     <>
@@ -155,11 +166,13 @@ export default function Sidebar({ role, onLogout }: SidebarProps) {
         {/* Navigation */}
         <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto" aria-label="Main navigation">
           {navItems.map((item) => {
-            const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
+            const fullPath = resolvePath(item.path);
+            const isActive = location.pathname === fullPath || location.pathname.startsWith(fullPath + '/');
             return (
               <Link
                 key={item.path}
-                to={item.path}
+                to={fullPath}
+                preventScrollReset
                 onClick={() => setIsOpen(false)}
                 aria-current={isActive ? 'page' : undefined}
                 className={`

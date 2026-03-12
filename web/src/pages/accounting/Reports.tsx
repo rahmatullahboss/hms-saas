@@ -16,7 +16,7 @@ export default function Reports({ role = 'md' }: { role?: string }) {
   const generateReport = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       const headers = { Authorization: `Bearer ${token}` };
       let res;
       if (reportType === 'pl') {

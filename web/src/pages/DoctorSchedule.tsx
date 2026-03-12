@@ -4,6 +4,7 @@ import { ChevronRight, Plus, X, Edit2, Trash2, Calendar } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
+import { useTranslation } from 'react-i18next';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -45,7 +46,7 @@ const SESSION_COLORS: Record<SessionType, string> = {
 };
 
 function authHeaders() {
-  return { Authorization: `Bearer ${localStorage.getItem('token')}` };
+  return { Authorization: `Bearer ${localStorage.getItem('hms_token')}` };
 }
 
 const DEFAULT_FORM = {
@@ -57,7 +58,10 @@ const DEFAULT_FORM = {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export default function DoctorSchedule({ role = 'hospital_admin' }: { role?: string }) {
+export default function DoctorSchedule({
+ role = 'hospital_admin' }: { role?: string }) {
+  const { t } = useTranslation(['appointments', 'common']);
+
   const { slug = '' } = useParams<{ slug: string }>();
   const basePath = `/h/${slug}`;
 
@@ -171,7 +175,7 @@ export default function DoctorSchedule({ role = 'hospital_admin' }: { role?: str
               <ChevronRight className="w-3 h-3" />
               <Link to={`${basePath}/doctors`} className="hover:underline">Doctors</Link>
               <ChevronRight className="w-3 h-3" />
-              <span className="text-[var(--color-text)] font-medium">Schedule</span>
+              <span className="text-[var(--color-text)] font-medium">{t('schedule', { defaultValue: 'Schedule' })}</span>
             </div>
             <h1 className="text-2xl font-bold text-[var(--color-text)]">Doctor Schedule / Roster</h1>
             <p className="text-sm text-[var(--color-text-muted)]">Manage doctor availability and consultation hours</p>

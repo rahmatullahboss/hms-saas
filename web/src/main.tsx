@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from './components/dashboard/ThemeContext';
 import App from './App';
 import './lib/i18n'; // Initialize i18next before rendering
+import './lib/axiosSetup'; // Global axios interceptor (auth + tenant headers)
 import './index.css';
 
 const queryClient = new QueryClient({

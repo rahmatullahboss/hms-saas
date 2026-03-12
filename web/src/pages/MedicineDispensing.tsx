@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface PrescriptionRow {
@@ -31,11 +32,13 @@ interface RxItem {
 }
 
 function authHeaders() {
-  return { Authorization: `Bearer ${localStorage.getItem('token')}` };
+  return { Authorization: `Bearer ${localStorage.getItem('hms_token')}` };
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function MedicineDispensing() {
+  const { t } = useTranslation(['pharmacy', 'common']);
+
   const { slug } = useParams<{ slug: string }>();
   const basePath = `/h/${slug}`;
 
@@ -354,7 +357,7 @@ export default function MedicineDispensing() {
                 <table className="w-full text-sm">
                   <thead className="bg-[var(--color-bg)]">
                     <tr className="text-xs text-[var(--color-text-muted)] uppercase border-b border-[var(--color-border)]">
-                      <th className="text-left px-3 py-2 font-medium">Medicine</th>
+                      <th className="text-left px-3 py-2 font-medium">{t('medicine', { defaultValue: 'Medicine' })}</th>
                       <th className="text-left px-3 py-2 font-medium">Dosage</th>
                       <th className="text-center px-3 py-2 font-medium">Qty Rx'd</th>
                       <th className="text-center px-3 py-2 font-medium">Already</th>

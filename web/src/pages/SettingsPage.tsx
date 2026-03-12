@@ -3,6 +3,7 @@ import { ChevronRight, Save, Building2, CreditCard, Users, Bell } from 'lucide-r
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
+import { useTranslation } from 'react-i18next';
 
 interface HospitalSettings {
   share_price: string;
@@ -54,6 +55,7 @@ function Field({ label, type = 'text', value, onChange, placeholder, hint, disab
 }
 
 export default function SettingsPage({ role = 'hospital_admin' }: { role?: string }) {
+  const { t } = useTranslation(['settings', 'common']);
   const [settings, setSettings] = useState<HospitalSettings>({
     share_price: '100000', total_shares: '300', profit_percentage: '30',
     profit_partner_count: '100', owner_partner_count: '200',
@@ -75,7 +77,7 @@ export default function SettingsPage({ role = 'hospital_admin' }: { role?: strin
   const fetchSettings = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       const { data } = await axios.get('/api/settings', { headers: { Authorization: `Bearer ${token}` } });
       if (data.settings) setSettings(s => ({ ...s, ...data.settings }));
       if (data.hospital_info) setHospitalInfo(h => ({ ...h, ...data.hospital_info }));
@@ -91,7 +93,7 @@ export default function SettingsPage({ role = 'hospital_admin' }: { role?: strin
   const handleSave = async () => {
     setSaving(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       await axios.put('/api/settings', { ...settings, hospital_info: hospitalInfo, notifications }, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -199,8 +201,8 @@ export default function SettingsPage({ role = 'hospital_admin' }: { role?: strin
 
         {/* ── Header ── */}
         <div>
-          <h1 className="page-title">Settings</h1>
-          <p className="section-subtitle mt-1">Configure hospital-wide preferences</p>
+          <h1 className="page-title">{t('title')}</h1>
+          <p className="section-subtitle mt-1">{t('subtitle', { defaultValue: 'Configure hospital-wide preferences' })}</p>
         </div>
 
         <div className="flex flex-col md:flex-row gap-5">
@@ -238,7 +240,7 @@ export default function SettingsPage({ role = 'hospital_admin' }: { role?: strin
               )}
               <div className="pt-2 border-t border-[var(--color-border)]">
                 <button onClick={handleSave} disabled={saving} className="btn-primary">
-                  <Save className="w-4 h-4" /> {saving ? 'Saving…' : 'Save Changes'}
+                  <Save className="w-4 h-4" /> {saving ? t('loading', { ns: 'common' }) : t('saveChanges')}
                 </button>
               </div>
             </div>

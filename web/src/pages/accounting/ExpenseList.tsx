@@ -44,7 +44,7 @@ export default function ExpenseList({ role = 'md' }: { role?: string }) {
 
   const fetchExpenses = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       const headers = { Authorization: `Bearer ${token}` };
       const params = new URLSearchParams();
       if (filters.startDate) params.append('startDate', filters.startDate);
@@ -76,7 +76,7 @@ export default function ExpenseList({ role = 'md' }: { role?: string }) {
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       const headers = { Authorization: `Bearer ${token}` };
       await axios.post('/api/expenses', formData, { headers });
       setShowModal(false);
@@ -89,7 +89,7 @@ export default function ExpenseList({ role = 'md' }: { role?: string }) {
 
   const handleApprove = async (id: number) => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       const headers = { Authorization: `Bearer ${token}` };
       await axios.post(`/api/expenses/${id}/approve`, {}, { headers });
       fetchExpenses();
@@ -100,7 +100,7 @@ export default function ExpenseList({ role = 'md' }: { role?: string }) {
 
   const handleReject = async (id: number) => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       const headers = { Authorization: `Bearer ${token}` };
       await axios.post(`/api/expenses/${id}/reject`, {}, { headers });
       fetchExpenses();
@@ -124,7 +124,7 @@ export default function ExpenseList({ role = 'md' }: { role?: string }) {
     e.preventDefault();
     if (!editingExpense) return;
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('hms_token');
       const headers = { Authorization: `Bearer ${token}` };
       await axios.put(`/api/expenses/${editingExpense.id}`, formData, { headers });
       setShowModal(false);

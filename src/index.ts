@@ -39,6 +39,14 @@ import pdfRoutes from './routes/tenant/pdf';
 import branchRoutes from './routes/tenant/branches';
 import paymentRoutes from './routes/tenant/payments';
 import consultationRoutes from './routes/tenant/consultations';
+import appointmentRoutes from './routes/tenant/appointments';
+import admissionRoutes from './routes/tenant/admissions';
+import nurseStationRoutes from './routes/tenant/nurseStation';
+import doctorScheduleRoutes from './routes/tenant/doctorSchedules';
+import prescriptionRoutes from './routes/tenant/prescriptions';
+import dischargeRoutes from './routes/tenant/discharge';
+import telemedicineRoutes from './routes/tenant/telemedicine';
+import patientPortalRoutes from './routes/tenant/patientPortal';
 
 import type { Env } from './types';
 
@@ -103,6 +111,17 @@ app.use('/api/admin/*', async (c, next) => {
   // All other admin routes require auth
   return authMiddleware(c, next);
 });
+app.use('/api/admin/*', async (c, next) => {
+  const path = c.req.path;
+  if (path === '/api/admin/login') {
+    return next();
+  }
+  // 🛡️ Sentinel: Ensure only super_admin can access the admin dashboard routes.
+  if (c.get('role') !== 'super_admin') {
+    return c.json({ error: 'Forbidden: Super admin access required' }, 403);
+  }
+  return next();
+});
 
 app.route('/api/admin', adminRoutes);
 
@@ -151,6 +170,14 @@ app.route('/api/pdf', pdfRoutes);
 app.route('/api/branches', branchRoutes);
 app.route('/api/payments', paymentRoutes);
 app.route('/api/consultations', consultationRoutes);
+app.route('/api/appointments', appointmentRoutes);
+app.route('/api/admissions', admissionRoutes);
+app.route('/api/nurse-station', nurseStationRoutes);
+app.route('/api/doctor-schedules', doctorScheduleRoutes);
+app.route('/api/prescriptions', prescriptionRoutes);
+app.route('/api/discharge', dischargeRoutes);
+app.route('/api/telemedicine', telemedicineRoutes);
+app.route('/api/patient-portal', patientPortalRoutes);
 
 
 // ─── Not Found handler ──────────────────────────────────────────────
@@ -180,3 +207,7 @@ export default {
   fetch: app.fetch,
   scheduled: scheduledHandler.scheduled,
 };
+
+// ─── Durable Object exports ──────────────────────────────────────────
+// Cloudflare requires DO classes to be re-exported from the entry point
+export { AccountingDashboard } from './durable-objects/AccountingDO';

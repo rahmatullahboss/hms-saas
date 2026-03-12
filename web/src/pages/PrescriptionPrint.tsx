@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router';
 import { ChevronRight, Printer, Download, Share2, FileText } from 'lucide-react';
 import axios from 'axios';
 import DashboardLayout from '../components/DashboardLayout';
+import { useTranslation } from 'react-i18next';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -46,7 +47,7 @@ interface Prescription {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function authHeaders() {
-  return { Authorization: `Bearer ${localStorage.getItem('token')}` };
+  return { Authorization: `Bearer ${localStorage.getItem('hms_token')}` };
 }
 
 function calcAge(dob?: string): string {
@@ -88,6 +89,8 @@ const DEMO: Prescription = {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function PrescriptionPrint({ role = 'hospital_admin' }: { role?: string }) {
+  const { t } = useTranslation(['patients', 'common']);
+
   const { slug = '', prescriptionId = '' } = useParams<{ slug: string; prescriptionId: string }>();
   const basePath = `/h/${slug}`;
 
@@ -212,7 +215,7 @@ export default function PrescriptionPrint({ role = 'hospital_admin' }: { role?: 
             <div className="mb-4">
               <div className="flex items-baseline gap-2 mb-3">
                 <span className="text-5xl font-serif font-bold" style={{ color: '#088eaf', lineHeight: 1 }}>℞</span>
-                <span className="text-sm text-gray-500">Prescription</span>
+                <span className="text-sm text-gray-500">{t('prescription', { defaultValue: 'Prescription' })}</span>
               </div>
               {rx.items.length > 0 ? (
                 <table className="w-full text-sm">

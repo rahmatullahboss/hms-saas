@@ -10,5 +10,10 @@
   "inactiveStaff": "Inactive Staff",
   "inviteStaff": "Invite Staff",
   "noStaff": "No staff found",
-  "sendInvite": "Send Invite"
+  "sendInvite": "Send Invite",
+  "joined": "Joined",
+  "bankAccount": "Bank Account",
+  "monthlySalary": "Monthly Salary",
+  "totalStaff": "Total Staff",
+  "position": "Position"
 }
