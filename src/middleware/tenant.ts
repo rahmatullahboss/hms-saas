@@ -39,9 +39,25 @@ export const tenantMiddleware: MiddlewareHandler<{
     return;
   }
   
-  // Main domain access (super admin)
-  if (parts.length <= 2) {
-    // Super admin domain - no tenant needed
+  // Main domain access (super admin) or workers.dev / pages.dev deployment
+  // workers.dev hostnames like hms-saas-production.rahmatullahzisan.workers.dev
+  // have 4+ parts but are NOT tenant subdomains — use header-based resolution
+  if (parts.length <= 2 || hostname.endsWith('.workers.dev') || hostname.endsWith('.pages.dev')) {
+    const tenantId = c.req.query('tenant') || c.req.header('X-Tenant-ID');
+    const tenantSubdomain = c.req.header('X-Tenant-Subdomain');
+
+    if (tenantSubdomain) {
+      // Look up tenant by subdomain header
+      const result = await c.env.DB.prepare(
+        'SELECT id, name, status FROM tenants WHERE subdomain = ?'
+      ).bind(tenantSubdomain).first<{ id: string; name: string; status: string }>();
+
+      if (result) {
+        c.set('tenantId', result.id);
+      }
+    } else if (tenantId) {
+      c.set('tenantId', tenantId);
+    }
     await next();
     return;
   }
