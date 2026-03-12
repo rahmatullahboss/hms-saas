@@ -199,9 +199,13 @@ dashboardRoutes.get('/ws', async (c) => {
   // Forward the raw request to the DO
   const url = new URL(c.req.url);
   url.searchParams.set('tenantId', tenantId);
-  const doReq = new Request(url.toString(), c.req.raw);
+  const doReq = new Request(url.toString(), {
+    method: c.req.raw.method,
+    headers: new Headers(c.req.raw.headers),
+    body: c.req.raw.body,
+    redirect: 'manual',
+  });
   return doStub.fetch(doReq);
 });
 
 export default dashboardRoutes;
-

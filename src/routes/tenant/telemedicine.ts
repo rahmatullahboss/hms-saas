@@ -67,12 +67,16 @@ app.post('/rooms', async (c) => {
     doctorName?: string;
   }>();
 
-  if (!body.name) throw new HTTPException(400, { message: 'Room name required' });
+  const derivedName =
+    body.name ||
+    (body.doctorName || body.patientName
+      ? `${body.doctorName || 'Doctor'} - ${body.patientName || 'Patient'}`
+      : 'Telemedicine Room');
 
   const id = crypto.randomUUID();
   const room: TeleRoom = {
     id,
-    name: body.name,
+    name: derivedName,
     status: 'waiting',
     patientId: body.patientId,
     doctorId: body.doctorId,

@@ -86,10 +86,14 @@ export default function TelemedicineDashboard({ role = 'hospital_admin' }: { rol
   const createRoom = async (consultation?: UpcomingConsultation) => {
     setCreating(true);
     try {
+      const doctorName = consultation?.doctor_name || 'Doctor';
+      const patientName = consultation?.patient_name || 'Patient';
+      const name = consultation ? `${doctorName} - ${patientName}` : 'Instant Consultation';
       const res = await axios.post('/api/telemedicine/rooms', {
+        name,
         appointmentId: consultation?.id?.toString() || '',
-        doctorName: consultation?.doctor_name || 'Doctor',
-        patientName: consultation?.patient_name || 'Patient',
+        doctorName,
+        patientName,
       }, { headers: authHeaders() });
 
       if (res.data.room) {
