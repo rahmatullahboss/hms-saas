@@ -44,7 +44,9 @@ export default function Login() {
 
   function redirectToDashboard(resultSlug: string, role: string) {
     const dest = ROLE_ROUTES[role] ?? 'dashboard';
-    navigate(`/h/${resultSlug}/${dest}`);
+    // Use full page navigation (not SPA navigate) when crossing from
+    // slug-free /login → slug-based /h/:slug/* to ensure clean context
+    window.location.href = `/h/${resultSlug}/${dest}`;
   }
 
   async function handleSubmit(e: React.FormEvent) {
