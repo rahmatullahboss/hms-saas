@@ -1,4 +1,4 @@
-## 2026-03-12 - [Missing Super Admin Auth Check]
-**Vulnerability:** The `/api/admin/*` routes in `src/index.ts` only validated if a JWT was present, but failed to verify if the user actually held the `super_admin` role. This allowed any authenticated user to access super admin routes.
-**Learning:** In Hono, when using a catch-all auth middleware for a group of routes, be very careful to also apply role-based authorization checks. Checking for token validity is not enough when routes require elevated privileges.
-**Prevention:** Always combine authentication middleware with authorization (role-checking) logic for sensitive route groups, especially admin or super admin sections.
+## 2024-05-24 - Missing Authorization on Mutation Endpoints
+**Vulnerability:** Mutation endpoints (POST, PUT, PATCH, DELETE) lacked authorization middleware, allowing any authenticated user to perform sensitive actions like creating admissions or modifying doctor schedules.
+**Learning:** In the Hono framework without global role-based middleware, it's crucial to explicitly check `c.get('role')` within each endpoint handler and validate it against an array of permitted roles before processing the request.
+**Prevention:** Always verify the user's role and ensure it matches the authorized roles for the specific action before performing any state-changing operations on the database.

@@ -37,6 +37,12 @@ app.post('/', async (c) => {
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
+  const role = c.get('role');
+  const allowedRoles = ['receptionist', 'doctor', 'hospital_admin', 'nurse', 'md'];
+  if (!role || !allowedRoles.includes(role)) {
+    throw new HTTPException(403, { message: 'Not authorized to create appointments' });
+  }
+
   const body = await c.req.json<{
     patientId: number;
     doctorId?: number;
@@ -81,6 +87,12 @@ app.post('/', async (c) => {
 app.put('/:id', async (c) => {
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
+
+  const role = c.get('role');
+  const allowedRoles = ['receptionist', 'doctor', 'hospital_admin', 'nurse', 'md'];
+  if (!role || !allowedRoles.includes(role)) {
+    throw new HTTPException(403, { message: 'Not authorized to update appointments' });
+  }
 
   const id = c.req.param('id');
   const body = await c.req.json<{ status: string }>();

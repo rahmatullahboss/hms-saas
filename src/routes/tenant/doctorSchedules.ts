@@ -46,6 +46,12 @@ app.post('/', async (c) => {
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
+  const role = c.get('role');
+  const allowedRoles = ['hospital_admin', 'md', 'receptionist'];
+  if (!role || !allowedRoles.includes(role)) {
+    throw new HTTPException(403, { message: 'Not authorized to modify schedules' });
+  }
+
   const body = await c.req.json<{
     doctor_id: number;
     day_of_week: string;
@@ -78,6 +84,12 @@ app.post('/', async (c) => {
 app.put('/:id', async (c) => {
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
+
+  const role = c.get('role');
+  const allowedRoles = ['hospital_admin', 'md', 'receptionist'];
+  if (!role || !allowedRoles.includes(role)) {
+    throw new HTTPException(403, { message: 'Not authorized to modify schedules' });
+  }
 
   const id = c.req.param('id');
   const body = await c.req.json<{
@@ -114,6 +126,12 @@ app.put('/:id', async (c) => {
 app.delete('/:id', async (c) => {
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
+
+  const role = c.get('role');
+  const allowedRoles = ['hospital_admin', 'md', 'receptionist'];
+  if (!role || !allowedRoles.includes(role)) {
+    throw new HTTPException(403, { message: 'Not authorized to modify schedules' });
+  }
 
   const id = c.req.param('id');
   await c.env.DB.prepare(

@@ -100,6 +100,12 @@ app.post('/', async (c) => {
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
+  const role = c.get('role');
+  const allowedRoles = ['doctor', 'md', 'hospital_admin'];
+  if (!role || !allowedRoles.includes(role)) {
+    throw new HTTPException(403, { message: 'Not authorized to create prescriptions' });
+  }
+
   const userId = requireUserId(c);
   const body = await c.req.json<{
     patientId: number;
@@ -156,6 +162,12 @@ app.put('/:id', async (c) => {
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
+  const role = c.get('role');
+  const allowedRoles = ['doctor', 'md', 'hospital_admin'];
+  if (!role || !allowedRoles.includes(role)) {
+    throw new HTTPException(403, { message: 'Not authorized to update prescriptions' });
+  }
+
   const id = c.req.param('id');
   const body = await c.req.json<{
     bp?: string; temperature?: string; weight?: string; spo2?: string;
@@ -207,6 +219,13 @@ app.put('/:id', async (c) => {
 // ─── POST /api/prescriptions/:id/share — generate share token ─────────────────
 app.post('/:id/share', async (c) => {
   const tenantId = requireTenantId(c);
+
+  const role = c.get('role');
+  const allowedRoles = ['doctor', 'pharmacist', 'receptionist', 'nurse', 'hospital_admin', 'md'];
+  if (!role || !allowedRoles.includes(role)) {
+    throw new HTTPException(403, { message: 'Not authorized to share prescriptions' });
+  }
+
   const id = c.req.param('id');
 
   // Verify prescription exists for this tenant
@@ -238,6 +257,13 @@ const orderDeliverySchema = z.object({
 
 app.post('/:id/order-delivery', zValidator('json', orderDeliverySchema), async (c) => {
   const tenantId = requireTenantId(c);
+
+  const role = c.get('role');
+  const allowedRoles = ['pharmacist', 'hospital_admin', 'receptionist', 'doctor', 'md'];
+  if (!role || !allowedRoles.includes(role)) {
+    throw new HTTPException(403, { message: 'Not authorized to order delivery' });
+  }
+
   const id = c.req.param('id');
   const body = c.req.valid('json');
 
