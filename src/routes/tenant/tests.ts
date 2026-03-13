@@ -65,14 +65,15 @@ testRoutes.put('/:id/result', async (c) => {
   const { result } = await c.req.json();
   
   try {
-    await c.env.DB.prepare(
-      'UPDATE tests SET result = ?, status = ?, updated_at = datetime("now") WHERE id = ? AND tenant_id = ?'
-    ).bind(result, 'completed', id, tenantId);
-    
-    // Add income for the test
-    await c.env.DB.prepare(
-      'INSERT INTO income (date, source, amount, tenant_id) VALUES (date("now"), ?, ?, ?)'
-    ).bind('test', result.includes('Normal') ? 200 : 300, tenantId).run();
+    // Use batch for atomicity — both UPDATE and INSERT succeed or fail together
+    await c.env.DB.batch([
+      c.env.DB.prepare(
+        'UPDATE tests SET result = ?, status = ?, updated_at = datetime("now") WHERE id = ? AND tenant_id = ?'
+      ).bind(result, 'completed', id, tenantId),
+      c.env.DB.prepare(
+        'INSERT INTO income (date, source, amount, tenant_id) VALUES (date("now"), ?, ?, ?)'
+      ).bind('test', result.includes('Normal') ? 200 : 300, tenantId),
+    ]);
     
     return c.json({ message: 'Test result updated' });
   } catch (error) {
