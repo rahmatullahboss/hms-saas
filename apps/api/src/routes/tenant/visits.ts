@@ -18,8 +18,8 @@ visitRoutes.get('/', async (c) => {
       SELECT v.*, p.name as patient_name, p.patient_code, p.mobile as patient_mobile,
              d.name as doctor_name, d.specialty as doctor_specialty
       FROM visits v
-      JOIN patients p ON v.patient_id = p.id
-      LEFT JOIN doctors d ON v.doctor_id = d.id
+      JOIN patients p ON v.patient_id = p.id AND p.tenant_id = v.tenant_id
+      LEFT JOIN doctors d ON v.doctor_id = d.id AND d.tenant_id = v.tenant_id
       WHERE v.tenant_id = ?`;
     const params: (string | number)[] = [tenantId!];
 
@@ -46,8 +46,8 @@ visitRoutes.get('/:id', async (c) => {
       SELECT v.*, p.name as patient_name, p.patient_code, p.mobile as patient_mobile,
              d.name as doctor_name, d.specialty
       FROM visits v
-      JOIN patients p ON v.patient_id = p.id
-      LEFT JOIN doctors d ON v.doctor_id = d.id
+      JOIN patients p ON v.patient_id = p.id AND p.tenant_id = v.tenant_id
+      LEFT JOIN doctors d ON v.doctor_id = d.id AND d.tenant_id = v.tenant_id
       WHERE v.id = ? AND v.tenant_id = ?
     `).bind(id, tenantId).first();
 

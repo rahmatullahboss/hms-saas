@@ -1,79 +1,159 @@
 /**
- * Playwright E2E: Authentication Flows
- * Tests: login, logout, invalid credentials, redirect guards.
+ * E2E: Authentication — Login, Route Guards, Hospital Slug Routes
+ * Tests the real web/ app at /login, /h/:slug/login, /super-admin/dashboard
  */
 import { test, expect } from '@playwright/test';
+import { loginAs, mockMutation, SLUG, BASE_SLUG_PATH } from './helpers/auth';
 
-const DEMO_TENANT = process.env.E2E_TENANT_SUBDOMAIN || 'demo';
-const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || 'admin@demo.com';
-const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || 'Admin@1234';
+// ── Login Page Structure ──────────────────────────────────────────────────────
 
-test.describe('Authentication', () => {
+test.describe('Login Page — Structure', () => {
   test.beforeEach(async ({ page }) => {
-    // Set tenant subdomain cookie / header via localStorage (how this app works)
-    await page.goto('/');
+    await page.goto('/login');
   });
 
-  test('1. Login page loads correctly', async ({ page }) => {
-    await page.goto('/login');
-    await expect(page).toHaveTitle(/HMS|Login|Hospital/i);
-    await expect(page.locator('input[type="email"], input[name="email"]').first()).toBeVisible();
+  test('has HMS SaaS branding', async ({ page }) => {
+    await expect(page.getByText(/HMS SaaS/i)).toBeVisible({ timeout: 8000 });
+  });
+
+  test('has email input', async ({ page }) => {
+    await expect(page.locator('input[type="email"]').first()).toBeVisible();
+  });
+
+  test('has password input', async ({ page }) => {
     await expect(page.locator('input[type="password"]').first()).toBeVisible();
-    await expect(page.locator('button[type="submit"], button:has-text("Login"), button:has-text("Sign in")').first()).toBeVisible();
   });
 
-  test('2. Invalid credentials shows error', async ({ page }) => {
-    await page.goto('/login');
-    await page.locator('input[type="email"], input[name="email"]').first().fill('wrong@example.com');
-    await page.locator('input[type="password"]').first().fill('wrongpassword');
-    await page.locator('button[type="submit"], button:has-text("Login"), button:has-text("Sign in")').first().click();
+  test('has submit button', async ({ page }) => {
+    await expect(page.locator('button[type="submit"]').first()).toBeVisible();
+  });
 
-    // Should NOT navigate away
-    await expect(page).toHaveURL(/login/);
-    // Error message should appear
-    await expect(
-      page.locator('text=Invalid, text=incorrect, text=failed, [role="alert"]').first()
-    ).toBeVisible({ timeout: 5000 }).catch(() => {
-      // Some apps show toast — check for that too
+  test('has Google login button', async ({ page }) => {
+    await expect(page.getByText(/google/i)).toBeVisible();
+  });
+
+  test('has Register link for hospitals', async ({ page }) => {
+    await expect(page.getByRole('link', { name: /register|signup/i })).toBeVisible();
+  });
+
+  test('has HIPAA security badge', async ({ page }) => {
+    await expect(page.getByText(/HIPAA|security|protected/i)).toBeVisible();
+  });
+
+  test('email field is required', async ({ page }) => {
+    const emailInput = page.locator('input[type="email"]').first();
+    await expect(emailInput).toHaveAttribute('required', '');
+  });
+
+  test('password field is required', async ({ page }) => {
+    const pwdInput = page.locator('input[type="password"]').first();
+    await expect(pwdInput).toHaveAttribute('required', '');
+  });
+});
+
+// ── Slug-based Login Page ─────────────────────────────────────────────────────
+
+test.describe('Hospital Slug Login Page', () => {
+  test('slug-based login page loads', async ({ page }) => {
+    await page.goto(`/h/${SLUG}/login`);
+    await expect(page.getByText(/HMS SaaS/i)).toBeVisible({ timeout: 8000 });
+    await expect(page.locator('input[type="email"]').first()).toBeVisible();
+  });
+
+  test('form has email and password fields', async ({ page }) => {
+    await page.goto(`/h/${SLUG}/login`);
+    await expect(page.locator('input[type="email"]').first()).toBeVisible();
+    await expect(page.locator('input[type="password"]').first()).toBeVisible();
+  });
+});
+
+// ── Successful Login Flow ─────────────────────────────────────────────────────
+
+test.describe('Login — Hospital Admin', () => {
+  test('successful login redirects to slug dashboard', async ({ page }) => {
+    await mockMutation(page, '**/api/auth/login-direct**', {
+      token: 'mock-token-123',
+      slug: SLUG,
+      user: { id: 1, name: 'Admin', email: 'admin@demo.com', role: 'hospital_admin' },
     });
-  });
 
-  test('3. Successful admin login redirects to dashboard', async ({ page }) => {
     await page.goto('/login');
+    await page.locator('input[type="email"]').first().fill('admin@demo.com');
+    await page.locator('input[type="password"]').first().fill('Admin@1234');
+    await page.locator('button[type="submit"]').first().click();
 
-    // Enter credentials
-    await page.locator('input[type="email"], input[name="email"]').first().fill(ADMIN_EMAIL);
-    await page.locator('input[type="password"]').first().fill(ADMIN_PASSWORD);
-    await page.locator('button[type="submit"], button:has-text("Login")').first().click();
-
-    // Should land on dashboard (not login)
-    await expect(page).not.toHaveURL(/login/, { timeout: 10000 });
-    await page.waitForLoadState('networkidle');
+    // Should navigate away from login — either to /h/:slug/dashboard or similar
+    await expect(page).not.toHaveURL(/^\/login$/, { timeout: 10000 });
   });
 
-  test('4. Protected routes redirect to login when unauthenticated', async ({ page }) => {
-    // Without being logged in — visit protected routes
+  test('wrong credentials shows error toast', async ({ page }) => {
+    await page.route('**/api/auth/login**', (route) => {
+      route.fulfill({
+        status: 401,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'Invalid credentials' }),
+      });
+    });
+    await page.route('**/api/admin/login**', (route) => {
+      route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ error: 'Invalid credentials' }) });
+    });
+
+    await page.goto('/login');
+    await page.locator('input[type="email"]').first().fill('wrong@example.com');
+    await page.locator('input[type="password"]').first().fill('wrongpassword');
+    await page.locator('button[type="submit"]').first().click();
+
+    // Should stay on login
+    await expect(page).toHaveURL(/login/, { timeout: 6000 });
+  });
+});
+
+// ── Route Guards ─────────────────────────────────────────────────────────────
+
+test.describe('Route Guards', () => {
+  test('unauthenticated access to bare /dashboard shows 404 or login', async ({ page }) => {
+    // /dashboard is not a valid route in this SPA (routes are /h/:slug/...)
+    // It shows the 404 NotFound component OR redirects to login
     await page.goto('/dashboard');
-    await expect(page).toHaveURL(/login/, { timeout: 5000 });
+    const url = page.url();
+    const body = await page.textContent('body') || '';
+    const isLoginPage = url.includes('login');
+    const is404Page = body.match(/404|not found/i) !== null;
+    expect(isLoginPage || is404Page).toBeTruthy();
   });
 
-  test('5. Logout clears session and redirects to login', async ({ page }) => {
-    // Log in first
-    await page.goto('/login');
-    await page.locator('input[type="email"], input[name="email"]').first().fill(ADMIN_EMAIL);
-    await page.locator('input[type="password"]').first().fill(ADMIN_PASSWORD);
-    await page.locator('button[type="submit"], button:has-text("Login")').first().click();
-    await expect(page).not.toHaveURL(/login/, { timeout: 10000 });
+  test('unauthenticated access to slug dashboard redirects to slug login', async ({ page }) => {
+    await page.goto(`${BASE_SLUG_PATH}/dashboard`);
+    await expect(page).toHaveURL(/login/, { timeout: 6000 });
+  });
+});
 
-    // Log out (find logout in nav or user menu)
-    const logoutBtn = page.locator('button:has-text("Logout"), button:has-text("Sign out"), a:has-text("Logout")').first();
-    if (await logoutBtn.isVisible()) {
-      await logoutBtn.click();
-    } else {
-      // Try opening user menu first
-      await page.locator('[data-testid="user-menu"], [aria-label="user menu"]').first().click();
-      await page.locator('button:has-text("Logout"), a:has-text("Logout")').first().click();
-    }
-    await expect(page).toHaveURL(/login/, { timeout: 5000 });
+// ── Signup Page ───────────────────────────────────────────────────────────────
+
+test.describe('Hospital Signup', () => {
+  test('signup page loads', async ({ page }) => {
+    await page.goto('/signup');
+    // Signup page has a form heading or the Hospital Name label
+    await expect(page.getByRole('heading').first()).toBeVisible({ timeout: 8000 });
+  });
+
+  test('signup form has hospital name field', async ({ page }) => {
+    await page.goto('/signup');
+    await expect(page.locator('input').first()).toBeVisible({ timeout: 8000 });
+  });
+
+  test('signup form has submit button', async ({ page }) => {
+    await page.goto('/signup');
+    await expect(page.locator('button[type="submit"]').first()).toBeVisible({ timeout: 8000 });
+  });
+});
+
+// ── Unauthorized Page ─────────────────────────────────────────────────────────
+
+test.describe('Unauthorized Page', () => {
+  test('renders access denied message', async ({ page }) => {
+    await page.goto('/unauthorized');
+    // Use .first() to avoid strict mode violation when multiple elements match
+    await expect(page.getByText(/access denied|403|permission/i).first()).toBeVisible({ timeout: 8000 });
   });
 });

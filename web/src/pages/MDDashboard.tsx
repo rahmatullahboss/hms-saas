@@ -73,9 +73,9 @@ export default function MDDashboard({ role = 'md' }: { role?: string }) {
         {monthly && (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {[
-              { label: 'Monthly Income',   value: fmt(monthly.income),   color: 'text-emerald-600' },
-              { label: 'Monthly Expenses', value: fmt(monthly.expenses), color: 'text-red-600' },
-              { label: 'Monthly Profit',   value: `${fmt(monthly.profit)} (${monthly.margin}%)`, color: monthly.profit >= 0 ? 'text-[var(--color-primary)]' : 'text-red-600' },
+              { label: t('monthlyIncome',   { ns: 'common', defaultValue: 'Monthly Income' }),   value: fmt(monthly.income),   color: 'text-emerald-600' },
+              { label: t('monthlyExpenses', { ns: 'common', defaultValue: 'Monthly Expenses' }), value: fmt(monthly.expenses), color: 'text-red-600' },
+              { label: t('monthlyProfit',   { ns: 'common', defaultValue: 'Monthly Profit' }),   value: `${fmt(monthly.profit)} (${monthly.margin}%)`, color: monthly.profit >= 0 ? 'text-[var(--color-primary)]' : 'text-red-600' },
             ].map(({ label, value, color }) => (
               <div key={label} className="card p-5">
                 <p className="text-xs text-[var(--color-text-muted)] mb-1">{label}</p>
@@ -99,7 +99,7 @@ export default function MDDashboard({ role = 'md' }: { role?: string }) {
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-[var(--color-text-muted)]">No income today</p>
+              <p className="text-sm text-[var(--color-text-muted)]">{t('noData', { ns: 'common', defaultValue: 'No data' })}</p>
             )}
           </div>
 
@@ -115,7 +115,7 @@ export default function MDDashboard({ role = 'md' }: { role?: string }) {
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-[var(--color-text-muted)]">No expenses today</p>
+              <p className="text-sm text-[var(--color-text-muted)]">{t('noData', { ns: 'common', defaultValue: 'No data' })}</p>
             )}
           </div>
         </div>
@@ -127,12 +127,12 @@ export default function MDDashboard({ role = 'md' }: { role?: string }) {
           </div>
           <div className="overflow-x-auto">
             <table className="table-base">
-              <thead><tr><th>Name</th><th>Position</th><th>Salary</th><th>Status</th></tr></thead>
+              <thead><tr><th>{t('name', { ns: 'common' })}</th><th>{t('position', { defaultValue: 'Position' })}</th><th>{t('salary', { defaultValue: 'Salary' })}</th><th>{t('status', { ns: 'common' })}</th></tr></thead>
               <tbody>
                 {loading ? (
                   [...Array(4)].map((_, i) => <tr key={i}>{[...Array(4)].map((_, j) => <td key={j}><div className="skeleton h-4 rounded" /></td>)}</tr>)
                 ) : staff.length === 0 ? (
-                  <tr><td colSpan={4} className="py-12 text-center text-[var(--color-text-muted)]">No staff found</td></tr>
+                  <tr><td colSpan={4} className="py-12 text-center text-[var(--color-text-muted)]">{t('noStaff', { ns: 'staff', defaultValue: 'No staff found' })}</td></tr>
                 ) : (
                   staff.slice(0, 5).map(m => (
                     <tr key={m.id}>

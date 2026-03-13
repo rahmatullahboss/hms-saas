@@ -1,5 +1,5 @@
-import { ReactNode } from 'react';
-import { useNavigate } from 'react-router';
+import { ReactNode, useRef, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router';
 import toast from 'react-hot-toast';
 import { useAuth, logout } from '../hooks/useAuth';
 import Sidebar from './dashboard/Sidebar';
@@ -21,11 +21,14 @@ interface DashboardLayoutProps {
 export default function DashboardLayout({ children, role }: DashboardLayoutProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const mainRef = useRef<HTMLElement>(null);
 
-  // We intentionally do NOT auto-scroll `<main>` to top on every pathname
-  // change. React Router's `preventScrollReset` on sidebar `<Link>` already
-  // keeps window scroll stable. If specific pages need to scroll to top on
-  // mount, they can call `window.scrollTo(0, 0)` themselves.
+  // Scroll the <main> content area to top on every navigation.
+  // This only affects the scrollable <main> — not the window or sidebar.
+  useEffect(() => {
+    mainRef.current?.scrollTo(0, 0);
+  }, [pathname]);
 
   const handleLogout = () => {
     logout();
@@ -44,7 +47,7 @@ export default function DashboardLayout({ children, role }: DashboardLayoutProps
             userRole={user?.role ?? role}
             onLogout={handleLogout}
           />
-          <main className="flex-1 overflow-y-auto p-6">
+          <main ref={mainRef} className="flex-1 overflow-y-auto p-6">
             {/* Offline / sync indicator — only visible when there's something to report */}
             <div className="mb-4">
               <SyncStatusBar />

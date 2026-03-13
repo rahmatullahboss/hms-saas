@@ -33,7 +33,13 @@ export const tenantMiddleware: MiddlewareHandler<{
         c.set('tenantId', result.id);
       }
     } else if (tenantId) {
-      c.set('tenantId', tenantId);
+      // Validate tenant exists and is active before accepting raw ID
+      const tenantResult = await c.env.DB.prepare(
+        'SELECT id, status FROM tenants WHERE id = ?'
+      ).bind(tenantId).first<{ id: string; status: string }>();
+      if (tenantResult && tenantResult.status === 'active') {
+        c.set('tenantId', tenantResult.id);
+      }
     }
     await next();
     return;

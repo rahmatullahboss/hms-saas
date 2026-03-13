@@ -29,7 +29,7 @@ i18n
     // Each namespace corresponds to a feature area / file
     ns: ['common', 'sidebar', 'dashboard', 'auth', 'patients', 'billing',
          'pharmacy', 'laboratory', 'appointments', 'staff', 'accounting',
-         'reports', 'settings', 'telemedicine', 'ipd', 'notifications'],
+         'reports', 'settings', 'telemedicine', 'ipd', 'notifications', 'director'],
     defaultNS: 'common',
 
     interpolation: {

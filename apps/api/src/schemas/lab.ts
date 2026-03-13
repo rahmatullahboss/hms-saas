@@ -10,6 +10,8 @@ export const createLabTestSchema = z.object({
   unit: z.string().optional(),                    // 'mg/dL', 'mmol/L', 'g/dL'
   normalRange: z.string().optional(),             // '70-100' or 'M:4.5-5.5|F:4.0-5.0'
   method: z.string().optional(),                  // 'Colorimetric', 'Immunoassay'
+  criticalLow: z.number().optional(),             // explicit critical low threshold
+  criticalHigh: z.number().optional(),            // explicit critical high threshold
 });
 
 export const updateLabTestSchema = createLabTestSchema.partial();

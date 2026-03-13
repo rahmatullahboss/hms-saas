@@ -548,9 +548,11 @@ patientPortalRoutes.get('/prescriptions/:id/items', async (c) => {
   }
 
   const { results } = await c.env.DB.prepare(
-    `SELECT id, medicine_name, dosage, frequency, duration, instructions, sort_order
-     FROM prescription_items WHERE prescription_id = ? ORDER BY sort_order`
-  ).bind(prescriptionId).all();
+    `SELECT pi.id, pi.medicine_name, pi.dosage, pi.frequency, pi.duration, pi.instructions, pi.sort_order
+     FROM prescription_items pi
+     JOIN prescriptions p ON pi.prescription_id = p.id AND p.tenant_id = ?
+     WHERE pi.prescription_id = ? ORDER BY pi.sort_order`
+  ).bind(tenantId, prescriptionId).all();
 
   return c.json({ items: results ?? [] });
 });

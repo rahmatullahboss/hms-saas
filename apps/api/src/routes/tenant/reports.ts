@@ -187,4 +187,134 @@ reportsRoutes.get('/monthly', async (c) => {
   }
 });
 
+// ─── Bed Occupancy ───────────────────────────────────────────────────────────
+
+reportsRoutes.get('/bed-occupancy', async (c) => {
+  const tenantId = c.get('tenantId');
+
+  try {
+    // Total beds & occupied beds
+    const bedsResult = await c.env.DB.prepare(`
+      SELECT ward_name,
+             COUNT(*) as total,
+             SUM(CASE WHEN status = 'occupied' THEN 1 ELSE 0 END) as occupied
+      FROM beds
+      WHERE tenant_id = ?
+      GROUP BY ward_name
+    `).bind(tenantId).all<{ ward_name: string; total: number; occupied: number }>();
+
+    const byWard = bedsResult.results.map(w => ({
+      ward: w.ward_name ?? 'General',
+      total: w.total,
+      occupied: w.occupied,
+      available: w.total - w.occupied,
+      rate: w.total > 0 ? Math.round((w.occupied / w.total) * 100) : 0,
+    }));
+
+    const totalBeds = byWard.reduce((s, w) => s + w.total, 0);
+    const occupiedBeds = byWard.reduce((s, w) => s + w.occupied, 0);
+
+    return c.json({
+      totalBeds,
+      occupiedBeds,
+      availableBeds: totalBeds - occupiedBeds,
+      occupancyRate: totalBeds > 0 ? Math.round((occupiedBeds / totalBeds) * 100) : 0,
+      byWard,
+    });
+  } catch (error) {
+    console.error('[reports] bed-occupancy error:', error);
+    return c.json({ totalBeds: 0, occupiedBeds: 0, availableBeds: 0, occupancyRate: 0, byWard: [] });
+  }
+});
+
+// ─── Department Revenue ──────────────────────────────────────────────────────
+
+reportsRoutes.get('/department-revenue', async (c) => {
+  const tenantId = c.get('tenantId');
+  const { startDate, endDate } = c.req.query();
+
+  if (!startDate || !endDate) {
+    return c.json({ error: 'startDate and endDate are required' }, 400);
+  }
+
+  try {
+    const result = await c.env.DB.prepare(`
+      SELECT 
+        COALESCE(d.specialty, 'General') as department,
+        COUNT(DISTINCT b.id) as bill_count,
+        COUNT(DISTINCT b.patient_id) as patient_count,
+        SUM(b.total_amount) as revenue
+      FROM bills b
+      LEFT JOIN visits v ON b.visit_id = v.id AND v.tenant_id = b.tenant_id
+      LEFT JOIN doctors d ON v.doctor_id = d.id AND d.tenant_id = b.tenant_id
+      WHERE b.tenant_id = ? AND date(b.created_at) >= ? AND date(b.created_at) <= ?
+      GROUP BY department
+      ORDER BY revenue DESC
+    `).bind(tenantId, startDate, endDate).all<{
+      department: string; bill_count: number; patient_count: number; revenue: number;
+    }>();
+
+    const totalRevenue = result.results.reduce((s, r) => s + (r.revenue ?? 0), 0);
+    const byDepartment = result.results.map(r => ({
+      department: r.department,
+      revenue: r.revenue ?? 0,
+      billCount: r.bill_count,
+      patientCount: r.patient_count,
+      percentage: totalRevenue > 0 ? Math.round(((r.revenue ?? 0) / totalRevenue) * 100) : 0,
+    }));
+
+    return c.json({ totalRevenue, byDepartment });
+  } catch (error) {
+    console.error('[reports] department-revenue error:', error);
+    return c.json({ totalRevenue: 0, byDepartment: [] });
+  }
+});
+
+// ─── Doctor Performance ──────────────────────────────────────────────────────
+
+reportsRoutes.get('/doctor-performance', async (c) => {
+  const tenantId = c.get('tenantId');
+  const { startDate, endDate } = c.req.query();
+
+  if (!startDate || !endDate) {
+    return c.json({ error: 'startDate and endDate are required' }, 400);
+  }
+
+  try {
+    const result = await c.env.DB.prepare(`
+      SELECT 
+        d.id, d.name, d.specialty,
+        COUNT(v.id) as visit_count,
+        COUNT(DISTINCT v.patient_id) as unique_patients,
+        COALESCE(SUM(b.total_amount), 0) as revenue
+      FROM doctors d
+      LEFT JOIN visits v ON v.doctor_id = d.id AND v.tenant_id = d.tenant_id
+        AND date(v.created_at) >= ? AND date(v.created_at) <= ?
+      LEFT JOIN bills b ON b.visit_id = v.id AND b.tenant_id = d.tenant_id
+      WHERE d.tenant_id = ? AND d.is_active = 1
+      GROUP BY d.id
+      ORDER BY revenue DESC
+      LIMIT 20
+    `).bind(startDate, endDate, tenantId).all<{
+      id: number; name: string; specialty: string;
+      visit_count: number; unique_patients: number; revenue: number;
+    }>();
+
+    const doctors = result.results.map(d => ({
+      id: d.id,
+      name: d.name,
+      specialty: d.specialty ?? 'General',
+      visitCount: d.visit_count,
+      uniquePatients: d.unique_patients,
+      revenue: d.revenue ?? 0,
+      avgRevenuePerVisit: d.visit_count > 0 ? Math.round((d.revenue ?? 0) / d.visit_count) : 0,
+    }));
+
+    return c.json({ doctors });
+  } catch (error) {
+    console.error('[reports] doctor-performance error:', error);
+    return c.json({ doctors: [] });
+  }
+});
+
 export default reportsRoutes;

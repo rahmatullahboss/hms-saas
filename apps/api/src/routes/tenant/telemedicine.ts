@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import type { Env } from '../../types';
+import type { Env, Variables } from '../../types';
 
 /**
  * Telemedicine routes — proxies to Cloudflare Calls API for WebRTC signalling.
@@ -12,11 +12,12 @@ import type { Env } from '../../types';
 
 const CF_CALLS_BASE = 'https://rtc.live.cloudflare.com/v1';
 
-const telemedicineRoutes = new Hono<{ Bindings: Env }>();
+const telemedicineRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // ─── Create Room ─────────────────────────────────────────────────────────────
 // Creates a Cloudflare Calls session and stores room metadata
 telemedicineRoutes.post('/rooms', async (c) => {
+  const tenantId = c.get('tenantId');
   const appId = c.env.CF_CALLS_APP_ID;
   const appSecret = c.env.CF_CALLS_APP_SECRET;
 
@@ -45,11 +46,12 @@ telemedicineRoutes.post('/rooms', async (c) => {
 
   const { sessionId } = (await cfRes.json()) as { sessionId: string };
 
-  // Store room metadata in KV (expires in 2 hours)
+  // Store room metadata in KV with tenant prefix (expires in 2 hours)
   const roomId = `tele_${Date.now()}_${sessionId.slice(0, 8)}`;
   const roomData = {
     roomId,
     sessionId,
+    tenantId,
     appointmentId: appointmentId || null,
     doctorId: doctorId || null,
     patientId: patientId || null,
@@ -59,15 +61,16 @@ telemedicineRoutes.post('/rooms', async (c) => {
     status: 'waiting',
   };
 
-  await c.env.KV.put(`room:${roomId}`, JSON.stringify(roomData), { expirationTtl: 7200 });
+  await c.env.KV.put(`room:${tenantId}:${roomId}`, JSON.stringify(roomData), { expirationTtl: 7200 });
 
   return c.json({ room: roomData });
 });
 
 // ─── Get Room ────────────────────────────────────────────────────────────────
 telemedicineRoutes.get('/rooms/:roomId', async (c) => {
+  const tenantId = c.get('tenantId');
   const roomId = c.req.param('roomId');
-  const raw = await c.env.KV.get(`room:${roomId}`);
+  const raw = await c.env.KV.get(`room:${tenantId}:${roomId}`);
   if (!raw) return c.json({ error: 'Room not found or expired' }, 404);
   return c.json({ room: JSON.parse(raw) });
 });
@@ -83,7 +86,8 @@ telemedicineRoutes.post('/rooms/:roomId/join', async (c) => {
     return c.json({ error: 'Cloudflare Calls not configured' }, 503);
   }
 
-  const raw = await c.env.KV.get(`room:${roomId}`);
+  const tenantId = c.get('tenantId');
+  const raw = await c.env.KV.get(`room:${tenantId}:${roomId}`);
   if (!raw) return c.json({ error: 'Room not found or expired' }, 404);
 
   const room = JSON.parse(raw);
@@ -106,7 +110,7 @@ telemedicineRoutes.post('/rooms/:roomId/join', async (c) => {
 
   // Update room status
   room.status = 'active';
-  await c.env.KV.put(`room:${roomId}`, JSON.stringify(room), { expirationTtl: 7200 });
+  await c.env.KV.put(`room:${tenantId}:${roomId}`, JSON.stringify(room), { expirationTtl: 7200 });
 
   return c.json({ sessionId, appId, room });
 });
@@ -175,14 +179,16 @@ telemedicineRoutes.put('/sessions/:sessionId/renegotiate', async (c) => {
 
 // ─── End Room ────────────────────────────────────────────────────────────────
 telemedicineRoutes.delete('/rooms/:roomId', async (c) => {
+  const tenantId = c.get('tenantId');
   const roomId = c.req.param('roomId');
-  await c.env.KV.delete(`room:${roomId}`);
+  await c.env.KV.delete(`room:${tenantId}:${roomId}`);
   return c.json({ success: true });
 });
 
-// ─── List Active Rooms ───────────────────────────────────────────────────────
+// ─── List Active Rooms (tenant-scoped) ───────────────────────────────────────
 telemedicineRoutes.get('/rooms', async (c) => {
-  const { keys } = await c.env.KV.list({ prefix: 'room:tele_' });
+  const tenantId = c.get('tenantId');
+  const { keys } = await c.env.KV.list({ prefix: `room:${tenantId}:tele_` });
   const rooms = await Promise.all(
     keys.map(async (k) => {
       const raw = await c.env.KV.get(k.name);

@@ -58,8 +58,8 @@ consultationRoutes.get('/', async (c) => {
   let query = `
     SELECT ts.*, p.name as patient_name, d.name as doctor_name
     FROM telemedicine_sessions ts
-    JOIN patients p ON ts.patient_id = p.id
-    LEFT JOIN doctors d ON ts.doctor_id = d.id
+    JOIN patients p ON ts.patient_id = p.id AND p.tenant_id = ts.tenant_id
+    LEFT JOIN doctors d ON ts.doctor_id = d.id AND d.tenant_id = ts.tenant_id
     WHERE ts.tenant_id = ?
   `;
   const params: (string | number)[] = [tenantId!];
@@ -88,8 +88,8 @@ consultationRoutes.get('/:id', async (c) => {
     const consultation = await c.env.DB.prepare(`
       SELECT ts.*, p.name as patient_name, d.name as doctor_name
       FROM telemedicine_sessions ts
-      JOIN patients p ON ts.patient_id = p.id
-      LEFT JOIN doctors d ON ts.doctor_id = d.id
+      JOIN patients p ON ts.patient_id = p.id AND p.tenant_id = ts.tenant_id
+      LEFT JOIN doctors d ON ts.doctor_id = d.id AND d.tenant_id = ts.tenant_id
       WHERE ts.id = ? AND ts.tenant_id = ?
     `).bind(id, tenantId).first();
 

@@ -17,7 +17,9 @@ const labCatalogRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 function detectAbnormalFlag(
   numericValue: number | undefined,
-  normalRange: string | null | undefined
+  normalRange: string | null | undefined,
+  criticalLow?: number | null,
+  criticalHigh?: number | null
 ): 'normal' | 'high' | 'low' | 'critical' | 'pending' {
   if (numericValue === undefined || numericValue === null || !normalRange) {
     return 'pending';
@@ -36,11 +38,11 @@ function detectAbnormalFlag(
 
   if (isNaN(low) || isNaN(high)) return 'pending';
 
-  // Critical: >2x outside range
-  const criticalLow = low - (high - low);
-  const criticalHigh = high + (high - low);
+  // Use per-test critical thresholds if available, otherwise fall back to 2x-range heuristic
+  const cLow = (criticalLow != null && !isNaN(criticalLow)) ? criticalLow : low - (high - low);
+  const cHigh = (criticalHigh != null && !isNaN(criticalHigh)) ? criticalHigh : high + (high - low);
 
-  if (numericValue < criticalLow || numericValue > criticalHigh) return 'critical';
+  if (numericValue < cLow || numericValue > cHigh) return 'critical';
   if (numericValue < low) return 'low';
   if (numericValue > high) return 'high';
   return 'normal';
@@ -75,11 +77,12 @@ labCatalogRoutes.post('/', zValidator('json', createLabTestSchema), async (c) =>
 
   try {
     const result = await c.env.DB.prepare(
-      `INSERT INTO lab_test_catalog (code, name, category, price, unit, normal_range, method, is_active, tenant_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+      `INSERT INTO lab_test_catalog (code, name, category, price, unit, normal_range, method, critical_low, critical_high, is_active, tenant_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
     ).bind(
       data.code, data.name, data.category ?? null, data.price,
       data.unit ?? null, data.normalRange ?? null, data.method ?? null,
+      data.criticalLow ?? null, data.criticalHigh ?? null,
       tenantId
     ).run();
     return c.json({ message: 'Lab test added', id: result.meta.last_row_id }, 201);
@@ -100,7 +103,7 @@ labCatalogRoutes.put('/:id', zValidator('json', updateLabTestSchema), async (c) 
     if (!existing) throw new HTTPException(404, { message: 'Lab test not found' });
 
     await c.env.DB.prepare(
-      `UPDATE lab_test_catalog SET code = ?, name = ?, category = ?, price = ?, unit = ?, normal_range = ?, method = ?
+      `UPDATE lab_test_catalog SET code = ?, name = ?, category = ?, price = ?, unit = ?, normal_range = ?, method = ?, critical_low = ?, critical_high = ?
        WHERE id = ? AND tenant_id = ?`,
     ).bind(
       data.code     ?? existing['code'],
@@ -110,6 +113,8 @@ labCatalogRoutes.put('/:id', zValidator('json', updateLabTestSchema), async (c) 
       data.unit     !== undefined ? data.unit     : existing['unit'],
       data.normalRange !== undefined ? data.normalRange : existing['normal_range'],
       data.method   !== undefined ? data.method   : existing['method'],
+      data.criticalLow !== undefined ? data.criticalLow : existing['critical_low'],
+      data.criticalHigh !== undefined ? data.criticalHigh : existing['critical_high'],
       id, tenantId,
     ).run();
     return c.json({ message: 'Lab test updated' });
@@ -173,8 +178,20 @@ labCatalogRoutes.get('/orders', async (c) => {
 labCatalogRoutes.get('/orders/queue/today', async (c) => {
   const tenantId = c.get('tenantId');
   const today = new Date().toISOString().split('T')[0];
+  const page = Math.max(1, parseInt(c.req.query('page') ?? '1'));
+  const limit = Math.min(200, Math.max(1, parseInt(c.req.query('limit') ?? '50')));
+  const offset = (page - 1) * limit;
 
   try {
+    // Get total count
+    const countRow = await c.env.DB.prepare(`
+      SELECT COUNT(*) as total
+      FROM lab_order_items loi
+      JOIN lab_orders lo ON loi.lab_order_id = lo.id
+      WHERE lo.tenant_id = ? AND lo.order_date = ? AND lo.status = 'sent'
+    `).bind(tenantId, today).first<{ total: number }>();
+    const total = countRow?.total ?? 0;
+
     const queue = await c.env.DB.prepare(`
       SELECT loi.id as item_id, loi.status, loi.result, loi.result_numeric,
              loi.abnormal_flag, loi.sample_status, loi.collected_at,
@@ -192,8 +209,13 @@ labCatalogRoutes.get('/orders/queue/today', async (c) => {
         CASE loi.priority WHEN 'stat' THEN 0 WHEN 'urgent' THEN 1 ELSE 2 END,
         CASE loi.sample_status WHEN 'ordered' THEN 0 WHEN 'collected' THEN 1 WHEN 'processing' THEN 2 ELSE 3 END,
         lo.created_at ASC
-    `).bind(tenantId, today).all();
-    return c.json({ queue: queue.results, date: today });
+      LIMIT ? OFFSET ?
+    `).bind(tenantId, today, limit, offset).all();
+    return c.json({
+      queue: queue.results,
+      date: today,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    });
   } catch {
     throw new HTTPException(500, { message: 'Failed to fetch today\'s queue' });
   }
@@ -329,7 +351,7 @@ labCatalogRoutes.put('/items/:itemId/result', zValidator('json', updateLabItemRe
   try {
     // Fetch item + catalog info for auto-abnormal detection
     const item = await c.env.DB.prepare(`
-      SELECT loi.*, lo.tenant_id, ltc.normal_range, ltc.unit
+      SELECT loi.*, lo.tenant_id, ltc.normal_range, ltc.unit, ltc.critical_low, ltc.critical_high
       FROM lab_order_items loi
       JOIN lab_orders lo ON loi.lab_order_id = lo.id
       JOIN lab_test_catalog ltc ON loi.lab_test_id = ltc.id
@@ -339,15 +361,20 @@ labCatalogRoutes.put('/items/:itemId/result', zValidator('json', updateLabItemRe
 
     // Auto-detect abnormal flag if not provided
     const abnormalFlag = data.abnormalFlag
-      ?? detectAbnormalFlag(data.resultNumeric, item['normal_range'] as string | null);
+      ?? detectAbnormalFlag(
+        data.resultNumeric,
+        item['normal_range'] as string | null,
+        item['critical_low'] as number | null | undefined,
+        item['critical_high'] as number | null | undefined
+      );
 
     await c.env.DB.prepare(
       `UPDATE lab_order_items
        SET result = ?, result_numeric = ?, abnormal_flag = ?,
            status = 'completed', sample_status = 'completed',
            completed_at = datetime('now')
-       WHERE id = ?`,
-    ).bind(data.result, data.resultNumeric ?? null, abnormalFlag, itemId).run();
+       WHERE id = ? AND tenant_id = ?`,
+    ).bind(data.result, data.resultNumeric ?? null, abnormalFlag, itemId, tenantId).run();
 
     return c.json({ message: 'Result entered', abnormalFlag });
   } catch (error) {
@@ -397,10 +424,10 @@ labCatalogRoutes.put('/items/:itemId/sample-status', zValidator('json', updateSa
       binds.push(userId ?? null);
     }
 
-    binds.push(itemId);
+    binds.push(itemId, tenantId!);
 
     await c.env.DB.prepare(
-      `UPDATE lab_order_items SET ${updates.join(', ')} WHERE id = ?`
+      `UPDATE lab_order_items SET ${updates.join(', ')} WHERE id = ? AND tenant_id = ?`
     ).bind(...binds).run();
 
     return c.json({ message: `Sample status updated to '${data.sampleStatus}'` });

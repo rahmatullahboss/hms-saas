@@ -48,5 +48,12 @@
   "timeline": "টাইমলাইন",
   "chat": "চ্যাট",
   "send": "পাঠান",
-  "download": "ডাউনলোড"
+  "download": "ডাউনলোড",
+  "taka": "টাকা",
+  "mobile": "মোবাইল",
+  "update": "আপডেট করুন",
+  "searchPlaceholder": "অনুসন্ধান করুন...",
+  "monthlyIncome": "মাসিক আয়",
+  "monthlyExpenses": "মাসিক ব্যয়",
+  "monthlyProfit": "মাসিক মুনাফা"
 }

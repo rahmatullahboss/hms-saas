@@ -45,6 +45,7 @@ import telemedicineRoutes from './routes/tenant/telemedicine';
 import consultationRoutes from './routes/tenant/consultations';
 import invitationRoutes from './routes/tenant/invitations';
 import patientPortalRoutes from './routes/tenant/patientPortal';
+import branchRoutes from './routes/tenant/branches';
 
 import type { Env } from './types';
 
@@ -178,6 +179,7 @@ app.route('/api/ipd-charges', ipdChargeRoutes);
 app.route('/api/telemedicine', telemedicineRoutes);
 app.route('/api/consultations', consultationRoutes);
 app.route('/api/invitations', invitationRoutes);
+app.route('/api/branches', branchRoutes);
 
 
 // 404 handler

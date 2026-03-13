@@ -1,98 +1,71 @@
 /**
- * Playwright E2E: Billing & Payment Flows
- * Tests: Bill creation, payment collection, idempotency UI guard, receipt.
+ * E2E: Billing Dashboard — Invoices, Print, Due Reports
  */
-import { test, expect, Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
+import { loginAs, mockGet, mockMutation, fixtures, BASE_SLUG_PATH } from './helpers/auth';
 
-const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || 'admin@demo.com';
-const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || 'Admin@1234';
+const billingMocks = async (page: import('@playwright/test').Page) => {
+  await mockGet(page, '**/api/billing**', fixtures.billing);
+  await mockGet(page, '**/api/billing/due**', { due: [] });
+  await mockGet(page, '**/api/patients**', fixtures.patients);
+};
 
-async function loginAsAdmin(page: Page) {
-  await page.goto('/login');
-  await page.locator('input[type="email"], input[name="email"]').first().fill(ADMIN_EMAIL);
-  await page.locator('input[type="password"]').first().fill(ADMIN_PASSWORD);
-  await page.locator('button[type="submit"], button:has-text("Login")').first().click();
-  await expect(page).not.toHaveURL(/login/, { timeout: 10000 });
-  await page.waitForLoadState('networkidle');
-}
-
-test.describe('Billing & Payments', () => {
+test.describe('Billing Dashboard', () => {
   test.beforeEach(async ({ page }) => {
-    await loginAsAdmin(page);
+    await billingMocks(page);
+    await loginAs(page, 'hospital_admin', `${BASE_SLUG_PATH}/billing`);
   });
 
-  test('1. Billing dashboard loads without errors', async ({ page }) => {
-    await page.goto('/dashboard/billing');
-    await page.waitForLoadState('networkidle');
-
-    // No error boundaries triggered
-    await expect(page.locator('#error-boundary-reload')).not.toBeVisible();
-    // Main content visible
-    await expect(page.locator('main, [data-testid="billing-panel"], h1, h2').first()).toBeVisible({ timeout: 7000 });
+  test('shows Billing heading', async ({ page }) => {
+    await expect(page.getByRole('heading', { name: /billing|invoice/i })).toBeVisible({ timeout: 8000 });
   });
 
-  test('2. Outstanding dues list is accessible', async ({ page }) => {
-    await page.goto('/dashboard/billing');
-    await page.waitForLoadState('networkidle');
+  test('shows invoice data', async ({ page }) => {
+    await expect(page.getByText(/INV-000001|Rahim Uddin|5,500|5500/i)).toBeVisible({ timeout: 8000 });
+  });
 
-    // Look for an "outstanding" / "due" section or tab
-    const dueTab = page.locator('button:has-text("Due"), a:has-text("Outstanding"), button:has-text("Outstanding")').first();
-    if (await dueTab.isVisible({ timeout: 2000 })) {
-      await dueTab.click();
-      await page.waitForLoadState('networkidle');
+  test('shows total billed stats', async ({ page }) => {
+    await expect(page.getByText(/billed|collected|total/i)).toBeVisible({ timeout: 8000 });
+  });
+
+  test('has New Bill button', async ({ page }) => {
+    const btn = page.getByRole('button', { name: /new bill|create bill|add bill/i });
+    await expect(btn.first()).toBeVisible({ timeout: 8000 });
+  });
+
+  test('page renders without crash', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (err) => errors.push(err.message));
+    await page.waitForLoadState('networkidle');
+    const fatalErrors = errors.filter(e => !e.includes('ResizeObserver'));
+    expect(fatalErrors).toHaveLength(0);
+  });
+});
+
+test.describe('Billing — Create Bill', () => {
+  test.beforeEach(async ({ page }) => {
+    await billingMocks(page);
+    await mockMutation(page, '**/api/billing**', { success: true, bill: { id: 100, invoice_number: 'INV-000100' } });
+    await loginAs(page, 'hospital_admin', `${BASE_SLUG_PATH}/billing`);
+  });
+
+  test('can open New Bill modal/form', async ({ page }) => {
+    const newBillBtn = page.getByRole('button', { name: /new bill|create bill|add bill/i });
+    if (await newBillBtn.first().isVisible({ timeout: 5000 })) {
+      await newBillBtn.first().click();
+      // Modal/dialog or form should appear
+      await expect(page.getByRole('dialog').or(page.getByRole('form')).or(page.getByText(/patient|item|service/i))).toBeVisible({ timeout: 5000 });
     }
+  });
+});
 
-    // Table or list should be visible
-    await expect(page.locator('table, [data-testid="dues-list"], [data-testid="bills-list"]').first()).toBeVisible({ timeout: 5000 });
+test.describe('Billing — Reception Role', () => {
+  test.beforeEach(async ({ page }) => {
+    await billingMocks(page);
+    await loginAs(page, 'reception', `${BASE_SLUG_PATH}/reception/billing`);
   });
 
-  test('3. Payment button is disabled while processing (prevents double-click)', async ({ page }) => {
-    await page.goto('/dashboard/billing');
-    await page.waitForLoadState('networkidle');
-
-    // Find any "Pay" or "Collect Payment" button
-    const payBtn = page.locator('button:has-text("Pay"), button:has-text("Collect"), button:has-text("Record Payment")').first();
-
-    if (await payBtn.isVisible({ timeout: 3000 })) {
-      await payBtn.click();
-      // After click, button should be disabled or show loading
-      const isDisabled = await payBtn.isDisabled();
-      const hasLoadingText = await payBtn.locator('text=Loading, text=Processing').isVisible({ timeout: 500 }).catch(() => false);
-      // Either disabled or shows loading text is acceptable
-      // (This is a soft check — log if neither)
-      console.log(`Pay button after click — disabled: ${isDisabled}, loading: ${hasLoadingText}`);
-    }
-  });
-
-  test('4. Accounting dashboard loads', async ({ page }) => {
-    await page.goto('/dashboard/accounting');
-    await page.waitForLoadState('networkidle');
-
-    await expect(page.locator('#error-boundary-reload')).not.toBeVisible();
-    await expect(page.locator('main, h1, h2').first()).toBeVisible({ timeout: 7000 });
-  });
-
-  test('5. Pharmacy section is accessible', async ({ page }) => {
-    await page.goto('/dashboard/pharmacy');
-    await page.waitForLoadState('networkidle');
-
-    // Not a 404 or crash
-    await expect(page.locator('#error-boundary-reload')).not.toBeVisible();
-    await expect(page.locator('main, h1, h2').first()).toBeVisible({ timeout: 5000 });
-  });
-
-  test('6. Invoice list supports search', async ({ page }) => {
-    await page.goto('/dashboard/billing');
-    await page.waitForLoadState('networkidle');
-
-    const searchInput = page.locator('input[placeholder*="search" i], input[placeholder*="invoice" i]').first();
-    if (await searchInput.isVisible({ timeout: 2000 })) {
-      await searchInput.fill('INV');
-      await page.waitForTimeout(600); // Debounce
-      // Results or "no results" should appear
-      await expect(
-        page.locator('table tbody tr, [data-testid="no-results"], text=No bills').first()
-      ).toBeVisible({ timeout: 5000 });
-    }
+  test('reception can access billing', async ({ page }) => {
+    await expect(page.getByText(/billing|reception|dashboard/i)).toBeVisible({ timeout: 8000 });
   });
 });

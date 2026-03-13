@@ -24,7 +24,7 @@ adminRoutes.post('/login', async (c) => {
   
   try {
     const user = await c.env.DB.prepare(
-      'SELECT id, email, password_hash, name, role, tenant_id FROM users WHERE email = ?'
+      'SELECT id, email, password_hash, name, role, tenant_id FROM users WHERE email = ? AND role = \'super_admin\''
     ).bind(email).first<{
       id: string;
       email: string;

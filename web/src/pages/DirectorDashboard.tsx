@@ -20,7 +20,7 @@ const fmt = (n: number) =>
   new Intl.NumberFormat('en-BD', { style: 'currency', currency: 'BDT', minimumFractionDigits: 0 }).format(n);
 
 export default function DirectorDashboard({ role = 'director' }: { role?: string }) {
-  const { t } = useTranslation('common');
+  const { t } = useTranslation(['director', 'common']);
   const [shareholders,        setShareholders]      = useState<Shareholder[]>([]);
   const [profitCalc,          setProfitCalc]        = useState<ProfitCalculation | null>(null);
   const [loading,             setLoading]           = useState(true);
@@ -107,13 +107,13 @@ export default function DirectorDashboard({ role = 'director' }: { role?: string
         {/* ── Monthly Profit Distribution ── */}
         {profitCalc && (
           <div className="card p-5">
-            <h3 className="section-title mb-4">Monthly Profit Distribution — {profitCalc.month}</h3>
+            <h3 className="section-title mb-4">{t('monthlyProfitDistribution')} — {profitCalc.month}</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
               {[
-                { label: 'Total Income',   value: fmt(profitCalc.totalIncome ?? 0),            color: 'text-emerald-600' },
-                { label: 'Total Expenses', value: fmt(profitCalc.totalExpenses ?? 0),          color: 'text-red-600' },
-                { label: 'Net Profit',     value: fmt(profitCalc.profit ?? 0),                 color: 'text-[var(--color-primary)]' },
-                { label: `Distributable (${profitCalc.profitPercentage}%)`, value: fmt(profitCalc.distributableProfit ?? 0), color: 'text-emerald-600' },
+                { label: t('totalIncome'),   value: fmt(profitCalc.totalIncome ?? 0),            color: 'text-emerald-600' },
+                { label: t('totalExpenses'), value: fmt(profitCalc.totalExpenses ?? 0),          color: 'text-red-600' },
+                { label: t('netProfit'),     value: fmt(profitCalc.profit ?? 0),                 color: 'text-[var(--color-primary)]' },
+                { label: `${t('distributable')} (${profitCalc.profitPercentage}%)`, value: fmt(profitCalc.distributableProfit ?? 0), color: 'text-emerald-600' },
               ].map(({ label, value, color }) => (
                 <div key={label}>
                   <p className="text-xs text-[var(--color-text-muted)] mb-1">{label}</p>
@@ -123,11 +123,11 @@ export default function DirectorDashboard({ role = 'director' }: { role?: string
             </div>
             <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-4 flex flex-wrap justify-between items-center gap-4">
               <div>
-                <p className="text-xs text-[var(--color-text-muted)]">Each profit partner receives:</p>
-                <p className="text-2xl font-bold text-emerald-600">{profitCalc.profitPerPartner} Taka</p>
+                <p className="text-xs text-[var(--color-text-muted)]">{t('eachProfitPartnerReceives')}</p>
+                <p className="text-2xl font-bold text-emerald-600">{profitCalc.profitPerPartner} {t('taka')}</p>
               </div>
               <button onClick={handleApproveProfit} className="btn-primary">
-                Approve &amp; Distribute
+                {t('approveAndDistribute')}
               </button>
             </div>
           </div>
@@ -140,12 +140,12 @@ export default function DirectorDashboard({ role = 'director' }: { role?: string
           </div>
           <div className="overflow-x-auto">
             <table className="table-base">
-              <thead><tr><th>Name</th><th>Phone</th><th>Type</th><th>Shares</th><th>Investment</th></tr></thead>
+              <thead><tr><th>{t('name', { ns: 'common' })}</th><th>{t('phone')}</th><th>{t('type')}</th><th>{t('shares')}</th><th>{t('investment')}</th></tr></thead>
               <tbody>
                 {loading ? (
                   [...Array(4)].map((_, i) => <tr key={i}>{[...Array(5)].map((_, j) => <td key={j}><div className="skeleton h-4 rounded" /></td>)}</tr>)
                 ) : shareholders.length === 0 ? (
-                  <tr><td colSpan={5} className="py-14 text-center text-[var(--color-text-muted)]">No shareholders found</td></tr>
+                  <tr><td colSpan={5} className="py-14 text-center text-[var(--color-text-muted)]">{t('noShareholders', { defaultValue: 'No shareholders found' })}</td></tr>
                 ) : (
                   shareholders.map(sh => (
                     <tr key={sh.id}>
@@ -171,17 +171,17 @@ export default function DirectorDashboard({ role = 'director' }: { role?: string
                 <button onClick={() => setShowAdd(false)} className="btn-ghost p-1.5"><X className="w-5 h-5"/></button>
               </div>
               <div className="p-5 space-y-4">
-                <div><label className="label">Name</label><input type="text" className="input" value={newShareholder.name} onChange={e => setNew({...newShareholder, name: e.target.value})} /></div>
-                <div><label className="label">Address</label><input type="text" className="input" value={newShareholder.address} onChange={e => setNew({...newShareholder, address: e.target.value})} /></div>
-                <div><label className="label">Phone</label><input type="text" className="input" value={newShareholder.phone} onChange={e => setNew({...newShareholder, phone: e.target.value})} /></div>
+                <div><label className="label">{t('name', { ns: 'common' })}</label><input type="text" className="input" value={newShareholder.name} onChange={e => setNew({...newShareholder, name: e.target.value})} /></div>
+                <div><label className="label">{t('address')}</label><input type="text" className="input" value={newShareholder.address} onChange={e => setNew({...newShareholder, address: e.target.value})} /></div>
+                <div><label className="label">{t('phone')}</label><input type="text" className="input" value={newShareholder.phone} onChange={e => setNew({...newShareholder, phone: e.target.value})} /></div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div><label className="label">Share Count</label><input type="number" className="input" value={newShareholder.shareCount} onChange={e => setNew({...newShareholder, shareCount: Number(e.target.value)})} /></div>
-                  <div><label className="label">Investment</label><input type="number" className="input" value={newShareholder.investment} onChange={e => setNew({...newShareholder, investment: Number(e.target.value)})} /></div>
+                  <div><label className="label">{t('shareCount')}</label><input type="number" className="input" value={newShareholder.shareCount} onChange={e => setNew({...newShareholder, shareCount: Number(e.target.value)})} /></div>
+                  <div><label className="label">{t('investment')}</label><input type="number" className="input" value={newShareholder.investment} onChange={e => setNew({...newShareholder, investment: Number(e.target.value)})} /></div>
                 </div>
-                <div><label className="label">Type</label>
+                <div><label className="label">{t('type')}</label>
                   <select className="input" value={newShareholder.type} onChange={e => setNew({...newShareholder, type: e.target.value as 'profit' | 'owner'})}>
-                    <option value="profit">Profit Partner</option>
-                    <option value="owner">Owner Partner</option>
+                    <option value="profit">{t('profitPartner')}</option>
+                    <option value="owner">{t('ownerPartner')}</option>
                   </select>
                 </div>
                 <div className="flex gap-3 pt-2">

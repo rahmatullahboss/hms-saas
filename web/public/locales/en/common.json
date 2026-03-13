@@ -48,5 +48,12 @@
   "chat": "Chat",
   "addNewShareholder": "Add New Shareholder",
   "totalInvestment": "Total Investment",
-  "branches": "Branches"
+  "branches": "Branches",
+  "taka": "Taka",
+  "mobile": "Mobile",
+  "update": "Update",
+  "searchPlaceholder": "Search...",
+  "monthlyIncome": "Monthly Income",
+  "monthlyExpenses": "Monthly Expenses",
+  "monthlyProfit": "Monthly Profit"
 }
