@@ -269,7 +269,7 @@ export default function PatientDetail({
         <div className="card p-12 text-center max-w-md mx-auto">
           <User className="w-12 h-12 text-[var(--color-text-muted)] mx-auto mb-3" />
           <p className="text-[var(--color-text-muted)]">Patient not found.</p>
-          <button onClick={() => navigate(`${basePath}/patients`)} className="btn btn-primary mt-4">← Back</button>
+          <button onClick={() => navigate(`${basePath}/patients`)} className="btn-primary mt-4">← Back</button>
         </div>
       </DashboardLayout>
     );
@@ -334,16 +334,16 @@ export default function PatientDetail({
 
             {/* Actions */}
             <div className="flex gap-2 shrink-0">
-              <button onClick={() => navigate(`${basePath}/patients/new?edit=${id}`)} className="btn btn-outline text-sm" aria-label="Edit patient">
+              <button onClick={() => navigate(`${basePath}/patients/new?edit=${id}`)} className="btn-ghost" aria-label="Edit patient">
                 <Edit className="w-4 h-4" /> Edit
               </button>
-              <Link to={`${basePath}/prescriptions/new?patient=${id}`} className="btn btn-primary text-sm">
+              <Link to={`${basePath}/prescriptions/new?patient=${id}`} className="btn-primary">
                 <Pill className="w-4 h-4" /> New Rx
               </Link>
-              <button onClick={handlePrintSummary} className="btn btn-outline text-sm p-2" aria-label="Print">
+              <button onClick={handlePrintSummary} className="btn-ghost p-2" aria-label="Print">
                 <Printer className="w-4 h-4" />
               </button>
-              <button onClick={fetchAll} className="btn btn-outline text-sm p-2" aria-label="Refresh">
+              <button onClick={fetchAll} className="btn-ghost p-2" aria-label="Refresh">
                 <RefreshCw className="w-4 h-4" />
               </button>
             </div>

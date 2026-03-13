@@ -423,9 +423,9 @@ export default function LabTestOrderForm() {
       </div>
 
       {/* ── Sticky Action Bar ───────────────────────────────── */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[var(--color-border)] shadow-lg z-30">
+      <div className="fixed bottom-0 left-0 right-0 bg-[var(--color-surface)] border-t border-[var(--color-border)] shadow-lg z-30">
         <div className="max-w-5xl mx-auto px-6 py-3 flex items-center justify-between">
-          <button onClick={handleCancel} className="btn btn-outline flex items-center gap-1.5 text-sm">
+          <button onClick={handleCancel} className="btn-secondary flex items-center gap-1.5">
             <ArrowLeft className="w-4 h-4" />
             Cancel
           </button>
@@ -436,14 +436,14 @@ export default function LabTestOrderForm() {
             <button
               onClick={() => handleSave(false)}
               disabled={saving || items.length === 0}
-              className="btn btn-outline flex items-center gap-1.5 text-sm disabled:opacity-50">
+              className="btn-secondary flex items-center gap-1.5 disabled:opacity-50">
               <Save className="w-4 h-4" />
               Save Draft
             </button>
             <button
               onClick={() => handleSave(true)}
               disabled={saving || items.length === 0}
-              className="btn btn-primary flex items-center gap-1.5 text-sm disabled:opacity-50">
+              className="btn-primary flex items-center gap-1.5 disabled:opacity-50">
               <Send className="w-4 h-4" />
               {saving ? 'Sending...' : 'Send to Lab'}
             </button>

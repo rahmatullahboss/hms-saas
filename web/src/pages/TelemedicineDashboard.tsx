@@ -124,7 +124,7 @@ export default function TelemedicineDashboard({ role = 'hospital_admin' }: { rol
             <p className="text-sm text-[var(--color-text-muted)]">Video consultations powered by Cloudflare Calls</p>
           </div>
           <button onClick={() => createRoom()} disabled={creating}
-            className="btn btn-primary text-sm flex items-center gap-2 disabled:opacity-50">
+            className="btn-primary flex items-center gap-2 disabled:opacity-50">
             {creating ? <><Clock className="w-4 h-4 animate-spin" /> Creating...</> : <><Plus className="w-4 h-4" /> New Room</>}
           </button>
         </div>
@@ -166,7 +166,7 @@ export default function TelemedicineDashboard({ role = 'hospital_admin' }: { rol
                   <p className="font-semibold text-sm mb-0.5">{room.doctorName}</p>
                   <p className="text-xs text-[var(--color-text-muted)] mb-3">with {room.patientName}</p>
                   <Link to={`${basePath}/telemedicine/room/${room.id}`}
-                    className="btn btn-primary text-xs w-full flex items-center justify-center gap-1.5">
+                    className="btn-primary text-xs w-full flex items-center justify-center gap-1.5">
                     <Video className="w-3.5 h-3.5" /> Join Room
                   </Link>
                 </div>

@@ -33,8 +33,9 @@
 
   /* ── Shadows ── */
   --shadow-card:  0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
-  --shadow-hover: 0 4px 12px rgba(8,145,178,0.12);
+  --shadow-hover: 0 4px 16px rgba(8,145,178,0.14);
   --shadow-modal: 0 20px 60px rgba(0,0,0,0.15);
+  --shadow-glow:  0 0 0 3px rgba(8,145,178,0.15);
 }
 
 .dark {
@@ -58,6 +59,54 @@
   --color-warning: #fbbf24;
   --color-error:   #f87171;
   --color-info:    #60a5fa;
+}
+
+/* ══════════════════════════════════════════════
+   Keyframes
+══════════════════════════════════════════════ */
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  33%       { transform: translateY(-8px) rotate(1deg); }
+  66%       { transform: translateY(-4px) rotate(-1deg); }
+}
+
+@keyframes floatReverse {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  33%       { transform: translateY(-5px) rotate(-1.5deg); }
+  66%       { transform: translateY(-10px) rotate(1deg); }
+}
+
+@keyframes pulseDot {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%       { transform: scale(1.4); opacity: 0.7; }
+}
+
+@keyframes ringPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(8, 145, 178, 0.4); }
+  70%  { box-shadow: 0 0 0 8px rgba(8, 145, 178, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(8, 145, 178, 0); }
 }
 
 /* ── Base ── */
@@ -102,6 +151,7 @@
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
       animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
     }
   }
@@ -110,26 +160,49 @@
 /* ── Component layer ── */
 @layer components {
 
-  /* Card */
+  /* ── Card ── */
   .card {
     @apply bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl;
     box-shadow: var(--shadow-card);
-    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+    transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
   }
   .card:hover {
     box-shadow: var(--shadow-hover);
   }
 
-  /* Buttons */
+  /* Elevated card — floats on hover */
+  .card-elevated {
+    @apply card;
+  }
+  .card-elevated:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-hover);
+  }
+
+  /* ── Buttons ── */
   .btn {
     @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm cursor-pointer transition-all duration-150 select-none;
     @apply disabled:opacity-50 disabled:cursor-not-allowed;
   }
   .btn-primary {
     @apply btn bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)];
+    box-shadow: 0 2px 8px rgba(8, 145, 178, 0.25);
+    transition: box-shadow 0.2s ease, background-color 0.15s ease, transform 0.15s ease;
+  }
+  .btn-primary:hover:not(:disabled) {
+    box-shadow: 0 4px 16px rgba(8, 145, 178, 0.35);
+    transform: translateY(-1px);
+  }
+  .btn-primary:active:not(:disabled) {
+    transform: translateY(0);
   }
   .btn-secondary {
     @apply btn border border-[var(--color-border)] text-[var(--color-text-primary)] hover:bg-[var(--color-border-light)];
+    transition: box-shadow 0.15s ease, transform 0.15s ease, background-color 0.15s ease;
+  }
+  .btn-secondary:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
   }
   .btn-ghost {
     @apply btn text-[var(--color-text-secondary)] hover:bg-[var(--color-border-light)] hover:text-[var(--color-text-primary)];
@@ -138,7 +211,7 @@
     @apply btn text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20;
   }
 
-  /* Input */
+  /* ── Input ── */
   .input {
     @apply w-full px-3.5 py-2.5 border border-[var(--color-border)] rounded-lg
            bg-[var(--color-bg-secondary)] text-[var(--color-text-primary)] text-sm
@@ -148,12 +221,12 @@
     --tw-ring-color: rgb(8 145 178 / 0.25);
   }
 
-  /* Label */
+  /* ── Label ── */
   .label {
     @apply block text-sm font-medium text-[var(--color-text-secondary)] mb-1.5;
   }
 
-  /* Table */
+  /* ── Table ── */
   .table-base {
     @apply w-full text-left border-collapse;
   }
@@ -174,7 +247,7 @@
     background-color: rgb(22 78 99 / 0.3);
   }
 
-  /* Badges */
+  /* ── Badges ── */
   .badge {
     @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium;
   }
@@ -191,12 +264,29 @@
   .dark .badge-info    { @apply bg-blue-900    text-blue-400; }
   .dark .badge-neutral { @apply bg-slate-800   text-slate-400; }
 
-  /* Skeleton */
+  /* ── Skeleton with shimmer ── */
   .skeleton {
-    @apply rounded-lg bg-[var(--color-border)] animate-pulse;
+    @apply rounded-lg;
+    background: linear-gradient(
+      90deg,
+      var(--color-border) 25%,
+      var(--color-border-light) 50%,
+      var(--color-border) 75%
+    );
+    background-size: 400px 100%;
+    animation: shimmer 1.4s ease infinite;
+  }
+  .dark .skeleton {
+    background: linear-gradient(
+      90deg,
+      #334155 25%,
+      #475569 50%,
+      #334155 75%
+    );
+    background-size: 400px 100%;
   }
 
-  /* Section heading */
+  /* ── Section headings ── */
   .section-title {
     @apply text-lg font-semibold text-[var(--color-text-primary)];
   }
@@ -204,12 +294,38 @@
     @apply text-sm text-[var(--color-text-muted)];
   }
 
-  /* Page header */
+  /* ── Page header ── */
   .page-header {
     @apply flex items-center justify-between mb-6;
   }
   .page-title {
-    @apply text-2xl font-bold text-[var(--color-primary-dark)];
+    @apply text-2xl font-bold;
+    background: linear-gradient(135deg, var(--color-primary-dark) 0%, var(--color-primary) 60%, #22d3ee 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* ── Gradient text utility ── */
+  .gradient-text {
+    background: linear-gradient(135deg, var(--color-primary-dark) 0%, var(--color-primary) 60%, #22d3ee 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* ── Animation utilities ── */
+  .animate-fade-in-up {
+    animation: fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .animate-float {
+    animation: float 5s ease-in-out infinite;
+  }
+  .animate-float-reverse {
+    animation: floatReverse 6s ease-in-out infinite;
+  }
+  .animate-ring-pulse {
+    animation: ringPulse 2s ease-out infinite;
   }
 }
 

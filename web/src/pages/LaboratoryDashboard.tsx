@@ -155,7 +155,7 @@ export default function LaboratoryDashboard({ role = 'laboratory' }: { role?: st
                 className={`px-4 py-2 text-sm font-medium transition-colors ${
                   filter === f
                     ? 'bg-[var(--color-primary)] text-white'
-                    : 'bg-white text-[var(--color-text-secondary)] hover:bg-[var(--color-border-light)]'
+                    : 'bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:bg-[var(--color-border-light)]'
                 }`}
               >
                 {f === 'all' ? t('all', { ns: 'notifications', defaultValue: 'All' }) : f === 'pending' ? t('pending') : t('completed')}

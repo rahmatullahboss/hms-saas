@@ -146,8 +146,11 @@ export default function Header({
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // Derive avatar initials from userName
+  const avatarInitial = userName.trim()[0]?.toUpperCase() ?? 'U';
+
   return (
-    <header className="h-16 bg-white dark:bg-slate-900 border-b border-[var(--color-border)] flex items-center justify-between px-6 shrink-0">
+    <header className="h-16 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-[var(--color-border)]/80 flex items-center justify-between px-6 shrink-0 sticky top-0 z-20">
 
       {/* Left: Hospital Name */}
       <div className="flex items-center gap-3">
@@ -169,7 +172,9 @@ export default function Header({
           <button
             onClick={toggleNotifs}
             aria-label="Notifications"
-            className="relative p-2 rounded-lg hover:bg-[var(--color-border-light)] transition-colors"
+            className={`relative p-2 rounded-lg hover:bg-[var(--color-border-light)] transition-colors cursor-pointer ${
+              unreadCount > 0 && !showNotifs ? 'animate-ring-pulse' : ''
+            }`}
           >
             <Bell className={`w-5 h-5 ${showNotifs ? 'text-[var(--color-primary)]' : 'text-[var(--color-text-secondary)]'}`} />
             {unreadCount > 0 && (
@@ -277,11 +282,11 @@ export default function Header({
             onClick={() => { setShowDropdown(v => !v); setShowNotifs(false); }}
             aria-haspopup="menu"
             aria-expanded={showDropdown}
-            className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-[var(--color-border-light)] transition-colors"
+            className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-[var(--color-border-light)] transition-colors cursor-pointer"
           >
-            {/* Avatar */}
-            <div className="w-8 h-8 rounded-full bg-[var(--color-primary-light)] border border-[var(--color-primary)]/20 flex items-center justify-center shrink-0">
-              <User className="w-4 h-4 text-[var(--color-primary)]" />
+            {/* Avatar — shows initials with gradient */}
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[var(--color-primary)] to-cyan-400 flex items-center justify-center shrink-0 shadow-sm shadow-cyan-500/20">
+              <span className="text-white text-xs font-bold leading-none">{avatarInitial}</span>
             </div>
             <div className="hidden sm:block text-left">
               <p className="text-sm font-medium text-[var(--color-text-primary)] leading-none">{userName}</p>

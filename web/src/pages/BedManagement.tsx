@@ -1,14 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useParams } from 'react-router';
 import {
-  BedDouble, Plus, RefreshCw, ChevronRight, X, Wrench, Check, User
+  BedDouble, Plus, RefreshCw, ChevronRight, X, Wrench, Check, User,
 } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
 import { useTranslation } from 'react-i18next';
-
-// ─── Types ───────────────────────────────────────────────────────────────────
 
 interface BedInfo {
   id: number;
@@ -21,8 +19,6 @@ interface BedInfo {
   admission_no?: string;
 }
 
-// ─── Constants ───────────────────────────────────────────────────────────────
-
 const BED_STATUS_STYLES: Record<string, { bg: string; border: string; dot: string; label: string }> = {
   available:   { bg: 'bg-emerald-50',  border: 'border-emerald-300', dot: 'bg-emerald-500',  label: 'Available' },
   occupied:    { bg: 'bg-blue-50',     border: 'border-blue-300',    dot: 'bg-blue-500',     label: 'Occupied' },
@@ -34,30 +30,21 @@ const BED_TYPE_LABELS: Record<string, string> = {
   general: 'General', icu: 'ICU', private: 'Private', semi_private: 'Semi-Private',
 };
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
 function authHeaders() {
   return { Authorization: `Bearer ${localStorage.getItem('hms_token')}` };
 }
 
-// ─── Component ───────────────────────────────────────────────────────────────
-
-export default function BedManagement({
- role = 'hospital_admin' }: { role?: string }) {
+export default function BedManagement({ role = 'hospital_admin' }: { role?: string }) {
   const { t } = useTranslation(['ipd', 'common']);
-
   const { slug = '' } = useParams<{ slug: string }>();
   const basePath = `/h/${slug}`;
 
-  const [beds, setBeds] = useState<BedInfo[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [wardFilter, setWardFilter] = useState('all');
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-
-  const [addForm, setAddForm] = useState({
-    ward_name: '', bed_number: '', bed_type: 'general', floor: '',
-  });
+  const [beds,           setBeds]           = useState<BedInfo[]>([]);
+  const [loading,        setLoading]        = useState(true);
+  const [wardFilter,     setWardFilter]     = useState('all');
+  const [showAddModal,   setShowAddModal]   = useState(false);
+  const [submitting,     setSubmitting]     = useState(false);
+  const [addForm, setAddForm] = useState({ ward_name: '', bed_number: '', bed_type: 'general', floor: '' });
 
   const fetchBeds = useCallback(async () => {
     setLoading(true);
@@ -65,18 +52,17 @@ export default function BedManagement({
       const res = await axios.get('/api/admissions/beds', { headers: authHeaders() });
       setBeds(res.data.beds ?? []);
     } catch {
-      // Demo fallback
       setBeds([
-        { id: 1, ward_name: 'Ward A', bed_number: 'A-1', bed_type: 'general', status: 'occupied', floor: '1st Floor', patient_name: 'M. Karim', admission_no: 'ADM-00001' },
-        { id: 2, ward_name: 'Ward A', bed_number: 'A-2', bed_type: 'general', status: 'available', floor: '1st Floor' },
-        { id: 3, ward_name: 'Ward A', bed_number: 'A-3', bed_type: 'general', status: 'maintenance', floor: '1st Floor' },
-        { id: 4, ward_name: 'Ward A', bed_number: 'A-4', bed_type: 'general', status: 'available', floor: '1st Floor' },
-        { id: 5, ward_name: 'Ward A', bed_number: 'A-5', bed_type: 'general', status: 'available', floor: '1st Floor' },
-        { id: 6, ward_name: 'Ward B', bed_number: 'B-1', bed_type: 'semi_private', status: 'occupied', floor: '2nd Floor', patient_name: 'A. Hashem' },
-        { id: 7, ward_name: 'Ward B', bed_number: 'B-2', bed_type: 'semi_private', status: 'available', floor: '2nd Floor' },
-        { id: 8, ward_name: 'ICU', bed_number: 'ICU-1', bed_type: 'icu', status: 'occupied', floor: '3rd Floor', patient_name: 'F. Begum' },
-        { id: 9, ward_name: 'ICU', bed_number: 'ICU-2', bed_type: 'icu', status: 'available', floor: '3rd Floor' },
-        { id: 10, ward_name: 'ICU', bed_number: 'ICU-3', bed_type: 'icu', status: 'reserved', floor: '3rd Floor' },
+        { id: 1,  ward_name: 'Ward A', bed_number: 'A-1',   bed_type: 'general',     status: 'occupied',    floor: '1st Floor', patient_name: 'M. Karim', admission_no: 'ADM-00001' },
+        { id: 2,  ward_name: 'Ward A', bed_number: 'A-2',   bed_type: 'general',     status: 'available',   floor: '1st Floor' },
+        { id: 3,  ward_name: 'Ward A', bed_number: 'A-3',   bed_type: 'general',     status: 'maintenance', floor: '1st Floor' },
+        { id: 4,  ward_name: 'Ward A', bed_number: 'A-4',   bed_type: 'general',     status: 'available',   floor: '1st Floor' },
+        { id: 5,  ward_name: 'Ward A', bed_number: 'A-5',   bed_type: 'general',     status: 'available',   floor: '1st Floor' },
+        { id: 6,  ward_name: 'Ward B', bed_number: 'B-1',   bed_type: 'semi_private', status: 'occupied',   floor: '2nd Floor', patient_name: 'A. Hashem' },
+        { id: 7,  ward_name: 'Ward B', bed_number: 'B-2',   bed_type: 'semi_private', status: 'available',  floor: '2nd Floor' },
+        { id: 8,  ward_name: 'ICU',    bed_number: 'ICU-1', bed_type: 'icu',         status: 'occupied',    floor: '3rd Floor', patient_name: 'F. Begum' },
+        { id: 9,  ward_name: 'ICU',    bed_number: 'ICU-2', bed_type: 'icu',         status: 'available',   floor: '3rd Floor' },
+        { id: 10, ward_name: 'ICU',    bed_number: 'ICU-3', bed_type: 'icu',         status: 'reserved',    floor: '3rd Floor' },
       ]);
     } finally {
       setLoading(false);
@@ -85,38 +71,26 @@ export default function BedManagement({
 
   useEffect(() => { fetchBeds(); }, [fetchBeds]);
 
-  // Group beds by ward
-  const wards = [...new Set(beds.map(b => b.ward_name))];
-  const filteredWards = wardFilter === 'all' ? wards : wards.filter(w => w === wardFilter);
+  const wards          = [...new Set(beds.map(b => b.ward_name))];
+  const filteredWards  = wardFilter === 'all' ? wards : wards.filter(w => w === wardFilter);
+  const total          = beds.length;
+  const available      = beds.filter(b => b.status === 'available').length;
+  const occupied       = beds.filter(b => b.status === 'occupied').length;
+  const maintenance    = beds.filter(b => b.status === 'maintenance').length;
 
-  // Stats
-  const total = beds.length;
-  const available = beds.filter(b => b.status === 'available').length;
-  const occupied = beds.filter(b => b.status === 'occupied').length;
-  const maintenance = beds.filter(b => b.status === 'maintenance').length;
-
-  // Add bed (reuses admissions beds endpoint logic — add directly to DB via a custom endpoint if needed)
-  // For now, we'll show the modal; the actual backend POST for adding beds would go here
   const handleAddBed = async () => {
-    if (!addForm.ward_name || !addForm.bed_number) {
-      toast.error('Ward and bed number required');
-      return;
-    }
+    if (!addForm.ward_name || !addForm.bed_number) { toast.error('Ward and bed number required'); return; }
     setSubmitting(true);
     try {
       await axios.post('/api/admissions/beds', {
-        ward_name: addForm.ward_name,
-        bed_number: addForm.bed_number,
-        bed_type: addForm.bed_type,
+        ward_name: addForm.ward_name, bed_number: addForm.bed_number, bed_type: addForm.bed_type,
       }, { headers: authHeaders() });
       toast.success(`Bed ${addForm.ward_name} — ${addForm.bed_number} added`);
       setShowAddModal(false);
       setAddForm({ ward_name: '', bed_number: '', bed_type: 'general', floor: '' });
       fetchBeds();
     } catch (err: unknown) {
-      const msg = axios.isAxiosError(err) && err.response?.data?.message
-        ? err.response.data.message
-        : 'Failed to add bed';
+      const msg = axios.isAxiosError(err) && err.response?.data?.message ? err.response.data.message : 'Failed to add bed';
       toast.error(msg);
     } finally {
       setSubmitting(false);
@@ -124,44 +98,43 @@ export default function BedManagement({
   };
 
   const kpis = [
-    { label: 'Total Beds', value: total, color: 'text-[var(--color-text)]', bg: 'bg-gray-50' },
-    { label: 'Available', value: available, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-    { label: 'Occupied', value: occupied, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { label: 'Maintenance', value: maintenance, color: 'text-amber-600', bg: 'bg-amber-50' },
+    { label: 'Total Beds',  value: total,       color: 'text-[var(--color-text)]',  bg: 'bg-[var(--color-surface)]' },
+    { label: 'Available',   value: available,   color: 'text-emerald-600',           bg: 'bg-emerald-50' },
+    { label: 'Occupied',    value: occupied,    color: 'text-blue-600',              bg: 'bg-blue-50' },
+    { label: 'Maintenance', value: maintenance, color: 'text-amber-600',             bg: 'bg-amber-50' },
   ];
 
   return (
     <DashboardLayout role={role}>
       <div className="space-y-5">
 
-        {/* Header */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        {/* ── Header ── */}
+        <div className="page-header">
           <div>
-            <div className="text-xs text-[var(--color-text-muted)] flex items-center gap-1 mb-1">
+            <nav className="text-xs text-[var(--color-text-muted)] flex items-center gap-1 mb-1">
               <Link to={`${basePath}/dashboard`} className="hover:underline">Dashboard</Link>
               <ChevronRight className="w-3 h-3" />
               <Link to={`${basePath}/admissions`} className="hover:underline">Admissions</Link>
               <ChevronRight className="w-3 h-3" />
               <span className="text-[var(--color-text)] font-medium">{t('bedManagement', { defaultValue: 'Bed Management' })}</span>
-            </div>
-            <h1 className="text-2xl font-bold text-[var(--color-text)]">Bed Management</h1>
+            </nav>
+            <h1 className="page-title">{t('bedManagement', { defaultValue: 'Bed Management' })}</h1>
           </div>
-          <div className="flex gap-2">
-            <select value={wardFilter} onChange={e => setWardFilter(e.target.value)}
-              className="px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm bg-white">
+          <div className="flex items-center gap-2">
+            <select value={wardFilter} onChange={e => setWardFilter(e.target.value)} className="input">
               <option value="all">All Wards</option>
               {wards.map(w => <option key={w} value={w}>{w}</option>)}
             </select>
-            <button onClick={() => setShowAddModal(true)} className="btn btn-primary text-sm">
+            <button onClick={() => setShowAddModal(true)} className="btn-primary">
               <Plus className="w-4 h-4" /> Add Bed
             </button>
-            <button onClick={fetchBeds} className="btn btn-outline text-sm p-2" aria-label="Refresh">
+            <button onClick={fetchBeds} className="btn-ghost p-2" aria-label="Refresh">
               <RefreshCw className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        {/* KPIs */}
+        {/* ── KPIs ── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {kpis.map(k => (
             <div key={k.label} className={`card p-4 text-center ${k.bg}`}>
@@ -171,7 +144,7 @@ export default function BedManagement({
           ))}
         </div>
 
-        {/* Legend */}
+        {/* ── Legend ── */}
         <div className="flex flex-wrap gap-4 text-xs text-[var(--color-text-muted)]">
           {Object.entries(BED_STATUS_STYLES).map(([key, st]) => (
             <span key={key} className="flex items-center gap-1.5">
@@ -180,7 +153,7 @@ export default function BedManagement({
           ))}
         </div>
 
-        {/* Visual Bed Map */}
+        {/* ── Visual Bed Map ── */}
         {loading ? (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[...Array(8)].map((_, i) => <div key={i} className="skeleton h-28 rounded-xl" />)}
@@ -191,7 +164,7 @@ export default function BedManagement({
               const wardBeds = beds.filter(b => b.ward_name === ward);
               return (
                 <div key={ward}>
-                  <h3 className="text-sm font-semibold text-[var(--color-text)] mb-3 flex items-center gap-2">
+                  <h3 className="section-title mb-3 flex items-center gap-2">
                     <BedDouble className="w-4 h-4 text-[var(--color-primary)]" />
                     {ward}
                     <span className="text-xs text-[var(--color-text-muted)] font-normal">
@@ -237,33 +210,30 @@ export default function BedManagement({
 
         {/* ── Add Bed Modal ── */}
         {showAddModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowAddModal(false)}>
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
-              <div className="flex items-center justify-between mb-5">
-                <h2 className="text-lg font-bold text-[var(--color-text)]">{t('addBed', { defaultValue: 'Add Bed' })}</h2>
-                <button onClick={() => setShowAddModal(false)} className="p-1 hover:bg-gray-100 rounded-lg">
-                  <X className="w-5 h-5" />
-                </button>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setShowAddModal(false)}>
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-modal w-full max-w-md" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)]">
+                <h2 className="font-semibold text-[var(--color-text)]">{t('addBed', { defaultValue: 'Add Bed' })}</h2>
+                <button onClick={() => setShowAddModal(false)} className="btn-ghost p-1.5"><X className="w-5 h-5" /></button>
               </div>
-
-              <div className="space-y-4">
+              <div className="p-5 space-y-4">
                 <div>
-                  <label className="text-sm font-medium text-[var(--color-text)] mb-1 block">Ward Name *</label>
+                  <label className="label">Ward Name *</label>
                   <input type="text" value={addForm.ward_name}
                     onChange={e => setAddForm(f => ({ ...f, ward_name: e.target.value }))}
-                    placeholder="e.g. Ward A" className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm" />
+                    placeholder="e.g. Ward A" className="input" />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-[var(--color-text)] mb-1 block">Bed Number *</label>
+                  <label className="label">Bed Number *</label>
                   <input type="text" value={addForm.bed_number}
                     onChange={e => setAddForm(f => ({ ...f, bed_number: e.target.value }))}
-                    placeholder="e.g. A-6" className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm" />
+                    placeholder="e.g. A-6" className="input" />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-[var(--color-text)] mb-1 block">Bed Type</label>
+                  <label className="label">Bed Type</label>
                   <select value={addForm.bed_type}
                     onChange={e => setAddForm(f => ({ ...f, bed_type: e.target.value }))}
-                    className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm">
+                    className="input">
                     <option value="general">General</option>
                     <option value="semi_private">Semi-Private</option>
                     <option value="private">Private</option>
@@ -271,18 +241,16 @@ export default function BedManagement({
                   </select>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-[var(--color-text)] mb-1 block">Floor</label>
+                  <label className="label">Floor</label>
                   <input type="text" value={addForm.floor}
                     onChange={e => setAddForm(f => ({ ...f, floor: e.target.value }))}
-                    placeholder="e.g. 1st Floor" className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm" />
+                    placeholder="e.g. 1st Floor" className="input" />
                 </div>
               </div>
-
-              <div className="flex justify-end gap-2 mt-6">
-                <button onClick={() => setShowAddModal(false)} className="btn btn-outline text-sm">Cancel</button>
-                <button onClick={handleAddBed} disabled={submitting}
-                  className="btn btn-primary text-sm">
-                  {submitting ? 'Adding...' : 'Add Bed'}
+              <div className="flex justify-end gap-2 px-5 pb-5">
+                <button onClick={() => setShowAddModal(false)} className="btn-secondary">Cancel</button>
+                <button onClick={handleAddBed} disabled={submitting} className="btn-primary">
+                  {submitting ? 'Adding…' : 'Add Bed'}
                 </button>
               </div>
             </div>

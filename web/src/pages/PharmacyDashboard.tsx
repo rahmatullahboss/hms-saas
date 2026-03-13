@@ -181,7 +181,7 @@ export default function PharmacyDashboard({ role = 'hospital_admin' }: { role?: 
           <div className="flex border border-[var(--color-border)] rounded-lg overflow-hidden text-sm">
             {(['all', 'low', 'critical'] as const).map(f => (
               <button key={f} onClick={() => setStockFilter(f)}
-                className={`px-3 py-2 font-medium transition-colors ${stockFilter === f ? 'bg-[var(--color-primary)] text-white' : 'bg-white hover:bg-[var(--color-border-light)] text-[var(--color-text-secondary)]'}`}>
+                className={`px-3 py-2 font-medium transition-colors ${stockFilter === f ? 'bg-[var(--color-primary)] text-white' : 'bg-[var(--color-surface)] hover:bg-[var(--color-border-light)] text-[var(--color-text-secondary)]'}`}>
                 {f === 'all' ? t('all') : f === 'low' ? t('lowStock') : t('critical', { defaultValue: 'Critical' })}
               </button>
             ))}

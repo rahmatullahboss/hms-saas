@@ -227,7 +227,7 @@ export default function NotificationsCenter({ role = 'hospital_admin' }: { role?
         {hasMore && !loading && notifications.length > 0 && (
           <div className="text-center">
             <button onClick={loadMore} disabled={loadingMore}
-              className="btn btn-outline text-sm inline-flex items-center gap-1">
+              className="btn-secondary inline-flex items-center gap-1">
               {loadingMore ? <><Loader2 className="w-4 h-4 animate-spin" /> {t('loading', { ns: 'common' })}</> : t('loadMore', { defaultValue: 'Load More' })}
             </button>
           </div>

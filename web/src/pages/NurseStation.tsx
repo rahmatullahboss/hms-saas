@@ -181,11 +181,11 @@ export default function NurseStation({ role = 'hospital_admin' }: { role?: strin
               <ChevronRight className="w-3 h-3" />
               <span className="text-[var(--color-text)] font-medium">{t('nurseStation', { defaultValue: 'Nurse Station' })}</span>
             </div>
-            <h1 className="text-2xl font-bold text-[var(--color-text)] flex items-center gap-2">
+            <h1 className="page-title flex items-center gap-2">
               <Stethoscope className="w-6 h-6" /> {t('nurseStation', { defaultValue: 'Nurse Station' })}
             </h1>
           </div>
-          <button onClick={fetchAll} className="btn btn-outline text-sm p-2" aria-label="Refresh">
+          <button onClick={fetchAll} className="btn-ghost p-2" aria-label="Refresh">
             <RefreshCw className="w-4 h-4" />
           </button>
         </div>
@@ -276,10 +276,10 @@ export default function NurseStation({ role = 'hospital_admin' }: { role?: strin
 
               <div className="space-y-3">
                 <div>
-                  <label className="text-xs font-medium text-[var(--color-text)] mb-1 block">Patient *</label>
+                  <label className="label">Patient *</label>
                   <select value={vitalsForm.patient_id}
                     onChange={e => setVitalsForm(f => ({ ...f, patient_id: parseInt(e.target.value) || 0 }))}
-                    className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm">
+                    className="input">
                     <option value={0}>Select patient</option>
                     {patients.map(p => (
                       <option key={p.patient_id} value={p.patient_id}>
@@ -291,66 +291,66 @@ export default function NurseStation({ role = 'hospital_admin' }: { role?: strin
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs font-medium text-[var(--color-text)] mb-1 block">Systolic</label>
+                    <label className="label">Systolic</label>
                     <input type="number" value={vitalsForm.systolic}
                       onChange={e => setVitalsForm(f => ({ ...f, systolic: e.target.value }))}
-                      placeholder="120" className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm" />
+                      placeholder="120" className="input" />
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-[var(--color-text)] mb-1 block">Diastolic</label>
+                    <label className="label">Diastolic</label>
                     <input type="number" value={vitalsForm.diastolic}
                       onChange={e => setVitalsForm(f => ({ ...f, diastolic: e.target.value }))}
-                      placeholder="80" className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm" />
+                      placeholder="80" className="input" />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs font-medium text-[var(--color-text)] mb-1 block">Temp (°F)</label>
+                    <label className="label">Temp (°F)</label>
                     <input type="number" step="0.1" value={vitalsForm.temperature}
                       onChange={e => setVitalsForm(f => ({ ...f, temperature: e.target.value }))}
-                      placeholder="98.6" className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm" />
+                      placeholder="98.6" className="input" />
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-[var(--color-text)] mb-1 block">Heart Rate</label>
+                    <label className="label">Heart Rate</label>
                     <input type="number" value={vitalsForm.heart_rate}
                       onChange={e => setVitalsForm(f => ({ ...f, heart_rate: e.target.value }))}
-                      placeholder="72" className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm" />
+                      placeholder="72" className="input" />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs font-medium text-[var(--color-text)] mb-1 block">SpO₂ (%)</label>
+                    <label className="label">SpO₂ (%)</label>
                     <input type="number" value={vitalsForm.spo2}
                       onChange={e => setVitalsForm(f => ({ ...f, spo2: e.target.value }))}
-                      placeholder="98" className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm" />
+                      placeholder="98" className="input" />
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-[var(--color-text)] mb-1 block">Resp. Rate</label>
+                    <label className="label">Resp. Rate</label>
                     <input type="number" value={vitalsForm.respiratory_rate}
                       onChange={e => setVitalsForm(f => ({ ...f, respiratory_rate: e.target.value }))}
-                      placeholder="18" className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm" />
+                      placeholder="18" className="input" />
                   </div>
                 </div>
 
                 <div>
-                  <label className="text-xs font-medium text-[var(--color-text)] mb-1 block">Weight (kg)</label>
+                  <label className="label">Weight (kg)</label>
                   <input type="number" step="0.1" value={vitalsForm.weight}
                     onChange={e => setVitalsForm(f => ({ ...f, weight: e.target.value }))}
-                    placeholder="65" className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm" />
+                    placeholder="65" className="input" />
                 </div>
 
                 <div>
-                  <label className="text-xs font-medium text-[var(--color-text)] mb-1 block">Notes</label>
+                  <label className="label">Notes</label>
                   <textarea value={vitalsForm.notes}
                     onChange={e => setVitalsForm(f => ({ ...f, notes: e.target.value }))}
                     rows={2} placeholder="Additional observations..."
-                    className="w-full px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm resize-none" />
+                    className="input resize-none" />
                 </div>
 
                 <button onClick={handleRecordVitals} disabled={submitting || !vitalsForm.patient_id}
-                  className="btn btn-primary text-sm w-full">
+                  className="btn-primary w-full">
                   {submitting ? t('loading', { ns: 'common' }) : t('submitRecording', { defaultValue: 'Submit Recording' })}
                 </button>
               </div>
@@ -364,31 +364,31 @@ export default function NurseStation({ role = 'hospital_admin' }: { role?: strin
             <h2 className="text-sm font-semibold text-[var(--color-text)]">{t('recentVitalsLog', { defaultValue: 'Recent Vitals Log' })}</h2>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-[var(--color-bg)]">
-                <tr className="text-xs text-[var(--color-text-muted)] uppercase">
-                  <th className="text-left px-4 py-2">Time</th>
-                  <th className="text-left px-4 py-2">Patient</th>
-                  <th className="text-center px-4 py-2">BP</th>
-                  <th className="text-center px-4 py-2">Temp</th>
-                  <th className="text-center px-4 py-2">HR</th>
-                  <th className="text-center px-4 py-2">SpO₂</th>
-                  <th className="text-left px-4 py-2">Nurse</th>
+            <table className="table-base">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Patient</th>
+                  <th className="text-center">BP</th>
+                  <th className="text-center">Temp</th>
+                  <th className="text-center">HR</th>
+                  <th className="text-center">SpO₂</th>
+                  <th>Nurse</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[var(--color-border)]">
+              <tbody>
                 {vitalsLog.length === 0 ? (
                   <tr><td colSpan={7} className="px-4 py-6 text-center text-[var(--color-text-muted)]">No vitals recorded</td></tr>
                 ) : (
                   vitalsLog.map(v => (
-                    <tr key={v.id} className="hover:bg-[var(--color-bg)]">
-                      <td className="px-4 py-2 text-xs text-[var(--color-text-muted)]">{timeAgo(v.recorded_at)}</td>
-                      <td className="px-4 py-2 font-medium">{v.patient_name}</td>
-                      <td className="px-4 py-2 text-center">{v.systolic ?? '-'}/{v.diastolic ?? '-'}</td>
-                      <td className="px-4 py-2 text-center">{v.temperature ?? '-'}°F</td>
-                      <td className="px-4 py-2 text-center">{v.heart_rate ?? '-'}</td>
-                      <td className="px-4 py-2 text-center">{v.spo2 ?? '-'}%</td>
-                      <td className="px-4 py-2 text-[var(--color-text-muted)]">{v.recorded_by}</td>
+                    <tr key={v.id}>
+                      <td className="text-xs text-[var(--color-text-muted)]">{timeAgo(v.recorded_at)}</td>
+                      <td className="font-medium">{v.patient_name}</td>
+                      <td className="text-center">{v.systolic ?? '-'}/{v.diastolic ?? '-'}</td>
+                      <td className="text-center">{v.temperature ?? '-'}°F</td>
+                      <td className="text-center">{v.heart_rate ?? '-'}</td>
+                      <td className="text-center">{v.spo2 ?? '-'}%</td>
+                      <td className="text-[var(--color-text-muted)]">{v.recorded_by}</td>
                     </tr>
                   ))
                 )}

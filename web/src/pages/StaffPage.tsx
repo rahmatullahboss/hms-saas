@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Users, DollarSign, UserCheck, Search } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
@@ -16,8 +17,11 @@ interface Staff {
   status: string;
 }
 
+const fmt = (n: number) =>
+  new Intl.NumberFormat('en-BD', { style: 'currency', currency: 'BDT', minimumFractionDigits: 0 }).format(n);
+
 export default function StaffPage({ role = 'md' }: { role?: string }) {
-  const [staff, setStaff] = useState<Staff[]>([]);
+  const [staff, setStaff]   = useState<Staff[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const { t } = useTranslation(['staff', 'common']);
@@ -25,116 +29,104 @@ export default function StaffPage({ role = 'md' }: { role?: string }) {
   const fetchStaff = async () => {
     try {
       const token = localStorage.getItem('hms_token');
-      const res = await axios.get('/api/staff', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await axios.get('/api/staff', { headers: { Authorization: `Bearer ${token}` } });
       setStaff(res.data.staff || []);
-    } catch (error) {
-      toast.error('Failed to fetch staff');
-    } finally {
-      setLoading(false);
-    }
+    } catch { toast.error('Failed to fetch staff'); }
+    finally { setLoading(false); }
   };
 
-  useEffect(() => {
-    fetchStaff();
-  }, []);
+  useEffect(() => { fetchStaff(); }, []);
 
-  const filteredStaff = staff.filter(s => 
+  const filtered = staff.filter(s =>
     s.name.toLowerCase().includes(search.toLowerCase()) ||
     s.position.toLowerCase().includes(search.toLowerCase()) ||
     s.mobile.includes(search)
   );
 
-  const totalSalary = staff.reduce((sum, s) => sum + (s.salary || 0), 0);
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-BD', { style: 'currency', currency: 'BDT', minimumFractionDigits: 0 }).format(amount);
-  };
+  const totalSalary  = staff.reduce((sum, s) => sum + (s.salary || 0), 0);
+  const activeCount  = staff.filter(s => s.status === 'active').length;
 
   return (
     <DashboardLayout role={role}>
-      <div className="p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-800">{t('title')}</h1>
+      <div className="space-y-5 max-w-screen-2xl mx-auto">
+
+        {/* ── KPI Cards ── */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {[
+            { label: t('totalStaff',   { defaultValue: 'Total Staff' }),   value: staff.length,          icon: Users,     color: 'text-[var(--color-primary)]' },
+            { label: t('monthlySalary',{ defaultValue: 'Monthly Salary' }), value: fmt(totalSalary),      icon: DollarSign, color: 'text-amber-600' },
+            { label: t('activeStaff',  { defaultValue: 'Active Staff' }),   value: activeCount,           icon: UserCheck, color: 'text-emerald-600' },
+          ].map(({ label, value, icon: Icon, color }) => (
+            <div key={label} className="card p-5 flex items-center gap-4">
+              <div className="w-10 h-10 rounded-xl bg-[var(--color-primary)]/10 flex items-center justify-center flex-shrink-0">
+                <Icon className="w-5 h-5 text-[var(--color-primary)]" />
+              </div>
+              <div>
+                <p className="text-xs text-[var(--color-text-muted)] mb-0.5">{label}</p>
+                <p className={`text-2xl font-bold ${color}`}>{value}</p>
+              </div>
+            </div>
+          ))}
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="bg-white p-4 rounded-lg shadow">
-            <p className="text-sm text-gray-500">{t('totalStaff', { defaultValue: 'Total Staff' })}</p>
-            <p className="text-2xl font-bold">{staff.length}</p>
-          </div>
-          <div className="bg-white p-4 rounded-lg shadow">
-            <p className="text-sm text-gray-500">{t('monthlySalary', { defaultValue: 'Monthly Salary' })}</p>
-            <p className="text-2xl font-bold">{formatCurrency(totalSalary)}</p>
-          </div>
-          <div className="bg-white p-4 rounded-lg shadow">
-            <p className="text-sm text-gray-500">{t('activeStaff', { defaultValue: 'Active Staff' })}</p>
-            <p className="text-2xl font-bold">{staff.filter(s => s.status === 'active').length}</p>
-          </div>
-        </div>
-
-        {/* Search */}
-        <div className="mb-4">
+        {/* ── Search ── */}
+        <div className="relative w-full md:w-96">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-muted)]" />
           <input
             type="text"
             placeholder={t('search', { ns: 'common' })}
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full md:w-96 px-4 py-2 border rounded-lg"
+            onChange={e => setSearch(e.target.value)}
+            className="input pl-9"
           />
         </div>
 
-        {/* Staff Table */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">{t('name', { ns: 'common' })}</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">{t('position', { defaultValue: 'Position' })}</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">{t('phone', { ns: 'common' })}</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">{t('bankAccount', { defaultValue: 'Bank Account' })}</th>
-                <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">{t('salary', { defaultValue: 'Salary' })}</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">{t('joined', { defaultValue: 'Joined' })}</th>
-                <th className="px-4 py-3 text-center text-sm font-medium text-gray-600">{t('status', { ns: 'common' })}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {loading ? (
+        {/* ── Table ── */}
+        <div className="card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="table-base">
+              <thead>
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-gray-500">Loading...</td>
+                  <th>{t('name',       { ns: 'common' })}</th>
+                  <th>{t('position',   { defaultValue: 'Position' })}</th>
+                  <th>{t('phone',      { ns: 'common' })}</th>
+                  <th>{t('bankAccount',{ defaultValue: 'Bank Account' })}</th>
+                  <th className="text-right">{t('salary', { defaultValue: 'Salary' })}</th>
+                  <th>{t('joined',     { defaultValue: 'Joined' })}</th>
+                  <th className="text-center">{t('status', { ns: 'common' })}</th>
                 </tr>
-              ) : filteredStaff.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-gray-500">No staff found</td>
-                </tr>
-              ) : (
-                filteredStaff.map((member) => (
-                  <tr key={member.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium">{member.name}</td>
-                    <td className="px-4 py-3">{member.position}</td>
-                    <td className="px-4 py-3">{member.mobile}</td>
-                    <td className="px-4 py-3 text-gray-600 font-mono text-sm">{member.bank_account || '-'}</td>
-                    <td className="px-4 py-3 text-right font-medium">{formatCurrency(member.salary || 0)}</td>
-                    <td className="px-4 py-3 text-gray-600">
-                      {member.joining_date ? new Date(member.joining_date).toLocaleDateString() : '-'}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={`px-2 py-1 rounded-full text-xs ${
-                        member.status === 'active' 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {member.status || 'active'}
-                      </span>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {loading ? (
+                  [...Array(5)].map((_, i) => (
+                    <tr key={i}>{[...Array(7)].map((_, j) => <td key={j}><div className="skeleton h-4 rounded" /></td>)}</tr>
+                  ))
+                ) : filtered.length === 0 ? (
+                  <tr><td colSpan={7} className="py-14 text-center text-[var(--color-text-muted)]">No staff found</td></tr>
+                ) : (
+                  filtered.map(member => (
+                    <tr key={member.id}>
+                      <td className="font-medium">{member.name}</td>
+                      <td className="text-sm text-[var(--color-text-secondary)]">{member.position}</td>
+                      <td className="font-data text-sm">{member.mobile}</td>
+                      <td className="font-data text-sm text-[var(--color-text-muted)]">{member.bank_account || '—'}</td>
+                      <td className="text-right font-medium">{fmt(member.salary || 0)}</td>
+                      <td className="font-data text-sm text-[var(--color-text-muted)]">
+                        {member.joining_date ? new Date(member.joining_date).toLocaleDateString('en-GB') : '—'}
+                      </td>
+                      <td className="text-center">
+                        <span className={`badge ${member.status === 'active' ? 'badge-success' : 'badge-secondary'}`}>
+                          {member.status || 'active'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
+
       </div>
     </DashboardLayout>
   );

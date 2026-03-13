@@ -258,7 +258,7 @@ export default function PatientPortal() {
           {tab === 'appointments' && (
             <div className="space-y-4">
               <div className="flex justify-end">
-                <button onClick={() => setShowApptForm(v => !v)} className="btn btn-primary text-sm flex items-center gap-2">
+                <button onClick={() => setShowApptForm(v => !v)} className="btn-primary flex items-center gap-2">
                   <Plus className="w-4 h-4" /> Request Appointment
                 </button>
               </div>
@@ -270,7 +270,7 @@ export default function PatientPortal() {
                   <input placeholder="Reason for visit" value={apptReason} onChange={e => setApptReason(e.target.value)} className="input w-full text-sm" />
                   <div className="flex gap-2">
                     <button onClick={() => scheduleAppt.mutate()} disabled={scheduleAppt.isPending || !apptDate}
-                      className="btn btn-primary text-sm flex items-center gap-2">
+                      className="btn-primary flex items-center gap-2">
                       <CheckCircle2 className="w-4 h-4" /> {scheduleAppt.isPending ? 'Saving…' : 'Request'}
                     </button>
                     <button onClick={() => setShowApptForm(false)} className="btn border border-[var(--color-border)] text-sm">Cancel</button>
@@ -370,7 +370,7 @@ export default function PatientPortal() {
           {tab === 'vitals' && (
             <div className="space-y-4">
               <div className="flex justify-end">
-                <button onClick={() => setShowVitalsForm(v => !v)} className="btn btn-primary text-sm flex items-center gap-2">
+                <button onClick={() => setShowVitalsForm(v => !v)} className="btn-primary flex items-center gap-2">
                   <Plus className="w-4 h-4" /> Record Vitals
                 </button>
               </div>
@@ -394,7 +394,7 @@ export default function PatientPortal() {
                   </div>
                   <div className="flex gap-2">
                     <button onClick={() => recordVitals.mutate()} disabled={recordVitals.isPending}
-                      className="btn btn-primary text-sm flex items-center gap-2">
+                      className="btn-primary flex items-center gap-2">
                       <CheckCircle2 className="w-4 h-4" /> {recordVitals.isPending ? 'Saving…' : 'Save Vitals'}
                     </button>
                     <button onClick={() => setShowVitalsForm(false)} className="btn border border-[var(--color-border)] text-sm">Cancel</button>
@@ -494,7 +494,7 @@ export default function PatientPortal() {
                       </div>
                       {s.status === 'scheduled' && s.room_url ? (
                         <a href={s.room_url} target="_blank" rel="noopener noreferrer"
-                          className="btn btn-primary text-xs flex items-center gap-1 px-3 py-1.5">
+                          className="btn-primary text-xs flex items-center gap-1">
                           <ExternalLink className="w-3 h-3" /> Join
                         </a>
                       ) : (

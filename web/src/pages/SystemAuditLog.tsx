@@ -120,10 +120,10 @@ export default function SystemAuditLog({ role = 'hospital_admin' }: { role?: str
             <p className="text-sm text-[var(--color-text-muted)]">Track all system changes and user activity</p>
           </div>
           <div className="flex gap-2">
-            <button onClick={() => setShowFilters(f => !f)} className="btn btn-outline text-sm flex items-center gap-2">
+            <button onClick={() => setShowFilters(f => !f)} className="btn-secondary flex items-center gap-2">
               <Filter className="w-4 h-4" /> Filters
             </button>
-            <button className="btn btn-outline text-sm flex items-center gap-2">
+            <button className="btn-secondary flex items-center gap-2">
               <Download className="w-4 h-4" /> Export CSV
             </button>
           </div>

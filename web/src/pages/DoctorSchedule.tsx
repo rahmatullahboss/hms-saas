@@ -180,7 +180,7 @@ export default function DoctorSchedule({
             <h1 className="text-2xl font-bold text-[var(--color-text)]">Doctor Schedule / Roster</h1>
             <p className="text-sm text-[var(--color-text-muted)]">Manage doctor availability and consultation hours</p>
           </div>
-          <button onClick={openAdd} className="btn btn-primary text-sm flex items-center gap-2">
+          <button onClick={openAdd} className="btn-primary flex items-center gap-2">
             <Plus className="w-4 h-4" /> Add Schedule
           </button>
         </div>
@@ -346,8 +346,8 @@ export default function DoctorSchedule({
             </div>
 
             <div className="flex justify-end gap-2 mt-5">
-              <button onClick={() => setShowModal(false)} className="btn btn-outline text-sm">Cancel</button>
-              <button onClick={handleSubmit} disabled={submitting} className="btn btn-primary text-sm">
+              <button onClick={() => setShowModal(false)} className="btn-secondary">Cancel</button>
+              <button onClick={handleSubmit} disabled={submitting} className="btn-primary">
                 {submitting ? 'Saving...' : editingId ? 'Update Slot' : 'Add Slot'}
               </button>
             </div>

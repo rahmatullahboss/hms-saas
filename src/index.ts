@@ -5,6 +5,7 @@ import { tenantMiddleware } from './middleware/tenant';
 import { authMiddleware } from './middleware/auth';
 import { rateLimitMiddleware, loginRateLimit } from './middleware/rate-limit';
 import adminRoutes from './routes/admin';
+import onboardingRoutes from './routes/onboarding';
 import authRoutes from './routes/tenant/auth';
 import patientRoutes from './routes/tenant/patients';
 import testRoutes from './routes/tenant/tests';
@@ -94,6 +95,22 @@ app.use('/api/init/*', async (c, next) => {
 
 app.route('/api/seed', seedRoutes);
 app.route('/api/init', initRoutes);
+
+// ─── Public: Onboarding applications (from landing page) ─────────────
+// CORS preflight for landing page cross-origin requests
+app.options('/api/onboarding/*', (c) => {
+  c.header('Access-Control-Allow-Origin', '*');
+  c.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  c.header('Access-Control-Allow-Headers', 'Content-Type');
+  c.header('Access-Control-Max-Age', '86400');
+  return c.body(null, 204);
+});
+app.use('/api/onboarding/*', async (c, next) => {
+  await next();
+  c.header('Access-Control-Allow-Origin', '*');
+});
+app.use('/api/onboarding/*', (c, next) => rateLimitMiddleware(c, next, { window: 3600, max: 5 }));
+app.route('/api/onboarding', onboardingRoutes);
 
 // ─── Public: Hospital self-signup ──────────────────────────────────────
 // Rate limit: max 10 registrations per IP per hour

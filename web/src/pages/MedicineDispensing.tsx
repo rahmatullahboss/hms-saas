@@ -314,7 +314,7 @@ export default function MedicineDispensing() {
                         </button>
                         {rx.dispense_status !== 'dispensed' && (
                           <button onClick={() => openRx(rx)}
-                            className="text-xs btn btn-primary py-1 px-2.5">
+                            className="btn-primary text-xs">
                             Dispense
                           </button>
                         )}
@@ -400,13 +400,13 @@ export default function MedicineDispensing() {
 
             {/* Modal Footer */}
             <div className="flex items-center justify-end gap-3 p-5 border-t border-[var(--color-border)]">
-              <button onClick={() => setSelectedRx(null)} className="btn btn-outline text-sm">
+              <button onClick={() => setSelectedRx(null)} className="btn-secondary">
                 Cancel
               </button>
               <button
                 onClick={handleDispense}
                 disabled={dispensing || Object.values(dispenseQtys).every(q => q === 0)}
-                className="btn btn-primary text-sm flex items-center gap-1.5 disabled:opacity-50">
+                className="btn-primary flex items-center gap-1.5 disabled:opacity-50">
                 <CheckCircle2 className="w-4 h-4" />
                 {dispensing ? 'Dispensing...' : 'Mark as Dispensed'}
               </button>

@@ -196,10 +196,10 @@ export default function DischargeSummary({
             </div>
           </div>
           <div className="flex gap-2">
-            <button onClick={handlePrint} className="btn btn-outline text-sm flex items-center gap-2">
+            <button onClick={handlePrint} className="btn-secondary flex items-center gap-2">
               <Printer className="w-4 h-4" /> Print
             </button>
-            <button className="btn btn-outline text-sm flex items-center gap-2">
+            <button className="btn-secondary flex items-center gap-2">
               <Download className="w-4 h-4" /> Download PDF
             </button>
           </div>
@@ -289,7 +289,7 @@ export default function DischargeSummary({
                     onKeyDown={e => e.key === 'Enter' && addProcedure()}
                     placeholder="e.g. Laparoscopic Appendectomy"
                     className="flex-1 px-3 py-2 border border-[var(--color-border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/30" />
-                  <button onClick={addProcedure} className="btn btn-outline text-sm px-3">
+                  <button onClick={addProcedure} className="btn-secondary px-3">
                     <Plus className="w-4 h-4" />
                   </button>
                 </div>
@@ -363,11 +363,11 @@ export default function DischargeSummary({
             {!isFinal && (
               <div className="space-y-2 no-print">
                 <button onClick={() => handleSave(false)} disabled={saving}
-                  className="btn btn-outline text-sm w-full">
+                  className="btn-secondary w-full">
                   {saving ? 'Saving...' : '💾 Save Draft'}
                 </button>
                 <button onClick={() => handleSave(true)} disabled={saving}
-                  className="btn btn-primary text-sm w-full">
+                  className="btn-primary w-full">
                   {saving ? 'Finalising...' : '✅ Finalise & Lock Summary'}
                 </button>
               </div>
@@ -405,8 +405,8 @@ export default function DischargeSummary({
               ))}
             </div>
             <div className="flex justify-end gap-2 mt-5">
-              <button onClick={() => setShowMedModal(false)} className="btn btn-outline text-sm">Cancel</button>
-              <button onClick={addMedicine} className="btn btn-primary text-sm">Add Medicine</button>
+              <button onClick={() => setShowMedModal(false)} className="btn-secondary">Cancel</button>
+              <button onClick={addMedicine} className="btn-primary">Add Medicine</button>
             </div>
           </div>
         </div>

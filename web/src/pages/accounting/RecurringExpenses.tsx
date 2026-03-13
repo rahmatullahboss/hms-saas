@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
+import { Plus, X } from 'lucide-react';
 import axios from 'axios';
 import DashboardLayout from '../../components/DashboardLayout';
 
 interface RecurringExpense {
   id: number;
-  category_id: number;
   category_name: string;
   category_code: string;
   amount: number;
@@ -13,220 +13,163 @@ interface RecurringExpense {
   next_run_date: string;
   end_date: string | null;
   is_active: number;
-  created_by: number;
-  created_at: string;
 }
 
-const frequencyLabels: Record<string, string> = {
-  daily: 'Daily',
-  weekly: 'Weekly',
-  monthly: 'Monthly',
-};
+const FREQ_BADGE: Record<string, string> = { daily: 'badge-warning', weekly: 'badge-info', monthly: 'badge-primary' };
 
-const categoryLabels: Record<string, string> = {
-  SALARY: 'Staff Salary',
-  MEDICINE: 'Medicine Purchase',
-  RENT: 'Rent',
-  ELECTRICITY: 'Electricity',
-  WATER: 'Water Supply',
-  COMMUNICATION: 'Internet & Phone',
-  MAINTENANCE: 'Maintenance',
-  SUPPLIES: 'Medical Supplies',
-  MARKETING: 'Marketing',
-  BANK: 'Bank Charges',
-  MISC: 'Miscellaneous',
-};
+const fmt = (n: number) =>
+  new Intl.NumberFormat('en-BD', { style: 'currency', currency: 'BDT', minimumFractionDigits: 0 }).format(n);
 
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('en-BD', { style: 'currency', currency: 'BDT', minimumFractionDigits: 0 }).format(amount);
+const CAT_LABELS: Record<string, string> = {
+  SALARY: 'Staff Salary', MEDICINE: 'Medicine Purchase', RENT: 'Rent',
+  ELECTRICITY: 'Electricity', WATER: 'Water Supply', COMMUNICATION: 'Internet & Phone',
+  MAINTENANCE: 'Maintenance', SUPPLIES: 'Medical Supplies', MARKETING: 'Marketing',
+  BANK: 'Bank Charges', MISC: 'Miscellaneous',
 };
 
 export default function RecurringExpenses({ role = 'md' }: { role?: string }) {
   const [expenses, setExpenses] = useState<RecurringExpense[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
+  const [loading, setLoading]   = useState(true);
+  const [showModal, setModal]   = useState(false);
   const [formData, setFormData] = useState({
-    category_id: '',
-    amount: '',
-    description: '',
-    frequency: 'monthly',
-    next_run_date: new Date().toISOString().split('T')[0],
-    end_date: ''
+    category_id: '', amount: '', description: '', frequency: 'monthly',
+    next_run_date: new Date().toISOString().split('T')[0], end_date: '',
   });
 
   const fetchExpenses = async () => {
+    setLoading(true);
     try {
       const token = localStorage.getItem('hms_token');
-      const headers = { Authorization: `Bearer ${token}` };
-      const res = await axios.get('/api/recurring', { headers });
+      const res = await axios.get('/api/recurring', { headers: { Authorization: `Bearer ${token}` } });
       setExpenses(res.data.recurringExpenses || []);
-    } catch (error) {
-      console.error('Error fetching recurring expenses:', error);
-    } finally {
-      setLoading(false);
-    }
+    } catch { /* silent */ }
+    finally { setLoading(false); }
   };
 
-  useEffect(() => {
-    fetchExpenses();
-  }, []);
+  useEffect(() => { fetchExpenses(); }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const token = localStorage.getItem('hms_token');
     try {
-      const token = localStorage.getItem('hms_token');
-      const headers = { Authorization: `Bearer ${token}` };
-      await axios.post('/api/recurring', formData, { headers });
-      setShowModal(false);
-      setFormData({
-        category_id: '',
-        amount: '',
-        description: '',
-        frequency: 'monthly',
-        next_run_date: new Date().toISOString().split('T')[0],
-        end_date: ''
-      });
+      await axios.post('/api/recurring', formData, { headers: { Authorization: `Bearer ${token}` } });
+      setModal(false);
+      setFormData({ category_id: '', amount: '', description: '', frequency: 'monthly', next_run_date: new Date().toISOString().split('T')[0], end_date: '' });
       fetchExpenses();
-    } catch (error) {
-      console.error('Error creating recurring expense:', error);
-    }
+    } catch { /* silent */ }
   };
 
-  const handleToggle = async (id: number, currentStatus: number) => {
+  const handleToggle = async (id: number, is_active: number) => {
+    const token = localStorage.getItem('hms_token');
+    const headers = { Authorization: `Bearer ${token}` };
     try {
-      const token = localStorage.getItem('hms_token');
-      const headers = { Authorization: `Bearer ${token}` };
-      if (currentStatus === 1) {
-        await axios.delete(`/api/recurring/${id}`, { headers });
-      } else {
-        await axios.put(`/api/recurring/${id}`, { is_active: 1 }, { headers });
-      }
+      if (is_active === 1) await axios.delete(`/api/recurring/${id}`, { headers });
+      else await axios.put(`/api/recurring/${id}`, { is_active: 1 }, { headers });
       fetchExpenses();
-    } catch (error) {
-      console.error('Error toggling recurring expense:', error);
-    }
+    } catch { /* silent */ }
   };
 
   const handleRun = async (id: number) => {
+    const token = localStorage.getItem('hms_token');
     try {
-      const token = localStorage.getItem('hms_token');
-      const headers = { Authorization: `Bearer ${token}` };
-      await axios.post(`/api/recurring/${id}/run`, {}, { headers });
-      alert('Expense executed successfully!');
+      await axios.post(`/api/recurring/${id}/run`, {}, { headers: { Authorization: `Bearer ${token}` } });
       fetchExpenses();
-    } catch (error) {
-      console.error('Error running recurring expense:', error);
-    }
+    } catch { /* silent */ }
   };
 
   return (
     <DashboardLayout role={role}>
-      <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Recurring Expenses</h1>
-        <button onClick={() => setShowModal(true)} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-          + Add Recurring Expense
-        </button>
-      </div>
+      <div className="space-y-5 max-w-screen-2xl mx-auto">
 
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-        <table className="w-full">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Frequency</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Next Run</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {loading ? (
-              <tr><td colSpan={6} className="px-6 py-4 text-center">Loading...</td></tr>
-            ) : expenses.length === 0 ? (
-              <tr><td colSpan={6} className="px-6 py-4 text-center text-gray-400">No recurring expenses found</td></tr>
-            ) : (
-              expenses.map((expense) => (
-                <tr key={expense.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4">{categoryLabels[expense.category_code] || expense.category_name}</td>
-                  <td className="px-6 py-4 font-medium text-red-600">{formatCurrency(expense.amount)}</td>
-                  <td className="px-6 py-4">
-                    <span className="px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-xs">
-                      {frequencyLabels[expense.frequency]}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">{new Date(expense.next_run_date).toLocaleDateString()}</td>
-                  <td className="px-6 py-4">
-                    <button
-                      onClick={() => handleToggle(expense.id, expense.is_active)}
-                      className={`px-2 py-1 rounded-full text-xs ${expense.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}
-                    >
-                      {expense.is_active ? 'Active' : 'Inactive'}
-                    </button>
-                  </td>
-                  <td className="px-6 py-4">
-                    <button onClick={() => handleRun(expense.id)} className="text-blue-600 hover:text-blue-800 mr-3">Run Now</button>
-                  </td>
+        {/* ── Header ── */}
+        <div className="page-header">
+          <h1 className="page-title">Recurring Expenses</h1>
+          <button onClick={() => setModal(true)} className="btn-primary">
+            <Plus className="w-4 h-4" /> Add Recurring
+          </button>
+        </div>
+
+        {/* ── Table ── */}
+        <div className="card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="table-base">
+              <thead>
+                <tr>
+                  <th>Category</th><th>Amount</th><th>Frequency</th><th>Next Run</th><th>Status</th><th>Actions</th>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+              </thead>
+              <tbody>
+                {loading ? (
+                  [...Array(5)].map((_, i) => <tr key={i}>{[...Array(6)].map((_, j) => <td key={j}><div className="skeleton h-4 w-full rounded" /></td>)}</tr>)
+                ) : expenses.length === 0 ? (
+                  <tr><td colSpan={6} className="py-14 text-center text-[var(--color-text-muted)]">No recurring expenses</td></tr>
+                ) : (
+                  expenses.map(expense => (
+                    <tr key={expense.id}>
+                      <td className="font-medium">{CAT_LABELS[expense.category_code] || expense.category_name}</td>
+                      <td className="font-data text-red-600">{fmt(expense.amount)}</td>
+                      <td><span className={`badge ${FREQ_BADGE[expense.frequency]}`}>{expense.frequency}</span></td>
+                      <td className="font-data text-sm">{new Date(expense.next_run_date).toLocaleDateString('en-GB')}</td>
+                      <td>
+                        <button
+                          onClick={() => handleToggle(expense.id, expense.is_active)}
+                          className={`badge cursor-pointer ${expense.is_active ? 'badge-success' : 'badge-secondary'}`}
+                        >
+                          {expense.is_active ? 'Active' : 'Inactive'}
+                        </button>
+                      </td>
+                      <td>
+                        <button onClick={() => handleRun(expense.id)} className="btn-ghost p-1.5 text-xs text-[var(--color-primary)]">Run Now</button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
 
-      {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md">
-            <h2 className="text-xl font-bold mb-4">Add Recurring Expense</h2>
-            <form onSubmit={handleSubmit}>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Category</label>
-                  <select value={formData.category_id} onChange={(e) => setFormData({ ...formData, category_id: e.target.value })} className="mt-1 block w-full border rounded-lg p-2" required>
+        {/* ── Modal ── */}
+        {showModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-modal w-full max-w-md">
+              <div className="flex items-center justify-between p-5 border-b border-[var(--color-border)]">
+                <h3 className="font-semibold">Add Recurring Expense</h3>
+                <button onClick={() => setModal(false)} className="btn-ghost p-1.5"><X className="w-5 h-5"/></button>
+              </div>
+              <form onSubmit={handleSubmit} className="p-5 space-y-4">
+                <div><label className="label">Category</label>
+                  <select required className="input" value={formData.category_id} onChange={e => setFormData({...formData, category_id: e.target.value})}>
                     <option value="">Select Category</option>
                     <option value="1">Staff Salary</option>
                     <option value="2">Medicine Purchase</option>
                     <option value="3">Rent</option>
                     <option value="4">Electricity</option>
                     <option value="5">Water Supply</option>
-                    <option value="6">Internet & Phone</option>
+                    <option value="6">Internet &amp; Phone</option>
                     <option value="10">Miscellaneous</option>
                   </select>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Amount (BDT)</label>
-                  <input type="number" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: e.target.value })} className="mt-1 block w-full border rounded-lg p-2" required />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Frequency</label>
-                  <select value={formData.frequency} onChange={(e) => setFormData({ ...formData, frequency: e.target.value })} className="mt-1 block w-full border rounded-lg p-2">
+                <div><label className="label">Amount (BDT)</label><input type="number" required className="input" value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} /></div>
+                <div><label className="label">Frequency</label>
+                  <select className="input" value={formData.frequency} onChange={e => setFormData({...formData, frequency: e.target.value})}>
                     <option value="daily">Daily</option>
                     <option value="weekly">Weekly</option>
                     <option value="monthly">Monthly</option>
                   </select>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Start Date</label>
-                  <input type="date" value={formData.next_run_date} onChange={(e) => setFormData({ ...formData, next_run_date: e.target.value })} className="mt-1 block w-full border rounded-lg p-2" required />
+                <div><label className="label">Start Date</label><input type="date" required className="input" value={formData.next_run_date} onChange={e => setFormData({...formData, next_run_date: e.target.value})} /></div>
+                <div><label className="label">End Date (Optional)</label><input type="date" className="input" value={formData.end_date} onChange={e => setFormData({...formData, end_date: e.target.value})} /></div>
+                <div><label className="label">Description</label><input type="text" className="input" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} /></div>
+                <div className="flex justify-end gap-3 pt-2">
+                  <button type="button" onClick={() => setModal(false)} className="btn-secondary">Cancel</button>
+                  <button type="submit" className="btn-primary">Save</button>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">End Date (Optional)</label>
-                  <input type="date" value={formData.end_date} onChange={(e) => setFormData({ ...formData, end_date: e.target.value })} className="mt-1 block w-full border rounded-lg p-2" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Description</label>
-                  <input type="text" value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} className="mt-1 block w-full border rounded-lg p-2" />
-                </div>
-              </div>
-              <div className="flex justify-end gap-2 mt-6">
-                <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
-                <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save</button>
-              </div>
-            </form>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+
       </div>
     </DashboardLayout>
   );

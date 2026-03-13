@@ -39,10 +39,14 @@ adminRoutes.post('/login', async (c) => {
       return c.json({ error: 'Invalid credentials' }, 401);
     }
 
+    // Only super_admin users can login via the admin endpoint
+    if (user.role !== 'super_admin') {
+      return c.json({ error: 'Invalid credentials' }, 401);
+    }
+
     const token = await generateToken({
       userId: user.id,
       role: user.role,
-      tenantId: user.tenant_id?.toString() || undefined,
       permissions: ['*'],
     }, c.env.JWT_SECRET, 8);
 
@@ -386,24 +390,25 @@ adminRoutes.post('/onboarding/:id/provision', zValidator('json', provisionSchema
     const generatedPassword = generateRandomPassword();
     const passwordHash = await bcrypt.hash(generatedPassword, 10);
 
-    // Create tenant
-    const tenantResult = await c.env.DB.prepare(
+    // Use D1 batch for atomic tenant + user + onboarding update
+    const tenantStmt = c.env.DB.prepare(
       'INSERT INTO tenants (name, subdomain, status, plan, created_at, updated_at) VALUES (?, ?, ?, ?, datetime("now"), datetime("now"))'
-    ).bind((request as Record<string, unknown>).hospital_name as string, slug, 'active', plan).run();
+    ).bind((request as Record<string, unknown>).hospital_name as string, slug, 'active', plan);
 
+    const tenantResult = await tenantStmt.run();
     const tenantId = tenantResult.meta.last_row_id;
 
-    // Create hospital admin user
-    await c.env.DB.prepare(
-      'INSERT INTO users (email, password_hash, name, role, tenant_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, datetime("now"), datetime("now"))'
-    ).bind(adminEmail, passwordHash, adminName, 'hospital_admin', tenantId).run();
-
-    // Update onboarding request
-    await c.env.DB.prepare(
-      `UPDATE onboarding_requests
-       SET status = 'provisioned', tenant_id = ?, reviewed_by = ?, reviewed_at = datetime('now'), updated_at = datetime('now')
-       WHERE id = ?`
-    ).bind(tenantId, userId || null, requestId).run();
+    // Batch the user creation and onboarding update for atomicity
+    await c.env.DB.batch([
+      c.env.DB.prepare(
+        'INSERT INTO users (email, password_hash, name, role, tenant_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, datetime("now"), datetime("now"))'
+      ).bind(adminEmail, passwordHash, adminName, 'hospital_admin', tenantId),
+      c.env.DB.prepare(
+        `UPDATE onboarding_requests
+         SET status = 'provisioned', tenant_id = ?, reviewed_by = ?, reviewed_at = datetime('now'), updated_at = datetime('now')
+         WHERE id = ?`
+      ).bind(tenantId, userId || null, requestId),
+    ]);
 
     return c.json({
       message: 'Hospital provisioned successfully!',
@@ -457,6 +462,7 @@ adminRoutes.post('/impersonate/:tenantId', async (c) => {
       role: 'hospital_admin',
       tenantId: String(tenant.id),
       permissions: ['*'],
+      isImpersonation: true,
     }, c.env.JWT_SECRET, 2);
 
     // Log impersonation for audit
@@ -492,11 +498,17 @@ adminRoutes.post('/impersonate/:tenantId', async (c) => {
 
 function generateRandomPassword(length = 12): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$';
+  const charsLen = chars.length; // 56
+  const maxValid = 256 - (256 % charsLen); // 252 — reject values >= this
   let password = '';
-  const array = new Uint8Array(length);
-  crypto.getRandomValues(array);
-  for (let i = 0; i < length; i++) {
-    password += chars[array[i] % chars.length];
+  while (password.length < length) {
+    const array = new Uint8Array(length * 2); // over-generate to handle rejections
+    crypto.getRandomValues(array);
+    for (let i = 0; i < array.length && password.length < length; i++) {
+      if (array[i] < maxValid) {
+        password += chars[array[i] % charsLen];
+      }
+    }
   }
   return password;
 }

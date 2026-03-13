@@ -7,6 +7,7 @@ export interface JWTPayload {
   role: string;
   tenantId?: string;
   permissions: string[];
+  isImpersonation?: boolean;
 }
 
 export type AppEnv = {

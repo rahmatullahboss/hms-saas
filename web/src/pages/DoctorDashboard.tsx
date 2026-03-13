@@ -237,7 +237,7 @@ export default function DoctorDashboard() {
         <div className="card p-5 flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-[var(--color-text)]">
-              {greeting}, Dr. {doctor.name} 👋
+              {greeting}, Dr. {doctor.name}
             </h1>
             <p className="text-sm text-[var(--color-text-muted)] mt-0.5">{todayLabel}</p>
             {doctor.specialty && (
@@ -300,7 +300,7 @@ export default function DoctorDashboard() {
                     </thead>
                     <tbody className="divide-y divide-[var(--color-border)]">
                       {queue.map((q, idx) => (
-                        <tr key={q.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-[var(--color-bg)]'}>
+                        <tr key={q.id} className={idx % 2 === 0 ? 'bg-[var(--color-surface)]' : 'bg-[var(--color-bg)]'}>
                           <td className="px-4 py-3">
                             <span className="font-mono font-bold text-[var(--color-primary)] text-base">#{q.token_no}</span>
                           </td>
@@ -325,18 +325,18 @@ export default function DoctorDashboard() {
                             <div className="flex items-center gap-1.5">
                               <Link
                                 to={`${basePath}/prescriptions/new?patient=${q.patient_id}&appt=${q.id}`}
-                                className="text-xs btn btn-primary py-1 px-2">
+                                className="btn-primary text-xs">
                                 Start Rx
                               </Link>
                               {q.status === 'waiting' && (
                                 <button onClick={() => updateStatus(q.id, 'in_progress')}
-                                  className="text-xs border border-blue-300 text-blue-600 rounded-lg px-2 py-1 hover:bg-blue-50 transition-colors">
+                                  className="btn-ghost text-xs py-1 px-2 text-blue-600">
                                   Start
                                 </button>
                               )}
                               {q.status === 'in_progress' && (
                                 <button onClick={() => updateStatus(q.id, 'completed')}
-                                  className="text-xs border border-green-300 text-green-600 rounded-lg px-2 py-1 hover:bg-green-50 transition-colors">
+                                  className="btn-ghost text-xs py-1 px-2 text-emerald-600">
                                   Done
                                 </button>
                               )}

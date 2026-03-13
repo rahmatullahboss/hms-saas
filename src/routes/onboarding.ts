@@ -6,16 +6,16 @@ import type { Env } from '../types';
 const onboardingRoutes = new Hono<{ Bindings: Env }>();
 
 const applySchema = z.object({
-  hospitalName: z.string().min(2, 'Hospital name must be at least 2 characters'),
-  bedCount: z.enum(['10-25', '25-50', '50-100', '100+'], {
+  hospital_name: z.string().min(2, 'Hospital name must be at least 2 characters'),
+  bed_count: z.enum(['10-25', '25-50', '50-100', '100+'], {
     message: 'Invalid bed count selection',
   }),
-  whatsappNumber: z
+  whatsapp_number: z
     .string()
     .min(10, 'WhatsApp number must be at least 10 digits')
     .max(15, 'WhatsApp number too long')
     .regex(/^[0-9+]+$/, 'Invalid phone number format'),
-  contactName: z.string().optional(),
+  contact_name: z.string().optional(),
   email: z.string().email('Invalid email format').optional(),
 });
 
@@ -28,7 +28,7 @@ onboardingRoutes.post('/apply', zValidator('json', applySchema), async (c) => {
     const duplicate = await c.env.DB.prepare(
       `SELECT id FROM onboarding_requests
        WHERE whatsapp_number = ? AND created_at > datetime('now', '-24 hours')`
-    ).bind(data.whatsappNumber).first();
+    ).bind(data.whatsapp_number).first();
 
     if (duplicate) {
       return c.json({
@@ -41,10 +41,10 @@ onboardingRoutes.post('/apply', zValidator('json', applySchema), async (c) => {
       `INSERT INTO onboarding_requests (hospital_name, bed_count, contact_name, whatsapp_number, email, status, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, 'pending', datetime('now'), datetime('now'))`
     ).bind(
-      data.hospitalName,
-      data.bedCount,
-      data.contactName || null,
-      data.whatsappNumber,
+      data.hospital_name,
+      data.bed_count,
+      data.contact_name || null,
+      data.whatsapp_number,
       data.email || null
     ).run();
 

@@ -46,6 +46,13 @@ export default function Login() {
     const dest = ROLE_ROUTES[role] ?? 'dashboard';
     // Save token to localStorage before redirect
     localStorage.setItem('hms_token', token);
+
+    // Super admin has no slug — redirect to /super-admin/dashboard
+    if (role === 'super_admin') {
+      window.location.href = '/super-admin/dashboard';
+      return;
+    }
+
     // Full page load — the service worker no longer caches index.html,
     // so the Worker serves fresh HTML referencing the latest JS bundles
     window.location.href = `/h/${resultSlug}/${dest}`;
@@ -94,6 +101,23 @@ export default function Login() {
           redirectToDashboard(res.slug, res.user.role, res.token);
           return; // Prevent finally from running and triggering re-render
         }
+
+        // If direct login didn't resolve (user might be super_admin with no tenant),
+        // try the admin login endpoint
+        try {
+          const adminRes = await api.post<{
+            token: string;
+            user: { id: string; name: string; email: string; role: string };
+          }>('/api/admin/login', { email, password });
+
+          if (adminRes.token && adminRes.user?.role === 'super_admin') {
+            redirectToDashboard('', 'super_admin', adminRes.token);
+            return;
+          }
+        } catch {
+          // Admin login also failed — show generic error
+          toast.error(t('loginFailed', { defaultValue: 'Invalid email or password' }));
+        }
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Login failed';
@@ -127,7 +151,7 @@ export default function Login() {
   return (
     <div className="min-h-screen flex">
       {/* ── Left Panel: Form ── */}
-      <div className="w-full lg:w-1/2 flex flex-col justify-center px-6 sm:px-12 lg:px-16 xl:px-24 bg-white dark:bg-slate-900">
+      <div className="w-full lg:w-1/2 flex flex-col justify-center px-6 sm:px-12 lg:px-16 xl:px-24 bg-white dark:bg-slate-900 animate-fade-in-up">
         {/* Logo */}
         <div className="mb-10">
           <div className="flex items-center gap-2.5">
@@ -332,10 +356,10 @@ export default function Login() {
         <div className="relative z-10 text-center px-12">
           {/* Floating cards */}
           <div className="relative mb-12">
-            <div className="absolute -top-6 -right-2 w-14 h-14 bg-white dark:bg-slate-700 rounded-2xl shadow-lg flex items-center justify-center rotate-6 animate-pulse">
+            <div className="absolute -top-6 -right-2 w-14 h-14 bg-white dark:bg-slate-700 rounded-2xl shadow-lg flex items-center justify-center animate-float">
               <Stethoscope className="w-7 h-7 text-cyan-600 dark:text-cyan-400" />
             </div>
-            <div className="absolute -bottom-4 -left-4 w-12 h-12 bg-white dark:bg-slate-700 rounded-xl shadow-lg flex items-center justify-center -rotate-6">
+            <div className="absolute -bottom-4 -left-4 w-12 h-12 bg-white dark:bg-slate-700 rounded-xl shadow-lg flex items-center justify-center animate-float-reverse">
               <Building2 className="w-6 h-6 text-teal-600 dark:text-teal-400" />
             </div>
 
@@ -353,6 +377,20 @@ export default function Login() {
           <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
             {t('trustedBy', { defaultValue: 'Trusted by 50+ hospitals in Bangladesh' })}
           </p>
+
+          {/* Trust stats */}
+          <div className="mt-8 grid grid-cols-3 gap-4">
+            {[
+              { value: '50+',    label: 'Hospitals' },
+              { value: '1,200+', label: 'Patients/day' },
+              { value: '99.9%',  label: 'Uptime' },
+            ].map((stat) => (
+              <div key={stat.label} className="bg-white/60 dark:bg-slate-700/50 backdrop-blur-sm rounded-xl p-3 border border-white/50 dark:border-slate-600/50">
+                <p className="text-lg font-bold text-[var(--color-primary)] dark:text-cyan-400 leading-none">{stat.value}</p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">{stat.label}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>

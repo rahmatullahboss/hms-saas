@@ -4,6 +4,8 @@ import { useAnalytics } from './hooks/useAnalytics';
 import { Toaster } from 'react-hot-toast';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { useTranslation } from 'react-i18next';
+import ImpersonationBanner from './components/ImpersonationBanner';
+import DashboardLayout from './components/DashboardLayout';
 import Login from './pages/Login';
 import HospitalSignup from './pages/HospitalSignup';
 import AcceptInvite from './pages/AcceptInvite';
@@ -58,6 +60,10 @@ import PatientPortal from './pages/PatientPortal';
 import TelemedicineDashboard from './pages/TelemedicineDashboard';
 import TelemedicineRoom from './pages/TelemedicineRoom';
 import TriageChatbot from './pages/TriageChatbot';
+import SuperAdminDashboard from './pages/SuperAdminDashboard';
+import SuperAdminHospitalList from './pages/SuperAdminHospitalList';
+import SuperAdminHospitalDetail from './pages/SuperAdminHospitalDetail';
+import SuperAdminOnboardingQueue from './pages/SuperAdminOnboardingQueue';
 
 function Unauthorized() {
   const { t } = useTranslation('common');
@@ -88,12 +94,21 @@ function App() {
     <>
       <Toaster position="top-right" />
       <PWAUpdatePrompt />
+      <ImpersonationBanner />
       <Routes>
         {/* ─── Public: Landing / Marketing ─────────────────────────── */}
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<HospitalSignup />} />
         <Route path="/unauthorized" element={<Unauthorized />} />
+
+        {/* ─── Super Admin Dashboard ───────────────────────────── */}
+        <Route element={<ProtectedRoute allowedRoles={['super_admin']} />}>
+          <Route path="/super-admin/dashboard" element={<DashboardLayout role="super_admin"><SuperAdminDashboard /></DashboardLayout>} />
+          <Route path="/super-admin/hospitals" element={<DashboardLayout role="super_admin"><SuperAdminHospitalList /></DashboardLayout>} />
+          <Route path="/super-admin/hospitals/:id" element={<DashboardLayout role="super_admin"><SuperAdminHospitalDetail /></DashboardLayout>} />
+          <Route path="/super-admin/onboarding" element={<DashboardLayout role="super_admin"><SuperAdminOnboardingQueue /></DashboardLayout>} />
+        </Route>
 
         {/* ─── Hospital slug-based routes: /h/:slug/* ───────────────── */}
         {/* All hospital access goes through /h/:slug so we can extract  */}

@@ -1,13 +1,20 @@
 import { z } from 'zod';
 
+// ─── Lab Test Catalog ─────────────────────────────────────────────────────────
+
 export const createLabTestSchema = z.object({
   code: z.string().min(1, 'Test code required'),
   name: z.string().min(1, 'Test name required'),
   category: z.string().optional(),
   price: z.number().int().nonnegative('Price required'),
+  unit: z.string().optional(),                    // 'mg/dL', 'mmol/L', 'g/dL'
+  normalRange: z.string().optional(),             // '70-100' or 'M:4.5-5.5|F:4.0-5.0'
+  method: z.string().optional(),                  // 'Colorimetric', 'Immunoassay'
 });
 
 export const updateLabTestSchema = createLabTestSchema.partial();
+
+// ─── Lab Order Items ──────────────────────────────────────────────────────────
 
 const labOrderItemSchema = z.object({
   labTestId: z.number().int().positive('Lab test ID required'),
@@ -29,10 +36,23 @@ export const createLabOrderSchema = z.object({
   items: z.array(labOrderItemSchema).min(1, 'At least one test required'),
 });
 
+// ─── Result Entry ─────────────────────────────────────────────────────────────
+
 export const updateLabItemResultSchema = z.object({
   result: z.string().min(1, 'Result required'),
+  resultNumeric: z.number().optional(),           // e.g., 5.5 for "5.5 mmol/L"
+  abnormalFlag: z.enum(['normal', 'high', 'low', 'critical']).optional(),  // auto-detected if omitted
 });
+
+// ─── Sample Status ────────────────────────────────────────────────────────────
+
+export const updateSampleStatusSchema = z.object({
+  sampleStatus: z.enum(['collected', 'processing', 'completed', 'rejected']),
+});
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 export type CreateLabTestInput        = z.infer<typeof createLabTestSchema>;
 export type CreateLabOrderInput       = z.infer<typeof createLabOrderSchema>;
 export type UpdateLabItemResultInput  = z.infer<typeof updateLabItemResultSchema>;
+export type UpdateSampleStatusInput   = z.infer<typeof updateSampleStatusSchema>;

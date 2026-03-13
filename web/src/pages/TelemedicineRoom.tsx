@@ -256,7 +256,7 @@ export default function TelemedicineRoom({ role = 'hospital_admin' }: { role?: s
             <p className="font-semibold text-red-600">Connection Failed</p>
             <p className="text-sm text-[var(--color-text-muted)]">{error}</p>
             <div className="flex gap-2 justify-center">
-              <button onClick={initRoom} className="btn btn-primary text-sm">Retry</button>
+              <button onClick={initRoom} className="btn-primary">Retry</button>
               <Link to={`${basePath}/telemedicine`} className="btn text-sm border border-[var(--color-border)]">Back</Link>
             </div>
           </div>
@@ -346,7 +346,7 @@ export default function TelemedicineRoom({ role = 'hospital_admin' }: { role?: s
                       onKeyDown={e => e.key === 'Enter' && sendChatMessage()}
                       placeholder="Type a message..."
                       className="flex-1 px-3 py-1.5 border border-[var(--color-border)] rounded-lg text-xs" />
-                    <button onClick={sendChatMessage} className="btn btn-primary text-xs px-3">Send</button>
+                    <button onClick={sendChatMessage} className="btn-primary text-xs px-3">Send</button>
                   </div>
                 </div>
               </div>

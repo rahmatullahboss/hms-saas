@@ -170,15 +170,15 @@ export default function HospitalAdminDashboard({ role = 'hospital_admin' }: { ro
 
         {/* ── KPI Cards — Row 1 (4 key metrics) ── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {kpiCards.slice(0, 4).map((card) => (
-            <KPICard key={card.title} loading={loading} {...card} />
+          {kpiCards.slice(0, 4).map((card, i) => (
+            <KPICard key={card.title} loading={loading} index={i} {...card} />
           ))}
         </div>
 
         {/* ── KPI Cards — Row 2 (secondary metrics) ── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {kpiCards.slice(4).map((card) => (
-            <KPICard key={card.title} loading={loading} {...card} />
+          {kpiCards.slice(4).map((card, i) => (
+            <KPICard key={card.title} loading={loading} index={i + 4} {...card} />
           ))}
         </div>
 
@@ -190,7 +190,7 @@ export default function HospitalAdminDashboard({ role = 'hospital_admin' }: { ro
               <button
                 key={action.label}
                 onClick={() => navigate(action.path)}
-                className={action.color}
+                className={`${action.color} transition-transform hover:-translate-y-0.5 active:translate-y-0`}
               >
                 {action.icon}
                 {action.label}

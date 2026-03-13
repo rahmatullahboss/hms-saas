@@ -349,7 +349,7 @@ export default function DigitalPrescription() {
                   <span className="text-2xl font-serif italic text-[var(--color-primary)]">Rx</span>
                   Medicines
                 </h2>
-                <button onClick={() => addItem()} className="btn btn-primary text-xs px-3 py-1.5 flex items-center gap-1">
+                <button onClick={() => addItem()} className="btn-primary text-xs flex items-center gap-1">
                   <Plus className="w-3.5 h-3.5" /> Add
                 </button>
               </div>
@@ -554,7 +554,7 @@ export default function DigitalPrescription() {
                   <button
                     onClick={handleOrderDelivery}
                     disabled={!!deliveryStatus}
-                    className="btn btn-primary text-sm w-full flex items-center gap-2 justify-center">
+                    className="btn-primary w-full flex items-center gap-2 justify-center">
                     <Package className="w-4 h-4" />
                     {deliveryStatus ? `Status: ${deliveryStatus}` : 'Order Delivery'}
                   </button>
@@ -598,7 +598,7 @@ export default function DigitalPrescription() {
         <button
           onClick={() => save('final')}
           disabled={saving}
-          className="btn btn-primary flex items-center gap-2 text-sm">
+          className="btn-primary flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4" />
           {saving ? 'Saving…' : 'Finalise Rx'}
         </button>

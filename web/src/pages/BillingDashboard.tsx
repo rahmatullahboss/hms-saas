@@ -330,7 +330,7 @@ export default function BillingDashboard({ role = 'hospital_admin' }: { role?: s
             <div className="flex border border-[var(--color-border)] rounded-lg overflow-hidden text-sm">
               {[['', 'All'], ['open', 'Open'], ['partially_paid', 'Partial'], ['paid', 'Paid']].map(([val, label]) => (
                 <button key={val} onClick={() => { setStatusFilter(val); setPage(1); }}
-                  className={`px-3 py-2 font-medium transition-colors ${statusFilter === val ? 'bg-[var(--color-primary)] text-white' : 'bg-white hover:bg-[var(--color-border-light)] text-[var(--color-text-secondary)]'}`}>
+                  className={`px-3 py-2 font-medium transition-colors ${statusFilter === val ? 'bg-[var(--color-primary)] text-white' : 'bg-[var(--color-surface)] hover:bg-[var(--color-border-light)] text-[var(--color-text-secondary)]'}`}>
                   {label}
                 </button>
               ))}

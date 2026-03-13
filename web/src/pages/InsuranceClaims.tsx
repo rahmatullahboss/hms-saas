@@ -170,7 +170,7 @@ export default function InsuranceClaims({ role = 'hospital_admin' }: { role?: st
           </div>
           <button
             onClick={() => setShowForm(!showForm)}
-            className="btn btn-primary text-sm flex items-center gap-2"
+            className="btn-primary flex items-center gap-2"
           >
             <Plus className="w-4 h-4" /> New Claim
           </button>
@@ -275,14 +275,14 @@ export default function InsuranceClaims({ role = 'hospital_admin' }: { role?: st
             <div className="mt-4 flex justify-end gap-2">
               <button
                 onClick={() => { setShowForm(false); setForm(INITIAL_FORM); }}
-                className="btn btn-secondary text-sm"
+                className="btn-secondary"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSubmit}
                 disabled={submitClaim.isPending}
-                className="btn btn-primary text-sm flex items-center gap-2"
+                className="btn-primary flex items-center gap-2"
               >
                 {submitClaim.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
                 Submit Claim
