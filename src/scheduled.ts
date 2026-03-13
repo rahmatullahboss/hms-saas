@@ -11,6 +11,11 @@ export default {
         checkMedicineExpiry(env),
       ]);
     }
+
+    if (event.cron === '0 7 * * 1') {
+      // Weekly report — every Monday at 7:00 AM UTC
+      await generateWeeklyReport(env);
+    }
   }
 };
 
@@ -203,6 +208,79 @@ async function checkMedicineExpiry(env: Env): Promise<void> {
     console.log('Medicine expiry check completed');
   } catch (error) {
     console.error('Error in medicine expiry check:', error);
+  }
+}
+
+/**
+ * Weekly report — runs every Monday at 7 AM UTC.
+ * Collects key metrics for the past 7 days and emails a summary to each tenant admin.
+ */
+async function generateWeeklyReport(env: Env): Promise<void> {
+  console.log('Running weekly report generation...');
+
+  try {
+    const tenants = await env.DB.prepare(
+      'SELECT id, name FROM tenants WHERE status = ?'
+    ).bind('active').all<{ id: number; name: string }>();
+
+    const now = new Date();
+    const weekAgo = new Date(now);
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    const startDate = weekAgo.toISOString().split('T')[0];
+    const endDate = now.toISOString().split('T')[0];
+
+    for (const tenant of tenants.results) {
+      const tenantId = tenant.id.toString();
+
+      const admin = await env.DB.prepare(
+        `SELECT email, name FROM users WHERE tenant_id = ? AND role = 'hospital_admin' ORDER BY id ASC LIMIT 1`
+      ).bind(tenantId).first<{ email: string; name: string }>();
+
+      if (!admin) continue;
+
+      // Gather key metrics
+      const [revenue, expenses, newPatients, visits] = await Promise.all([
+        env.DB.prepare(`SELECT COALESCE(SUM(amount), 0) as total FROM income WHERE tenant_id = ? AND date >= ? AND date <= ?`)
+          .bind(tenantId, startDate, endDate).first<{ total: number }>(),
+        env.DB.prepare(`SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE tenant_id = ? AND date >= ? AND date <= ? AND status = 'approved'`)
+          .bind(tenantId, startDate, endDate).first<{ total: number }>(),
+        env.DB.prepare(`SELECT COUNT(*) as cnt FROM patients WHERE tenant_id = ? AND created_at >= ? AND created_at <= ?`)
+          .bind(tenantId, startDate, endDate).first<{ cnt: number }>(),
+        env.DB.prepare(`SELECT COUNT(*) as cnt FROM visits WHERE tenant_id = ? AND visit_date >= ? AND visit_date <= ?`)
+          .bind(tenantId, startDate, endDate).first<{ cnt: number }>(),
+      ]);
+
+      const totalRevenue = revenue?.total ?? 0;
+      const totalExpenses = expenses?.total ?? 0;
+      const netProfit = totalRevenue - totalExpenses;
+
+      const template = {
+        subject: `📊 Weekly Report — ${tenant.name} (${startDate} → ${endDate})`,
+        html: `
+          <h2>Weekly Performance Summary</h2>
+          <p>Period: <strong>${startDate}</strong> to <strong>${endDate}</strong></p>
+          <table style="border-collapse:collapse;width:100%;max-width:500px">
+            <tr><td style="padding:8px;border-bottom:1px solid #eee">💰 Revenue</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:right;font-weight:bold">৳${totalRevenue.toLocaleString()}</td></tr>
+            <tr><td style="padding:8px;border-bottom:1px solid #eee">📉 Expenses</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:right;font-weight:bold">৳${totalExpenses.toLocaleString()}</td></tr>
+            <tr><td style="padding:8px;border-bottom:1px solid #eee">${netProfit >= 0 ? '🟢' : '🔴'} Net Profit</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:right;font-weight:bold;color:${netProfit >= 0 ? '#16a34a' : '#dc2626'}">৳${netProfit.toLocaleString()}</td></tr>
+            <tr><td style="padding:8px;border-bottom:1px solid #eee">🧑‍🤝‍🧑 New Patients</td><td style="padding:8px;border-bottom:1px solid #eee;text-align:right;font-weight:bold">${newPatients?.cnt ?? 0}</td></tr>
+            <tr><td style="padding:8px;">🏥 Total Visits</td><td style="padding:8px;text-align:right;font-weight:bold">${visits?.cnt ?? 0}</td></tr>
+          </table>
+          <p style="margin-top:16px;color:#666;font-size:14px">Log in to your dashboard for detailed analytics ↗</p>
+        `,
+      };
+
+      const emailResult = await sendEmail(env, { to: admin.email, ...template });
+      if (emailResult.success) {
+        console.log(`Weekly report sent to ${admin.email} for tenant ${tenantId}`);
+      } else {
+        console.error(`Failed to send weekly report for tenant ${tenantId}:`, emailResult.error);
+      }
+    }
+
+    console.log('Weekly report generation completed');
+  } catch (error) {
+    console.error('Error in weekly report generation:', error);
   }
 }
 

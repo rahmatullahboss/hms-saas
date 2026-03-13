@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface TeleRoom {
-  roomId: string;
+  id: string;
   sessionId: string;
   appointmentId?: string;
   doctorId?: string;
@@ -97,7 +97,7 @@ export default function TelemedicineDashboard({ role = 'hospital_admin' }: { rol
       }, { headers: authHeaders() });
 
       if (res.data.room) {
-        navigate(`${basePath}/telemedicine/room/${res.data.room.roomId}`);
+        navigate(`${basePath}/telemedicine/room/${res.data.room.id}`);
       }
     } catch (err) {
       console.error('Failed to create room:', err);
@@ -155,7 +155,7 @@ export default function TelemedicineDashboard({ role = 'hospital_admin' }: { rol
             <h2 className="text-lg font-semibold text-[var(--color-text)] mb-3">Active Rooms</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {activeRooms.map(room => (
-                <div key={room.roomId} className="card p-4 border-l-4 border-l-emerald-500">
+                <div key={room.id} className="card p-4 border-l-4 border-l-emerald-500">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse" />
@@ -165,7 +165,7 @@ export default function TelemedicineDashboard({ role = 'hospital_admin' }: { rol
                   </div>
                   <p className="font-semibold text-sm mb-0.5">{room.doctorName}</p>
                   <p className="text-xs text-[var(--color-text-muted)] mb-3">with {room.patientName}</p>
-                  <Link to={`${basePath}/telemedicine/room/${room.roomId}`}
+                  <Link to={`${basePath}/telemedicine/room/${room.id}`}
                     className="btn btn-primary text-xs w-full flex items-center justify-center gap-1.5">
                     <Video className="w-3.5 h-3.5" /> Join Room
                   </Link>

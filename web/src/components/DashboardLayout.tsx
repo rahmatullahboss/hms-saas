@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { useAuth, logout } from '../hooks/useAuth';
 import Sidebar from './dashboard/Sidebar';
 import Header from './dashboard/Header';
+import SyncStatusBar from './SyncStatusBar';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -50,6 +51,10 @@ export default function DashboardLayout({ children, role }: DashboardLayoutProps
             onLogout={handleLogout}
           />
           <main ref={mainRef} className="flex-1 overflow-y-auto p-6">
+            {/* Offline / sync indicator — only visible when there's something to report */}
+            <div className="mb-4">
+              <SyncStatusBar />
+            </div>
             {children}
           </main>
         </div>

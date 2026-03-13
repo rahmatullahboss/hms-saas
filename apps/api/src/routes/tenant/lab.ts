@@ -117,7 +117,7 @@ labCatalogRoutes.get('/orders', async (c) => {
 
     query += ' GROUP BY lo.id ORDER BY lo.created_at DESC LIMIT 100';
     const orders = await c.env.DB.prepare(query).bind(...params).all();
-    return c.json({ orders: orders.results });
+    return c.json({ orders: orders.results, meta: { total: orders.results.length, limit: 100 } });
   } catch {
     throw new HTTPException(500, { message: 'Failed to fetch lab orders' });
   }

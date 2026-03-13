@@ -48,6 +48,7 @@ import dischargeRoutes from './routes/tenant/discharge';
 import telemedicineRoutes from './routes/tenant/telemedicine';
 import patientPortalRoutes from './routes/tenant/patientPortal';
 import aiRoutes from './routes/tenant/ai';
+import insuranceRoutes from './routes/tenant/insurance';
 
 import type { Env } from './types';
 
@@ -99,6 +100,49 @@ app.route('/api/register', registerRoutes);
 // Separate path /api/invite/ so it's registered before the catch-all
 // '/api/*' tenant+auth middleware and doesn't require JWT.
 app.route('/api/invite', publicInviteRoutes);
+
+// ─── Public: Shared prescription view (no auth) ─────────────────────────
+app.get('/api/rx/:token', async (c) => {
+  const token = c.req.param('token');
+  if (!token || token.length < 16) {
+    return c.json({ error: 'Invalid share link' }, 400);
+  }
+
+  const rx = await c.env.DB.prepare(`
+    SELECT p.*, pt.name AS patient_name, pt.patient_code, pt.date_of_birth, pt.gender,
+           d.name AS doctor_name, d.specialty, d.bmdc_reg_no, d.qualifications
+    FROM prescriptions p
+    LEFT JOIN patients pt ON p.patient_id = pt.id AND pt.tenant_id = p.tenant_id
+    LEFT JOIN doctors d ON p.doctor_id = d.id
+    WHERE p.share_token = ?
+  `).bind(token).first();
+
+  if (!rx) return c.json({ error: 'Prescription not found or link expired' }, 404);
+
+  // Check expiry
+  const expiresAt = (rx as Record<string, unknown>).share_expires_at as string | null;
+  if (expiresAt && new Date(expiresAt) < new Date()) {
+    return c.json({ error: 'This share link has expired' }, 410);
+  }
+
+  // Fetch items
+  const { results: items } = await c.env.DB.prepare(
+    'SELECT * FROM prescription_items WHERE prescription_id = ? ORDER BY sort_order'
+  ).bind((rx as Record<string, unknown>).id).all();
+
+  // Fetch hospital name
+  const setting = await c.env.DB.prepare(
+    `SELECT value FROM settings WHERE tenant_id = ? AND key = 'hospital_name'`
+  ).bind((rx as Record<string, unknown>).tenant_id).first<{ value: string }>();
+
+  return c.json({
+    prescription: {
+      ...rx,
+      hospital_name: setting?.value ?? 'Hospital',
+      items,
+    },
+  });
+});
 
 // ─── Admin routes ─────────────────────────────────────────────────────
 // Admin login is public but rate-limited
@@ -180,6 +224,7 @@ app.route('/api/discharge', dischargeRoutes);
 app.route('/api/telemedicine', telemedicineRoutes);
 app.route('/api/patient-portal', patientPortalRoutes);
 app.route('/api/ai', aiRoutes);
+app.route('/api/insurance', insuranceRoutes);
 
 
 // ─── Not Found handler ──────────────────────────────────────────────

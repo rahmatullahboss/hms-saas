@@ -132,16 +132,17 @@ billingRoutes.post('/', zValidator('json', createBillSchema), async (c) => {
       `).bind(billId, item.itemCategory, item.description ?? null, item.quantity, item.unitPrice, lineTotal, item.referenceId ?? null, tenantId).run();
     }
 
-    // Record income for accounting (split or flat)
+    // Record income for accounting
     await c.env.DB.prepare(`
-      INSERT INTO income (date, source, amount, description, ref_id, tenant_id) VALUES (?, ?, ?, ?, ?, ?)
-    `).bind(new Date().toISOString().split('T')[0], 'billing', total, `Invoice ${invoiceNo}`, billId, tenantId).run();
+      INSERT INTO income (date, source, amount, description, bill_id, tenant_id) VALUES (?, ?, ?, ?, ?, ?)
+    `).bind(new Date().toISOString().split('T')[0], 'doctor_visit', total, `Invoice ${invoiceNo}`, billId, tenantId).run();
 
     // Audit log
     void createAuditLog(c.env, tenantId!, userId!, 'create', 'bills', billId, null, { patientId: data.patientId, invoiceNo, total });
 
     return c.json({ message: 'Bill created', billId, invoiceNo, total }, 201);
   } catch (error) {
+    console.error('[billing] Failed to create bill:', error);
     if (error instanceof HTTPException) throw error;
     throw new HTTPException(500, { message: 'Failed to create bill' });
   }
@@ -154,6 +155,30 @@ billingRoutes.post('/pay', zValidator('json', paymentSchema), async (c) => {
   const data = c.req.valid('json');
 
   try {
+    // ── Idempotency check ─────────────────────────────────────────────────────
+    if (data.idempotencyKey) {
+      const existing = await c.env.DB.prepare(
+        `SELECT p.receipt_no, p.amount, b.total_amount, b.paid_amount as bill_paid, b.status as bill_status
+         FROM payments p
+         JOIN bills b ON p.bill_id = b.id
+         WHERE p.idempotency_key = ? AND p.tenant_id = ?`,
+      ).bind(data.idempotencyKey, tenantId).first<{
+        receipt_no: string; amount: number; bill_paid: number;
+        total_amount: number; bill_status: string;
+      }>();
+      if (existing) {
+        return c.json({
+          message: 'Payment already recorded (idempotent)',
+          receiptNo: existing.receipt_no,
+          paidAmount: existing.bill_paid,
+          outstanding: Math.max(0, existing.total_amount - existing.bill_paid),
+          status: existing.bill_status,
+          idempotent: true,
+        }, 200);
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     const bill = await c.env.DB.prepare(
       'SELECT * FROM bills WHERE id = ? AND tenant_id = ?',
     ).bind(data.billId, tenantId).first<{
@@ -176,9 +201,9 @@ billingRoutes.post('/pay', zValidator('json', paymentSchema), async (c) => {
 
     await c.env.DB.prepare(`
       INSERT INTO payments
-        (bill_id, amount, type, receipt_no, payment_method, received_by, tenant_id, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
-    `).bind(data.billId, data.amount, data.type, receiptNo, data.paymentMethod ?? null, userId, tenantId).run();
+        (bill_id, amount, type, receipt_no, payment_method, received_by, idempotency_key, tenant_id, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    `).bind(data.billId, data.amount, data.type, receiptNo, data.paymentMethod ?? null, userId, data.idempotencyKey ?? null, tenantId).run();
 
     await c.env.DB.prepare(
       `UPDATE bills SET paid_amount = ?, status = ? WHERE id = ? AND tenant_id = ?`,

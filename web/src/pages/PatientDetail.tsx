@@ -3,12 +3,13 @@ import { useParams, useNavigate, Link } from 'react-router';
 import {
   User, Phone, MapPin, Droplets, Calendar, FlaskConical,
   Receipt, Edit, Printer, RefreshCw, Pill, Clock, FileText,
-  Activity, ChevronRight, AlertTriangle, Heart
+  Activity, ChevronRight, AlertTriangle, Heart, HeartPulse
 } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
 import { useTranslation } from 'react-i18next';
+import VitalsTrend from '../components/VitalsTrend';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -65,7 +66,7 @@ interface Appointment {
   status: string;
 }
 
-type Tab = 'overview' | 'prescriptions' | 'tests' | 'appointments' | 'bills' | 'timeline';
+type Tab = 'overview' | 'prescriptions' | 'tests' | 'appointments' | 'bills' | 'timeline' | 'vitals';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -246,6 +247,7 @@ export default function PatientDetail({
     { id: 'tests',         label: 'Lab Results',   icon: <FlaskConical className="w-4 h-4" />, count: labOrders.length },
     { id: 'appointments',  label: 'Appointments',  icon: <Calendar className="w-4 h-4" />,     count: appointments.length },
     { id: 'bills',         label: 'Billing',       icon: <Receipt className="w-4 h-4" />,      count: bills.length },
+    { id: 'vitals',        label: 'Vitals',        icon: <HeartPulse className="w-4 h-4" /> },
     { id: 'timeline',      label: 'Timeline',      icon: <Clock className="w-4 h-4" />,        count: timeline.length },
   ];
 
@@ -704,6 +706,13 @@ export default function PatientDetail({
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ═══ Vitals ═══ */}
+          {tab === 'vitals' && (
+            <div className="space-y-4">
+              <VitalsTrend patientId={Number(id)} />
             </div>
           )}
 

@@ -18,6 +18,11 @@ export interface Env {
   SMS_PROVIDER?: string;          // "sslwireless" | "bnotify" | "stub"
   SMS_API_KEY?: string;           // wrangler secret put SMS_API_KEY
   SMS_SENDER_ID?: string;         // wrangler secret put SMS_SENDER_ID
+  // ─── WhatsApp Business API (Meta Cloud) ─────────────────────────────
+  WHATSAPP_PROVIDER?: string;           // "meta" | "stub" (default: stub)
+  WHATSAPP_ACCESS_TOKEN?: string;       // wrangler secret put WHATSAPP_ACCESS_TOKEN
+  WHATSAPP_PHONE_NUMBER_ID?: string;    // wrangler secret put WHATSAPP_PHONE_NUMBER_ID
+  WHATSAPP_BUSINESS_ACCOUNT_ID?: string; // wrangler secret put WHATSAPP_BUSINESS_ACCOUNT_ID
   // ─── bKash Payment Gateway ───────────────────────────────────────────
   BKASH_APP_KEY?: string;
   BKASH_APP_SECRET?: string;

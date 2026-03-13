@@ -1,121 +1,120 @@
 import { describe, it, expect } from 'vitest';
+import { env } from 'cloudflare:test';
+import app from '../src/index';
+import * as jwt from 'jsonwebtoken';
 
-describe('HMS Staff Management Tests', () => {
-  describe('Staff Registration', () => {
-    it('should create staff with all required fields', () => {
-      const staff = {
-        name: 'Mr. Ahmed',
-        address: 'Dhaka, Bangladesh',
-        position: 'Nurse',
-        salary: 25000,
-        bank_account: '1234567890',
-        mobile: '01712345678',
-        joining_date: '2024-01-01',
-      };
+const TEST_JWT_SECRET = 'test-secret-for-vitest';
 
-      expect(staff.name).toBeDefined();
-      expect(staff.position).toBeDefined();
-      expect(staff.salary).toBeGreaterThan(0);
+function authHeaders(role = 'admin') {
+  const token = jwt.sign(
+    { userId: '1', tenantId: '1', role, permissions: [] },
+    TEST_JWT_SECRET,
+    { expiresIn: '1h' }
+  );
+  return { 'Content-Type': 'application/json', 'X-Tenant-Subdomain': 'test', 'Authorization': `Bearer ${token}` };
+}
+
+async function api(method: string, path: string, body?: unknown, role = 'admin') {
+  const req = new Request(`http://localhost${path}`, {
+    method, headers: authHeaders(role),
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return app.fetch(req, env as any, { waitUntil: () => {}, passThroughOnException: () => {} } as any);
+}
+
+// Staff schema: name, address (required), position, salary (int >= 0), bankAccount (required), mobile (11-15 chars)
+const staffPayload = () => ({
+  name: `Staff ${Date.now()}`,
+  address: 'Dhaka, Bangladesh',
+  position: 'Nurse',
+  salary: 15000,
+  bankAccount: '1234567890',
+  mobile: '01711111111',
+  joiningDate: '2026-01-01',
+});
+
+describe('Staff API — Integration', () => {
+  describe('POST /api/staff — create', () => {
+    it('creates a staff member → 201', async () => {
+      const res = await api('POST', '/api/staff', staffPayload());
+      expect(res.status).toBe(201);
+      const data = await res.json() as any;
+      expect(data.id).toBeGreaterThan(0);
     });
 
-    it('should validate staff positions', () => {
-      const validPositions = [
-        'Doctor',
-        'Nurse',
-        'Stuff Nurse',
-        'Accountant',
-        'Receptionist',
-        'Pharmacist',
-        'Lab Assistant',
-        'Cleaner',
-        'Security',
-        'Driver',
-      ];
-
-      expect(validPositions).toContain('Doctor');
-      expect(validPositions).toContain('Nurse');
-      expect(validPositions).toContain('Pharmacist');
-    });
-
-    it('should validate bank account number', () => {
-      const isValidAccount = (account: string) => {
-        return /^\d{10,16}$/.test(account);
-      };
-
-      expect(isValidAccount('1234567890')).toBe(true);
-      expect(isValidAccount('123456789012')).toBe(true);
-      expect(isValidAccount('123')).toBe(false);
+    it('returns 400 for missing bankAccount', async () => {
+      const { bankAccount, ...incomplete } = staffPayload();
+      const res = await api('POST', '/api/staff', incomplete);
+      expect(res.status).toBe(400);
     });
   });
 
-  describe('Salary Payment', () => {
-    it('should calculate net salary', () => {
-      const basicSalary = 25000;
-      const bonus = 2000;
-      const deduction = 500;
-      const netSalary = basicSalary + bonus - deduction;
-
-      expect(netSalary).toBe(26500);
-    });
-
-    it('should process salary payment', () => {
-      const salaryPayment = {
-        staff_id: 1,
-        amount: 25000,
-        payment_date: '2024-01-31',
-        month: 'January',
-        year: '2024',
-      };
-
-      expect(salaryPayment.amount).toBe(25000);
-      expect(salaryPayment.month).toBe('January');
-    });
-
-    it('should generate salary payment reference', () => {
-      const generateReference = (staffId: number, month: string, year: string) => {
-        return `SAL-${staffId}-${month.substring(0, 3).toUpperCase()}-${year}`;
-      };
-
-      const ref = generateReference(1, 'January', '2024');
-      expect(ref).toBe('SAL-1-JAN-2024');
-    });
-
-    it('should track monthly salary total', () => {
-      const salaryPayments = [
-        { staff_id: 1, amount: 25000 },
-        { staff_id: 2, amount: 30000 },
-        { staff_id: 3, amount: 20000 },
-      ];
-
-      const totalSalary = salaryPayments.reduce((sum, p) => sum + p.amount, 0);
-      expect(totalSalary).toBe(75000);
+  describe('GET /api/staff — list active staff', () => {
+    it('returns staff list', async () => {
+      await api('POST', '/api/staff', staffPayload());
+      const res = await api('GET', '/api/staff');
+      expect(res.status).toBe(200);
+      const data = await res.json() as any;
+      expect(Array.isArray(data.staff)).toBe(true);
     });
   });
 
-  describe('Staff Status', () => {
-    it('should activate staff', () => {
-      const staff = { status: 'inactive' };
-      staff.status = 'active';
-
-      expect(staff.status).toBe('active');
+  describe('GET /api/staff/:id', () => {
+    it('returns staff member detail', async () => {
+      const createRes = await api('POST', '/api/staff', staffPayload());
+      const { id } = await createRes.json() as any;
+      const res = await api('GET', `/api/staff/${id}`);
+      expect(res.status).toBe(200);
+      const data = await res.json() as any;
+      expect(data.staff).toBeDefined();
     });
 
-    it('should deactivate staff', () => {
-      const staff = { status: 'active' };
-      staff.status = 'inactive';
-
-      expect(staff.status).toBe('inactive');
+    it('returns 404 for unknown staff', async () => {
+      const res = await api('GET', '/api/staff/99999');
+      expect(res.status).toBe(404);
     });
+  });
 
-    it('should filter active staff', () => {
-      const staff = [
-        { id: 1, name: 'A', status: 'active' },
-        { id: 2, name: 'B', status: 'inactive' },
-        { id: 3, name: 'C', status: 'active' },
-      ];
+  describe('PUT /api/staff/:id — update', () => {
+    it('updates staff salary', async () => {
+      const createRes = await api('POST', '/api/staff', staffPayload());
+      const { id } = await createRes.json() as any;
+      const res = await api('PUT', `/api/staff/${id}`, { salary: 20000 });
+      expect(res.status).toBe(200);
+    });
+  });
 
-      const activeStaff = staff.filter(s => s.status === 'active');
-      expect(activeStaff.length).toBe(2);
+  describe('DELETE /api/staff/:id — soft deactivate', () => {
+    it('deactivates staff member', async () => {
+      const createRes = await api('POST', '/api/staff', staffPayload());
+      const { id } = await createRes.json() as any;
+      const res = await api('DELETE', `/api/staff/${id}`);
+      expect(res.status).toBe(200);
+    });
+  });
+
+  describe('Salary Management', () => {
+    it('POST /api/staff/:id/salary — pays salary', async () => {
+      const createRes = await api('POST', '/api/staff', staffPayload());
+      const { id } = await createRes.json() as any;
+      const month = `2026-0${Math.floor(Math.random() * 9) + 1}`;
+      const res = await api('POST', `/api/staff/${id}/salary`, {
+        month,
+        bonus: 0,
+        deduction: 0,
+        paymentMethod: 'cash',
+      });
+      // 201 on first payment; 409 if already paid for month
+      expect([201, 409]).toContain(res.status);
+    });
+  });
+
+  describe('GET /api/staff/salary-report', () => {
+    it('returns monthly salary report', async () => {
+      const res = await api('GET', '/api/staff/salary-report?month=2026-03');
+      expect(res.status).toBe(200);
+      const data = await res.json() as any;
+      expect(Array.isArray(data.staff)).toBe(true);
     });
   });
 });

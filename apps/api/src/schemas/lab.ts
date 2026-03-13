@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const createLabTestSchema = z.object({
   code: z.string().min(1, 'Test code required'),
   name: z.string().min(1, 'Test name required'),
-  category: z.enum(['blood', 'urine', 'xray', 'ultrasound', 'ecg', 'other']).optional(),
+  category: z.string().optional(),
   price: z.number().int().nonnegative('Price required'),
 });
 

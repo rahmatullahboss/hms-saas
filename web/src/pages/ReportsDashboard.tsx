@@ -416,7 +416,166 @@ export default function ReportsDashboard({ role = 'hospital_admin' }: { role?: s
           </div>
         </div>
 
+        {/* ── Advanced Reports Row ── */}
+        <AdvancedReports range={range} />
+
       </div>
     </DashboardLayout>
+  );
+}
+
+// ─── Advanced Reports Sub-Component ───────────────────────────────────────────
+
+interface BedOccupancy {
+  totalBeds: number; occupiedBeds: number; availableBeds: number; occupancyRate: number;
+  byWard: { ward: string; total: number; occupied: number; available: number; rate: number }[];
+}
+
+interface DeptRevenue {
+  totalRevenue: number;
+  byDepartment: { department: string; revenue: number; billCount: number; patientCount: number; percentage: number }[];
+}
+
+interface DoctorPerf {
+  doctors: { id: number; name: string; specialty: string; visitCount: number; uniquePatients: number; revenue: number; avgRevenuePerVisit: number }[];
+}
+
+function AdvancedReports({ range }: { range: Range }) {
+  const [beds, setBeds] = useState<BedOccupancy | null>(null);
+  const [deptRev, setDeptRev] = useState<DeptRevenue | null>(null);
+  const [docPerf, setDocPerf] = useState<DoctorPerf | null>(null);
+  const [loadingAdv, setLoadingAdv] = useState(true);
+
+  useEffect(() => {
+    const fetchAdvanced = async () => {
+      setLoadingAdv(true);
+      const token = localStorage.getItem('hms_token');
+      const headers = { Authorization: `Bearer ${token}` };
+      const { startDate, endDate } = getDateRange(range);
+
+      try {
+        const [bedRes, deptRes, docRes] = await Promise.all([
+          axios.get('/api/reports/bed-occupancy', { headers }),
+          axios.get(`/api/reports/department-revenue?startDate=${startDate}&endDate=${endDate}`, { headers }),
+          axios.get(`/api/reports/doctor-performance?startDate=${startDate}&endDate=${endDate}`, { headers }),
+        ]);
+        setBeds(bedRes.data);
+        setDeptRev(deptRes.data);
+        setDocPerf(docRes.data);
+      } catch {
+        // Fallback: leave null, cards will show "No data"
+      } finally {
+        setLoadingAdv(false);
+      }
+    };
+    fetchAdvanced();
+  }, [range]);
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+      {/* Bed Occupancy */}
+      <div className="card p-5">
+        <h2 className="section-title mb-4 flex items-center gap-2">
+          🛏️ Bed Occupancy
+        </h2>
+        {loadingAdv ? (
+          <div className="skeleton h-32 w-full rounded-lg" />
+        ) : beds ? (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-[var(--color-text-secondary)]">Overall Occupancy</span>
+              <span className="text-xl font-bold text-[var(--color-primary)]">{beds.occupancyRate}%</span>
+            </div>
+            <div className="h-3 bg-[var(--color-border)] rounded-full overflow-hidden">
+              <div
+                className="h-full bg-[var(--color-primary)] rounded-full transition-all duration-700"
+                style={{ width: `${beds.occupancyRate}%` }}
+              />
+            </div>
+            <div className="grid grid-cols-3 text-center text-xs">
+              <div><p className="text-[var(--color-text-muted)]">Total</p><p className="font-bold">{beds.totalBeds}</p></div>
+              <div><p className="text-[var(--color-text-muted)]">Occupied</p><p className="font-bold text-amber-500">{beds.occupiedBeds}</p></div>
+              <div><p className="text-[var(--color-text-muted)]">Available</p><p className="font-bold text-[var(--color-success)]">{beds.availableBeds}</p></div>
+            </div>
+            {beds.byWard.length > 0 && (
+              <div className="pt-2 border-t border-[var(--color-border)] space-y-2">
+                {beds.byWard.slice(0, 5).map(w => (
+                  <div key={w.ward} className="flex items-center justify-between text-xs">
+                    <span className="text-[var(--color-text-secondary)] capitalize">{w.ward}</span>
+                    <span className="font-medium">{w.occupied}/{w.total} ({w.rate}%)</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm text-[var(--color-text-muted)] text-center py-8">No bed data available</p>
+        )}
+      </div>
+
+      {/* Department Revenue */}
+      <div className="card p-5">
+        <h2 className="section-title mb-4">🏥 Department Revenue</h2>
+        {loadingAdv ? (
+          <div className="skeleton h-32 w-full rounded-lg" />
+        ) : deptRev && deptRev.byDepartment.length > 0 ? (
+          <div className="space-y-3">
+            <p className="text-xs text-[var(--color-text-muted)]">Total: <span className="font-bold text-[var(--color-text-primary)]">{fmtShort(deptRev.totalRevenue)}</span></p>
+            {deptRev.byDepartment.slice(0, 6).map(d => (
+              <div key={d.department} className="space-y-1">
+                <div className="flex justify-between text-xs">
+                  <span className="text-[var(--color-text-primary)] font-medium">{d.department}</span>
+                  <span className="text-[var(--color-text-muted)]">{fmtShort(d.revenue)} ({d.percentage}%)</span>
+                </div>
+                <div className="h-1.5 bg-[var(--color-border)] rounded-full overflow-hidden">
+                  <div className="h-full bg-emerald-500 rounded-full transition-all duration-700" style={{ width: `${d.percentage}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-[var(--color-text-muted)] text-center py-8">No department revenue data</p>
+        )}
+      </div>
+
+      {/* Doctor Performance */}
+      <div className="card p-5 lg:col-span-2">
+        <h2 className="section-title mb-4">👨‍⚕️ Doctor Performance</h2>
+        {loadingAdv ? (
+          <div className="skeleton h-32 w-full rounded-lg" />
+        ) : docPerf && docPerf.doctors.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="table-base text-sm">
+              <thead>
+                <tr>
+                  <th>Doctor</th>
+                  <th>Specialty</th>
+                  <th className="text-right">Visits</th>
+                  <th className="text-right">Patients</th>
+                  <th className="text-right">Revenue</th>
+                  <th className="text-right">Avg/Visit</th>
+                </tr>
+              </thead>
+              <tbody>
+                {docPerf.doctors.slice(0, 10).map(d => (
+                  <tr key={d.id}>
+                    <td className="font-medium">{d.name}</td>
+                    <td className="text-[var(--color-text-muted)]">{d.specialty}</td>
+                    <td className="text-right font-data">{d.visitCount}</td>
+                    <td className="text-right font-data">{d.uniquePatients}</td>
+                    <td className="text-right font-data font-semibold">{fmtShort(d.revenue)}</td>
+                    <td className="text-right font-data">{fmtShort(d.avgRevenuePerVisit)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-sm text-[var(--color-text-muted)] text-center py-8">No doctor performance data</p>
+        )}
+      </div>
+
+    </div>
   );
 }

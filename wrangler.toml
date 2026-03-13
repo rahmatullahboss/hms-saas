@@ -110,6 +110,11 @@ bucket_name = "hms-uploads-staging"
 [env.production]
 name = "hms-saas-production"
 
+# Migration to delete previously-deployed AccountingDashboard Durable Object
+[[env.production.migrations]]
+tag = "v2-remove-accounting-do"
+deleted_classes = ["AccountingDashboard"]
+
 [env.production.vars]
 ENVIRONMENT = "production"
 ALLOWED_ORIGINS = "https://hms-saas.rahmatullahzisan.workers.dev"

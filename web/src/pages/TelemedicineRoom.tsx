@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface RoomData {
-  roomId: string;
+  id: string;
   sessionId: string;
   doctorName: string;
   patientName: string;

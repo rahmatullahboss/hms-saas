@@ -43,9 +43,11 @@ export default defineConfig({
         clientsClaim: true,
         // Remove old precache entries when a new SW activates
         cleanupOutdatedCaches: true,
-        // Note: SPA navigation fallback is handled by Cloudflare's
+        // Disable navigateFallback — index.html is not precached and
+        // SPA navigation fallback is handled by Cloudflare's
         // not_found_handling = "single-page-application" in wrangler.toml.
         // No navigateFallback needed here (index.html is not precached).
+        navigateFallback: undefined,
         runtimeCaching: [
           {
             // Network-first for all API calls

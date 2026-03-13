@@ -177,7 +177,7 @@ staffRoutes.post('/:id/salary', zValidator('json', paySalarySchema), async (c) =
     return c.json({
       message: 'Salary paid',
       breakdown: { baseSalary: member.salary, bonus, deduction, netSalary },
-    });
+    }, 201);
   } catch (error) {
     if (error instanceof HTTPException) throw error;
     throw new HTTPException(500, { message: 'Failed to pay salary' });

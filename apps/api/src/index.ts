@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
+import { HTTPException } from 'hono/http-exception';
+import { captureException } from './lib/sentry';
 import { securityHeaders } from './middleware/security';
 import { tenantMiddleware } from './middleware/tenant';
 import { authMiddleware } from './middleware/auth';
@@ -40,6 +42,8 @@ import dischargeRoutes from './routes/tenant/discharge';
 import doctorScheduleRoutes from './routes/tenant/doctorSchedule';
 import ipdChargeRoutes from './routes/tenant/ipdCharges';
 import telemedicineRoutes from './routes/tenant/telemedicine';
+import consultationRoutes from './routes/tenant/consultations';
+import invitationRoutes from './routes/tenant/invitations';
 
 import type { Env } from './types';
 
@@ -156,6 +160,9 @@ app.route('/api/discharge', dischargeRoutes);
 app.route('/api/doctor-schedules', doctorScheduleRoutes);
 app.route('/api/ipd-charges', ipdChargeRoutes);
 app.route('/api/telemedicine', telemedicineRoutes);
+app.route('/api/consultations', consultationRoutes);
+app.route('/api/invitations', invitationRoutes);
+
 
 // 404 handler
 app.notFound((c) => c.json({ error: 'Not found' }, 404));
@@ -163,6 +170,10 @@ app.notFound((c) => c.json({ error: 'Not found' }, 404));
 // Global error handler — handles HTTPException & unknown errors
 app.onError((err, c) => {
   console.error(`[ERROR] ${err.message}`, err);
+  // Report unexpected (non-HTTP) errors to Sentry
+  if (!(err instanceof HTTPException)) {
+    captureException(c as any, err, { path: c.req.path, method: c.req.method });
+  }
   if (err instanceof Error && 'getResponse' in err && typeof (err as { getResponse?: () => Response }).getResponse === 'function') {
     return (err as { getResponse: () => Response }).getResponse();
   }

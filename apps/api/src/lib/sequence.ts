@@ -27,6 +27,6 @@ export async function getNextSequence(
     .first<{ current_value: number }>();
 
   const value = row?.current_value ?? 1;
-  const paddedValue = String(value).padStart(6, '0');
+  const paddedValue = String(value).padStart(5, '0');
   return prefix ? `${prefix}-${paddedValue}` : paddedValue;
 }

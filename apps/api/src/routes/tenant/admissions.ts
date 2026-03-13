@@ -156,6 +156,44 @@ admissions.post('/beds', zValidator('json', addBedSchema), async (c) => {
   return c.json({ id: result.meta.last_row_id }, 201);
 });
 
+// ─── PUT /api/admissions/beds/:id — update bed ────────────────────────────────
+
+const updateBedSchema = z.object({
+  status: z.enum(['available', 'occupied', 'maintenance', 'reserved']).optional(),
+  ward_name: z.string().optional(),
+  bed_number: z.string().optional(),
+  bed_type: z.enum(['general', 'semi-private', 'private', 'icu', 'nicu', 'pediatric']).optional(),
+});
+
+admissions.put('/beds/:id', zValidator('json', updateBedSchema), async (c) => {
+  const tenantId = Number(c.get('tenantId'));
+  const bedId = parseInt(c.req.param('id'));
+  const data = c.req.valid('json');
+
+  const existing = await c.env.DB.prepare(
+    `SELECT id FROM beds WHERE id = ? AND tenant_id = ?`
+  ).bind(bedId, tenantId).first();
+
+  if (!existing) throw new HTTPException(404, { message: 'Bed not found' });
+
+  const sets: string[] = [];
+  const vals: (string | number)[] = [];
+
+  if (data.status) { sets.push('status = ?'); vals.push(data.status); }
+  if (data.ward_name) { sets.push('ward_name = ?'); vals.push(data.ward_name); }
+  if (data.bed_number) { sets.push('bed_number = ?'); vals.push(data.bed_number); }
+  if (data.bed_type) { sets.push('bed_type = ?'); vals.push(data.bed_type); }
+
+  if (sets.length === 0) return c.json({ message: 'No fields to update' });
+
+  vals.push(bedId, tenantId);
+  await c.env.DB.prepare(
+    `UPDATE beds SET ${sets.join(', ')} WHERE id = ? AND tenant_id = ?`
+  ).bind(...vals).run();
+
+  return c.json({ success: true, message: 'Bed updated' });
+});
+
 // ─── POST /api/admissions — admit patient ─────────────────────────────────────
 
 admissions.post('/', zValidator('json', admitSchema), async (c) => {

@@ -1,5 +1,7 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
+import { zValidator } from '@hono/zod-validator';
+import { z } from 'zod';
 import type { Env, Variables } from '../../types';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 
@@ -198,6 +200,81 @@ app.put('/:id', async (c) => {
       ).run();
     }
   }
+
+  return c.json({ success: true });
+});
+
+// ─── POST /api/prescriptions/:id/share — generate share token ─────────────────
+app.post('/:id/share', async (c) => {
+  const tenantId = requireTenantId(c);
+  const id = c.req.param('id');
+
+  // Verify prescription exists for this tenant
+  const rx = await c.env.DB.prepare(
+    'SELECT id FROM prescriptions WHERE id = ? AND tenant_id = ?'
+  ).bind(id, tenantId).first();
+  if (!rx) throw new HTTPException(404, { message: 'Prescription not found' });
+
+  // Generate a cryptographically random token
+  const token = crypto.randomUUID().replace(/-/g, '');
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours
+
+  await c.env.DB.prepare(
+    `UPDATE prescriptions SET share_token = ?, share_expires_at = ? WHERE id = ? AND tenant_id = ?`
+  ).bind(token, expiresAt, id, tenantId).run();
+
+  return c.json({
+    token,
+    expiresAt,
+    url: `/rx/${token}`,
+  });
+});
+
+// ─── POST /api/prescriptions/:id/order-delivery — place delivery order ────────
+const orderDeliverySchema = z.object({
+  address: z.string().min(5).max(500),
+  phone:   z.string().min(6).max(20),
+});
+
+app.post('/:id/order-delivery', zValidator('json', orderDeliverySchema), async (c) => {
+  const tenantId = requireTenantId(c);
+  const id = c.req.param('id');
+  const body = c.req.valid('json');
+
+  const rx = await c.env.DB.prepare(
+    'SELECT id FROM prescriptions WHERE id = ? AND tenant_id = ?'
+  ).bind(id, tenantId).first();
+  if (!rx) throw new HTTPException(404, { message: 'Prescription not found' });
+
+  await c.env.DB.prepare(
+    `UPDATE prescriptions SET delivery_status = 'ordered', delivery_address = ?, delivery_phone = ?
+     WHERE id = ? AND tenant_id = ?`
+  ).bind(body.address, body.phone, id, tenantId).run();
+
+  return c.json({ success: true, delivery_status: 'ordered' });
+});
+
+// ─── PUT /api/prescriptions/:id/delivery-status — update delivery status ──────
+// Only admins and pharmacy staff may update delivery status (not patients)
+app.put('/:id/delivery-status', async (c) => {
+  const tenantId = requireTenantId(c);
+  const id = c.req.param('id');
+  const role = c.get('role');
+
+  const allowedRoles = ['hospital_admin', 'pharmacist', 'nurse', 'doctor'];
+  if (!role || !allowedRoles.includes(role)) {
+    throw new HTTPException(403, { message: 'Not authorized to update delivery status' });
+  }
+
+  const body = await c.req.json<{ status: string }>();
+  const validStatuses = ['none', 'ordered', 'dispatched', 'delivered'];
+  if (!validStatuses.includes(body.status)) {
+    throw new HTTPException(400, { message: `status must be one of: ${validStatuses.join(', ')}` });
+  }
+
+  await c.env.DB.prepare(
+    'UPDATE prescriptions SET delivery_status = ? WHERE id = ? AND tenant_id = ?'
+  ).bind(body.status, id, tenantId).run();
 
   return c.json({ success: true });
 });

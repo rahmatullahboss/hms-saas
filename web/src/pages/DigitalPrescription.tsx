@@ -2,8 +2,10 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router';
 import {
   Stethoscope, Plus, Trash2, Printer, Save, CheckCircle2,
-  FlaskConical, FileText, ArrowLeft, AlertCircle, X
+  FlaskConical, FileText, ArrowLeft, AlertCircle, X,
+  Share2, Truck, Copy, Package
 } from 'lucide-react';
+
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
@@ -102,9 +104,15 @@ export default function DigitalPrescription() {
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
   // UI state
-  const [saving,  setSaving]  = useState(false);
-  const [rxId,    setRxId]    = useState<number | null>(rxIdParam || null);
-  const [rxNo,    setRxNo]    = useState('');
+  const [saving,        setSaving]        = useState(false);
+  const [rxId,          setRxId]          = useState<number | null>(rxIdParam || null);
+  const [rxNo,          setRxNo]          = useState('');
+  const [shareUrl,      setShareUrl]      = useState<string | null>(null);
+  const [sharing,       setSharing]       = useState(false);
+  const [showDelivery,  setShowDelivery]  = useState(false);
+  const [deliveryAddr,  setDeliveryAddr]  = useState('');
+  const [deliveryPhone, setDeliveryPhone] = useState('');
+  const [deliveryStatus, setDeliveryStatus] = useState<string | null>(null);
 
   // ── Load initial data ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -217,6 +225,36 @@ export default function DigitalPrescription() {
       toast.error('Failed to save prescription');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleShare = async () => {
+    if (!rxId) { toast.error('Save the prescription first'); return; }
+    setSharing(true);
+    try {
+      const r = await axios.post(`/api/prescriptions/${rxId}/share`, {}, { headers: authHeaders() });
+      const url = `${window.location.origin}/api/rx/${r.data.token}`;
+      setShareUrl(url);
+      await navigator.clipboard.writeText(url).catch(() => {});
+      toast.success('Share link copied to clipboard!');
+    } catch {
+      toast.error('Failed to generate share link');
+    } finally {
+      setSharing(false);
+    }
+  };
+
+  const handleOrderDelivery = async () => {
+    if (!rxId) { toast.error('Save the prescription first'); return; }
+    if (!deliveryAddr || !deliveryPhone) { toast.error('Address and phone required'); return; }
+    try {
+      await axios.post(`/api/prescriptions/${rxId}/order-delivery`,
+        { address: deliveryAddr, phone: deliveryPhone },
+        { headers: authHeaders() });
+      setDeliveryStatus('ordered');
+      toast.success('Delivery ordered!');
+    } catch {
+      toast.error('Failed to place delivery order');
     }
   };
 
@@ -468,9 +506,66 @@ export default function DigitalPrescription() {
                 />
               </div>
             </div>
+
+            {/* Share Link Card */}
+            {shareUrl && (
+              <div className="card p-4 border border-blue-200 bg-blue-50">
+                <div className="flex items-center gap-2 mb-2">
+                  <Share2 className="w-4 h-4 text-blue-600" />
+                  <h3 className="font-semibold text-sm text-blue-800">Share Link (24h)</h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input readOnly value={shareUrl}
+                    className="input flex-1 text-xs bg-white" />
+                  <button onClick={() => { navigator.clipboard.writeText(shareUrl); toast.success('Copied!'); }}
+                    className="btn border border-blue-300 text-blue-700 p-2">
+                    <Copy className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Delivery Card */}
+            <div className="card p-4">
+              <button onClick={() => setShowDelivery(v => !v)}
+                className="flex items-center gap-2 w-full text-left">
+                <Truck className="w-4 h-4 text-[var(--color-primary)]" />
+                <h3 className="font-semibold text-sm text-[var(--color-text)]">Medicine Delivery</h3>
+                {deliveryStatus && (
+                  <span className="ml-auto text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full capitalize font-medium">
+                    {deliveryStatus}
+                  </span>
+                )}
+              </button>
+              {showDelivery && (
+                <div className="mt-3 space-y-2">
+                  <input
+                    value={deliveryAddr}
+                    onChange={e => setDeliveryAddr(e.target.value)}
+                    placeholder="Delivery address"
+                    className="input w-full text-sm"
+                  />
+                  <input
+                    value={deliveryPhone}
+                    onChange={e => setDeliveryPhone(e.target.value)}
+                    placeholder="Phone number"
+                    className="input w-full text-sm"
+                  />
+                  <button
+                    onClick={handleOrderDelivery}
+                    disabled={!!deliveryStatus}
+                    className="btn btn-primary text-sm w-full flex items-center gap-2 justify-center">
+                    <Package className="w-4 h-4" />
+                    {deliveryStatus ? `Status: ${deliveryStatus}` : 'Order Delivery'}
+                  </button>
+                </div>
+              )}
+            </div>
+
           </div>
         </div>
       </div>
+
 
       {/* ── Sticky Action Bar ────────────────────────────────────────────── */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-[var(--color-border)] px-6 py-3 flex items-center justify-end gap-3 z-20 shadow-lg">
@@ -480,6 +575,13 @@ export default function DigitalPrescription() {
             No medicines added
           </div>
         )}
+        <button
+          onClick={handleShare}
+          disabled={sharing || !rxId}
+          className="btn border border-blue-300 text-blue-700 hover:bg-blue-50 flex items-center gap-2 text-sm">
+          <Share2 className="w-4 h-4" />
+          {sharing ? 'Getting link…' : 'Share'}
+        </button>
         <button
           onClick={() => save('draft')}
           disabled={saving}

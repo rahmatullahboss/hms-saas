@@ -22,6 +22,9 @@ export const paymentSchema = z.object({
   type: z.enum(['current', 'due', 'fire_service']).default('current'),
   paymentMethod: z.enum(['cash', 'bkash', 'bank', 'other']).optional(),
   notes: z.string().optional(),
+  /** Optional UUID generated client-side. If provided, duplicate submissions
+   *  with the same key return the existing payment (idempotent). */
+  idempotencyKey: z.string().uuid().optional(),
 });
 
 export type CreateBillInput = z.infer<typeof createBillSchema>;

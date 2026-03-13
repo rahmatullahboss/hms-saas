@@ -23,6 +23,7 @@ import AuditLogs from './pages/accounting/AuditLogs';
 import RecurringExpenses from './pages/accounting/RecurringExpenses';
 import ChartOfAccounts from './pages/accounting/ChartOfAccounts';
 import PharmacyDashboard from './pages/PharmacyDashboard';
+import BillingDashboard from './pages/BillingDashboard';
 import StaffPage from './pages/StaffPage';
 import PatientDetail from './pages/PatientDetail';
 import ReportsDashboard from './pages/ReportsDashboard';
@@ -47,6 +48,7 @@ import MultiBranchDashboard from './pages/MultiBranchDashboard';
 import PatientPortal from './pages/PatientPortal';
 import TelemedicineDashboard from './pages/TelemedicineDashboard';
 import TelemedicineRoom from './pages/TelemedicineRoom';
+import TriageChatbot from './pages/TriageChatbot';
 
 function Unauthorized() {
   const { t } = useTranslation('common');
@@ -96,7 +98,7 @@ function App() {
             <Route path="patients/new" element={<PatientForm role="hospital_admin" />} />
             <Route path="patients/:id" element={<PatientDetail role="hospital_admin" />} />
             <Route path="tests" element={<LaboratoryDashboard role="hospital_admin" />} />
-            <Route path="billing" element={<ReceptionDashboard role="hospital_admin" />} />
+            <Route path="billing" element={<BillingDashboard role="hospital_admin" />} />
             <Route path="billing/:billId/print" element={<BillPrint role="hospital_admin" />} />
             <Route path="pharmacy" element={<PharmacyDashboard role="hospital_admin" />} />
             <Route path="accounting" element={<AccountingDashboard role="hospital_admin" />} />
@@ -128,9 +130,10 @@ function App() {
             <Route path="patients/:id/timeline" element={<PatientTimeline role="hospital_admin" />} />
             <Route path="insurance-claims" element={<InsuranceClaims role="hospital_admin" />} />
             <Route path="multi-branch" element={<MultiBranchDashboard role="hospital_admin" />} />
-            <Route path="patient-portal" element={<PatientPortal role="hospital_admin" />} />
+            <Route path="patient-portal" element={<PatientPortal />} />
             <Route path="telemedicine" element={<TelemedicineDashboard role="hospital_admin" />} />
             <Route path="telemedicine/room/:roomId" element={<TelemedicineRoom role="hospital_admin" />} />
+            <Route path="triage" element={<TriageChatbot />} />
           </Route>
 
           {/* ─── Laboratory ──────────────────────────────────────────── */}
