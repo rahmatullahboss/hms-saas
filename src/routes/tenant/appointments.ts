@@ -5,7 +5,20 @@ import { requireTenantId } from '../../lib/context-helpers';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-// GET /api/appointments?date=YYYY-MM-DD&doctorId=&status=
+/**
+ * GET /api/appointments
+ * Retrieves a list of appointments for the current tenant.
+ * Filters can be applied by date, doctor ID, and appointment status.
+ *
+ * @param {string} [date] - Optional appointment date to filter by (defaults to today).
+ * @param {string} [doctorId] - Optional ID of the doctor to filter by.
+ * @param {string} [status] - Optional appointment status to filter by.
+ * @returns {Object} JSON response containing:
+ *   - appointments: Array of appointment records with patient and doctor details.
+ *
+ * @example
+ * // GET /api/appointments?date=2024-03-14&doctorId=2
+ */
 app.get('/', async (c) => {
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
@@ -32,7 +45,28 @@ app.get('/', async (c) => {
   return c.json({ appointments: results });
 });
 
-// POST /api/appointments
+/**
+ * POST /api/appointments
+ * Creates a new appointment for the given patient and doctor.
+ * Generates a daily token number specific to the doctor and a unique appointment number.
+ *
+ * @param {Object} body - Appointment details.
+ * @param {number} body.patientId - The ID of the patient.
+ * @param {number} [body.doctorId] - Optional ID of the doctor.
+ * @param {string} body.apptDate - The date of the appointment (YYYY-MM-DD).
+ * @param {string} [body.apptTime] - Optional time of the appointment.
+ * @param {string} [body.visitType='opd'] - Type of visit.
+ * @param {string} [body.chiefComplaint] - Optional chief complaint description.
+ * @param {number} [body.fee=0] - The fee for the appointment.
+ * @returns {Object} JSON response containing:
+ *   - apptNo: The unique appointment number (e.g., APT-000001).
+ *   - tokenNo: The daily token number for the doctor queue.
+ * @throws {HTTPException} 400 if required fields are missing.
+ *
+ * @example
+ * // POST /api/appointments
+ * // Body: { "patientId": 1, "doctorId": 2, "apptDate": "2024-03-14" }
+ */
 app.post('/', async (c) => {
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
@@ -51,7 +85,8 @@ app.post('/', async (c) => {
     throw new HTTPException(400, { message: 'patientId and apptDate are required' });
   }
 
-  // Get next token number for the day+doctor combo
+  // Calculate the next available token number for a specific doctor on the given date.
+  // This helps in queue management within the clinic for a particular day.
   const tokenRow = await c.env.DB.prepare(
     `SELECT COALESCE(MAX(token_no), 0) + 1 AS next_token
      FROM appointments WHERE tenant_id = ? AND appt_date = ? AND doctor_id IS ?`
@@ -77,7 +112,19 @@ app.post('/', async (c) => {
   return c.json({ apptNo, tokenNo }, 201);
 });
 
-// PUT /api/appointments/:id — update status
+/**
+ * PUT /api/appointments/:id
+ * Updates the status of an existing appointment.
+ *
+ * @param {string} id - The ID of the appointment to update.
+ * @param {Object} body - The data to update.
+ * @param {string} body.status - The new status of the appointment.
+ * @returns {Object} JSON response indicating success.
+ *
+ * @example
+ * // PUT /api/appointments/123
+ * // Body: { "status": "completed" }
+ */
 app.put('/:id', async (c) => {
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });

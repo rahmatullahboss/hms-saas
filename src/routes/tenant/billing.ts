@@ -10,7 +10,24 @@ import { getPagination, paginationMeta } from '../../lib/pagination';
 
 const billingRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-// GET /api/billing — list all bills
+/**
+ * GET /api/billing
+ * Retrieves a paginated list of bills for the current tenant.
+ * Supports filtering by status, date range (from/to), and a search string (patient name, code, or invoice number).
+ *
+ * @param {string} [status] - Optional bill status to filter by (e.g., 'open', 'paid').
+ * @param {string} [from] - Optional start date (YYYY-MM-DD) for filtering.
+ * @param {string} [to] - Optional end date (YYYY-MM-DD) for filtering.
+ * @param {string} [search] - Optional search query for patient details or invoice number.
+ * @param {string} [page=1] - Pagination: current page number.
+ * @param {string} [limit=10] - Pagination: number of records per page.
+ * @returns {Object} JSON response containing:
+ *   - bills: Array of bill records with basic patient details.
+ *   - meta: Pagination metadata.
+ *
+ * @example
+ * // GET /api/billing?status=open&page=1&limit=20
+ */
 billingRoutes.get('/', async (c) => {
   const tenantId = requireTenantId(c);
   const { status, from, to, search } = c.req.query();
@@ -42,7 +59,17 @@ billingRoutes.get('/', async (c) => {
   }
 });
 
-// GET /api/billing/due — outstanding dues
+/**
+ * GET /api/billing/due
+ * Retrieves a list of outstanding (unpaid or partially paid) bills for the current tenant.
+ * Calculates the outstanding amount (`total_amount` - `paid_amount`) for each bill.
+ *
+ * @returns {Object} JSON response containing:
+ *   - bills: Array of outstanding bill records with patient details.
+ *
+ * @example
+ * // GET /api/billing/due
+ */
 billingRoutes.get('/due', async (c) => {
   const tenantId = requireTenantId(c);
 
@@ -62,7 +89,18 @@ billingRoutes.get('/due', async (c) => {
   }
 });
 
-// GET /api/billing/patient/:patientId — all bills for a patient
+/**
+ * GET /api/billing/patient/:patientId
+ * Retrieves all bills associated with a specific patient within the current tenant.
+ * Calculates the outstanding amount for each bill.
+ *
+ * @param {string} patientId - The ID of the patient.
+ * @returns {Object} JSON response containing:
+ *   - bills: Array of bill records for the specified patient.
+ *
+ * @example
+ * // GET /api/billing/patient/123
+ */
 billingRoutes.get('/patient/:patientId', async (c) => {
   const tenantId = requireTenantId(c);
   const patientId = c.req.param('patientId');
@@ -80,7 +118,20 @@ billingRoutes.get('/patient/:patientId', async (c) => {
   }
 });
 
-// GET /api/billing/:id — single bill with items
+/**
+ * GET /api/billing/:id
+ * Retrieves a single bill by its ID, along with its associated line items and payment records.
+ *
+ * @param {string} id - The ID of the bill to fetch.
+ * @returns {Object} JSON response containing:
+ *   - bill: The main bill record with patient details.
+ *   - items: Array of `invoice_items` associated with the bill.
+ *   - payments: Array of `payments` associated with the bill.
+ * @throws {HTTPException} 404 if the bill is not found.
+ *
+ * @example
+ * // GET /api/billing/456
+ */
 billingRoutes.get('/:id', async (c) => {
   const tenantId = requireTenantId(c);
   const id = c.req.param('id');
@@ -108,16 +159,35 @@ billingRoutes.get('/:id', async (c) => {
   }
 });
 
-// POST /api/billing — create itemized bill
+/**
+ * POST /api/billing
+ * Creates a new itemized bill. This process performs an atomic batch operation
+ * to insert the main bill record, all invoice items, and a corresponding income record.
+ * Generates a unique invoice number and logs an audit event on success.
+ *
+ * @param {Object} body - Validated bill data (items, discount, patientId, visitId).
+ * @returns {Object} JSON response containing:
+ *   - message: Success message.
+ *   - billId: The ID of the newly created bill.
+ *   - invoiceNo: The unique invoice number (e.g., INV-000001).
+ *   - total: The calculated total amount after discount.
+ * @throws {HTTPException} 500 if the bill creation fails.
+ *
+ * @example
+ * // POST /api/billing
+ * // Body: { "patientId": 1, "items": [...], "discount": 10 }
+ */
 billingRoutes.post('/', zValidator('json', createBillSchema), async (c) => {
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
 
   try {
-    // Calculate totals from line items
+    // Calculate the subtotal by summing the line totals (quantity * unit price) of all items
     const subtotal = data.items.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
     const discount = data.discount;
+
+    // Ensure the total amount never falls below zero, even with large discounts
     const total = Math.max(0, subtotal - discount);
 
     const invoiceNo = await getNextSequence(c.env.DB, tenantId!, 'invoice', 'INV');
@@ -158,7 +228,27 @@ billingRoutes.post('/', zValidator('json', createBillSchema), async (c) => {
 });
 
 
-// POST /api/billing/pay — collect payment on a bill
+/**
+ * POST /api/billing/pay
+ * Collects a payment for an existing bill.
+ * Validates that the bill is not already fully paid and that the payment amount
+ * does not exceed the outstanding balance. Updates the bill's paid amount and status,
+ * inserts a payment record, and logs an audit event.
+ *
+ * @param {Object} body - Validated payment data (billId, amount, paymentMethod, type).
+ * @returns {Object} JSON response containing:
+ *   - message: Success message.
+ *   - receiptNo: The generated receipt number.
+ *   - paidAmount: The new total amount paid.
+ *   - outstanding: The remaining balance.
+ *   - status: The new status of the bill ('paid' or 'partially_paid').
+ * @throws {HTTPException} 404 if the bill is not found.
+ * @throws {HTTPException} 400 if the bill is fully paid or payment exceeds balance.
+ *
+ * @example
+ * // POST /api/billing/pay
+ * // Body: { "billId": 123, "amount": 500, "paymentMethod": "cash" }
+ */
 billingRoutes.post('/pay', zValidator('json', paymentSchema), async (c) => {
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
@@ -173,6 +263,7 @@ billingRoutes.post('/pay', zValidator('json', paymentSchema), async (c) => {
     if (!bill) throw new HTTPException(404, { message: 'Bill not found' });
     if (bill.status === 'paid') throw new HTTPException(400, { message: 'Bill is already fully paid' });
 
+    // Calculate the current outstanding balance to prevent overpayment
     const outstanding = bill.total_amount - bill.paid_amount;
     if (data.amount > outstanding) {
       throw new HTTPException(400, {

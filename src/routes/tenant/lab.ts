@@ -11,6 +11,18 @@ const labCatalogRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // ─── Lab Test Catalog CRUD ────────────────────────────────────────────────────
 
+/**
+ * GET /api/lab
+ * Retrieves a list of active lab tests from the catalog for the current tenant.
+ * Supports searching by test name, code, or category.
+ *
+ * @param {string} [search] - Optional search query to filter lab tests.
+ * @returns {Object} JSON response containing:
+ *   - tests: Array of active lab test records.
+ *
+ * @example
+ * // GET /api/lab?search=blood
+ */
 labCatalogRoutes.get('/', async (c) => {
   const tenantId = requireTenantId(c);
   const search = c.req.query('search') || '';
@@ -32,6 +44,21 @@ labCatalogRoutes.get('/', async (c) => {
   }
 });
 
+/**
+ * POST /api/lab
+ * Adds a new lab test to the catalog for the current tenant.
+ * Validates the request body against `createLabTestSchema`.
+ *
+ * @param {Object} body - Validated lab test data (code, name, category, price).
+ * @returns {Object} JSON response containing:
+ *   - message: Success message.
+ *   - id: The ID of the newly created lab test.
+ * @throws {HTTPException} 500 if the creation fails.
+ *
+ * @example
+ * // POST /api/lab
+ * // Body: { "code": "CBC", "name": "Complete Blood Count", "price": 50 }
+ */
 labCatalogRoutes.post('/', zValidator('json', createLabTestSchema), async (c) => {
   const tenantId = requireTenantId(c);
   const data = c.req.valid('json');
@@ -47,6 +74,22 @@ labCatalogRoutes.post('/', zValidator('json', createLabTestSchema), async (c) =>
   }
 });
 
+/**
+ * PUT /api/lab/:id
+ * Updates an existing lab test in the catalog for the current tenant.
+ * Validates the request body against `updateLabTestSchema`.
+ * Only provided fields are updated; missing fields retain their current values.
+ *
+ * @param {string} id - The ID of the lab test to update.
+ * @param {Object} body - Partial lab test data to update.
+ * @returns {Object} JSON response indicating success.
+ * @throws {HTTPException} 404 if the lab test is not found.
+ * @throws {HTTPException} 500 if the update fails.
+ *
+ * @example
+ * // PUT /api/lab/123
+ * // Body: { "price": 55 }
+ */
 labCatalogRoutes.put('/:id', zValidator('json', updateLabTestSchema), async (c) => {
   const tenantId = requireTenantId(c);
   const id = c.req.param('id');
@@ -75,6 +118,19 @@ labCatalogRoutes.put('/:id', zValidator('json', updateLabTestSchema), async (c) 
   }
 });
 
+/**
+ * DELETE /api/lab/:id
+ * Performs a logical deletion (deactivation) of a lab test in the catalog.
+ * Sets `is_active` to 0.
+ *
+ * @param {string} id - The ID of the lab test to deactivate.
+ * @returns {Object} JSON response indicating success.
+ * @throws {HTTPException} 404 if the lab test is not found.
+ * @throws {HTTPException} 500 if the deactivation fails.
+ *
+ * @example
+ * // DELETE /api/lab/123
+ */
 labCatalogRoutes.delete('/:id', async (c) => {
   const tenantId = requireTenantId(c);
   const id = c.req.param('id');
@@ -97,7 +153,23 @@ labCatalogRoutes.delete('/:id', async (c) => {
 
 // ─── Lab Orders ───────────────────────────────────────────────────────────────
 
-// GET /api/lab/orders — list orders, with optional filters
+/**
+ * GET /api/lab/orders
+ * Retrieves a paginated list of lab orders for the current tenant.
+ * Supports filtering by patient ID and order date.
+ * Includes aggregates for total items and pending items per order.
+ *
+ * @param {string} [patientId] - Optional patient ID to filter orders.
+ * @param {string} [date] - Optional date (YYYY-MM-DD) to filter orders.
+ * @param {string} [page=1] - Pagination: current page number.
+ * @param {string} [limit=10] - Pagination: number of records per page.
+ * @returns {Object} JSON response containing:
+ *   - orders: Array of lab order records with patient details and item counts.
+ *   - meta: Pagination metadata.
+ *
+ * @example
+ * // GET /api/lab/orders?date=2024-03-14&page=1
+ */
 labCatalogRoutes.get('/orders', async (c) => {
   const tenantId = requireTenantId(c);
   const { patientId, date, status } = c.req.query();
@@ -132,7 +204,18 @@ labCatalogRoutes.get('/orders', async (c) => {
   }
 });
 
-// GET /api/lab/orders/queue/today — today's pending test queue (for lab portal)
+/**
+ * GET /api/lab/orders/queue/today
+ * Retrieves today's queue of lab test items (for the lab portal) for the current tenant.
+ * Includes details about the test, patient, and order, sorted by status and creation time.
+ *
+ * @returns {Object} JSON response containing:
+ *   - queue: Array of lab order items scheduled for today.
+ *   - date: Today's date (YYYY-MM-DD).
+ *
+ * @example
+ * // GET /api/lab/orders/queue/today
+ */
 labCatalogRoutes.get('/orders/queue/today', async (c) => {
   const tenantId = requireTenantId(c);
   const today = new Date().toISOString().split('T')[0];
@@ -157,7 +240,19 @@ labCatalogRoutes.get('/orders/queue/today', async (c) => {
   }
 });
 
-// GET /api/lab/orders/:id — order detail with items
+/**
+ * GET /api/lab/orders/:id
+ * Retrieves the details of a single lab order by its ID, along with its associated test items.
+ *
+ * @param {string} id - The ID of the lab order.
+ * @returns {Object} JSON response containing:
+ *   - order: The main lab order record with patient details.
+ *   - items: Array of `lab_order_items` associated with the order.
+ * @throws {HTTPException} 404 if the lab order is not found.
+ *
+ * @example
+ * // GET /api/lab/orders/456
+ */
 labCatalogRoutes.get('/orders/:id', async (c) => {
   const tenantId = requireTenantId(c);
   const id = c.req.param('id');
@@ -184,7 +279,24 @@ labCatalogRoutes.get('/orders/:id', async (c) => {
   }
 });
 
-// POST /api/lab/orders — create lab order
+/**
+ * POST /api/lab/orders
+ * Creates a new lab order and its associated test items for the current tenant.
+ * Generates a unique order number. For each requested item, fetches the current price
+ * from the active lab test catalog to compute the line total.
+ *
+ * @param {Object} body - Validated lab order data (patientId, visitId, items).
+ * @returns {Object} JSON response containing:
+ *   - message: Success message.
+ *   - orderId: The ID of the newly created lab order.
+ *   - orderNo: The unique lab order number (e.g., LO-000001).
+ * @throws {HTTPException} 400 if a requested lab test is not found or inactive.
+ * @throws {HTTPException} 500 if the order creation fails.
+ *
+ * @example
+ * // POST /api/lab/orders
+ * // Body: { "patientId": 1, "items": [{ "labTestId": 10, "discount": 0 }] }
+ */
 labCatalogRoutes.post('/orders', zValidator('json', createLabOrderSchema), async (c) => {
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
@@ -201,13 +313,15 @@ labCatalogRoutes.post('/orders', zValidator('json', createLabOrderSchema), async
 
     const orderId = orderResult.meta.last_row_id;
 
-    // Insert each test item, fetching price from catalog
+    // Ensure accurate billing by dynamically fetching the current price of each lab test
+    // directly from the catalog at the time the order is placed.
     for (const item of data.items) {
       const test = await c.env.DB.prepare(
         'SELECT id, price FROM lab_test_catalog WHERE id = ? AND tenant_id = ? AND is_active = 1',
       ).bind(item.labTestId, tenantId).first<{ id: number; price: number }>();
       if (!test) throw new HTTPException(400, { message: `Lab test ${item.labTestId} not found` });
 
+      // Apply item-specific discounts while ensuring the line total does not become negative
       const discount = item.discount;
       const lineTotal = Math.max(0, test.price - discount);
 
@@ -224,7 +338,21 @@ labCatalogRoutes.post('/orders', zValidator('json', createLabOrderSchema), async
   }
 });
 
-// PUT /api/lab/items/:itemId/result — set result for a single test item
+/**
+ * PUT /api/lab/items/:itemId/result
+ * Records or updates the result for a single lab test item.
+ * Marks the item status as 'completed' and sets the completion timestamp.
+ *
+ * @param {string} itemId - The ID of the lab order item.
+ * @param {Object} body - Validated data containing the test result.
+ * @returns {Object} JSON response indicating success.
+ * @throws {HTTPException} 404 if the lab order item is not found.
+ * @throws {HTTPException} 500 if the result update fails.
+ *
+ * @example
+ * // PUT /api/lab/items/789/result
+ * // Body: { "result": "Normal" }
+ */
 labCatalogRoutes.put('/items/:itemId/result', zValidator('json', updateLabItemResultSchema), async (c) => {
   const tenantId = requireTenantId(c);
   const itemId = c.req.param('itemId');
@@ -247,7 +375,17 @@ labCatalogRoutes.put('/items/:itemId/result', zValidator('json', updateLabItemRe
   }
 });
 
-// POST /api/lab/orders/:id/print — increment print count
+/**
+ * POST /api/lab/orders/:id/print
+ * Increments the print count for a specific lab order and updates the last printed timestamp.
+ *
+ * @param {string} id - The ID of the lab order.
+ * @returns {Object} JSON response indicating success.
+ * @throws {HTTPException} 500 if the print count update fails.
+ *
+ * @example
+ * // POST /api/lab/orders/456/print
+ */
 labCatalogRoutes.post('/orders/:id/print', async (c) => {
   const tenantId = requireTenantId(c);
   const id = c.req.param('id');
