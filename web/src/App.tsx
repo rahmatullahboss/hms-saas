@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router';
 import { PWAUpdatePrompt } from './components/PWAUpdatePrompt';
+import { useAnalytics } from './hooks/useAnalytics';
 import { Toaster } from 'react-hot-toast';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { useTranslation } from 'react-i18next';
@@ -24,6 +25,14 @@ import RecurringExpenses from './pages/accounting/RecurringExpenses';
 import ChartOfAccounts from './pages/accounting/ChartOfAccounts';
 import PharmacyDashboard from './pages/PharmacyDashboard';
 import BillingDashboard from './pages/BillingDashboard';
+import ShareholderManagement from './pages/accounting/ShareholderManagement';
+import JournalEntries from './pages/accounting/JournalEntries';
+import ConsultationNotes from './pages/ConsultationNotes';
+import CommissionManagement from './pages/CommissionManagement';
+import IPDCharges from './pages/IPDCharges';
+import TestCatalog from './pages/TestCatalog';
+import ProfitLoss from './pages/accounting/ProfitLoss';
+import AIAssistant from './pages/AIAssistant';
 import StaffPage from './pages/StaffPage';
 import PatientDetail from './pages/PatientDetail';
 import ReportsDashboard from './pages/ReportsDashboard';
@@ -72,6 +81,9 @@ function NotFound() {
 }
 
 function App() {
+  // Track SPA page views in Google Analytics 4
+  useAnalytics();
+
   return (
     <>
       <Toaster position="top-right" />
@@ -107,7 +119,14 @@ function App() {
             <Route path="recurring" element={<RecurringExpenses role="hospital_admin" />} />
             <Route path="accounts" element={<ChartOfAccounts role="hospital_admin" />} />
             <Route path="staff" element={<StaffPage role="hospital_admin" />} />
-            <Route path="shareholders" element={<DirectorDashboard role="hospital_admin" />} />
+            <Route path="shareholders" element={<ShareholderManagement role="hospital_admin" />} />
+            <Route path="journal" element={<JournalEntries role="hospital_admin" />} />
+            <Route path="consultation-notes" element={<ConsultationNotes role="hospital_admin" />} />
+            <Route path="commissions" element={<CommissionManagement role="hospital_admin" />} />
+            <Route path="ipd-charges" element={<IPDCharges role="hospital_admin" />} />
+            <Route path="test-catalog" element={<TestCatalog role="hospital_admin" />} />
+            <Route path="profit-loss" element={<ProfitLoss role="hospital_admin" />} />
+            <Route path="ai-assistant" element={<AIAssistant role="hospital_admin" />} />
             <Route path="reports" element={<ReportsDashboard role="hospital_admin" />} />
             <Route path="audit" element={<AuditLogs role="hospital_admin" />} />
             <Route path="settings" element={<SettingsPage role="hospital_admin" />} />

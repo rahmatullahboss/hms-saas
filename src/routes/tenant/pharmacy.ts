@@ -302,6 +302,68 @@ pharmacyRoutes.post('/sales', zValidator('json', createSaleSchema), async (c) =>
   }
 });
 
+// POST /api/pharmacy/billing — create a pharmacy bill
+pharmacyRoutes.post('/billing', async (c) => {
+  const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
+
+  try {
+    const body = await c.req.json<{
+      patientId?: number;
+      items: Array<{ medicineId: number; name: string; quantity: number; unitPrice: number }>;
+      discount?: number;
+      paymentMethod?: string;
+    }>();
+
+    if (!body.items || body.items.length === 0) {
+      throw new HTTPException(400, { message: 'At least one item is required' });
+    }
+
+    const subtotal = body.items.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
+    const discount = body.discount ?? 0;
+    const totalAmount = subtotal - discount;
+
+    // Generate bill number
+    const countResult = await c.env.DB.prepare(
+      'SELECT COUNT(*) as cnt FROM bills WHERE tenant_id = ?'
+    ).bind(tenantId).first<{ cnt: number }>();
+    const billNo = `PB-${String((countResult?.cnt ?? 0) + 1).padStart(5, '0')}`;
+
+    // Create bill
+    const billResult = await c.env.DB.prepare(`
+      INSERT INTO bills (bill_no, patient_id, total_amount, discount, paid_amount, due, status, bill_type, tenant_id, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'pharmacy', ?, ?)
+    `).bind(
+      billNo,
+      body.patientId ?? null,
+      totalAmount,
+      discount,
+      totalAmount,
+      0,
+      'paid',
+      tenantId,
+      userId
+    ).run();
+
+    // Record income
+    const today = new Date().toISOString().split('T')[0];
+    await c.env.DB.prepare(`
+      INSERT INTO income (date, source, amount, description, tenant_id, created_by)
+      VALUES (?, 'pharmacy', ?, ?, ?, ?)
+    `).bind(today, totalAmount, `Pharmacy bill ${billNo}`, tenantId, userId).run();
+
+    return c.json({
+      message: 'Pharmacy bill created',
+      billId: billResult.meta.last_row_id,
+      billNo,
+      total: totalAmount,
+    }, 201);
+  } catch (error) {
+    if (error instanceof HTTPException) throw error;
+    throw new HTTPException(500, { message: 'Failed to create pharmacy bill' });
+  }
+});
+
 // ─── ALERTS ───────────────────────────────────────────────────────────────────
 
 pharmacyRoutes.get('/alerts/low-stock', async (c) => {

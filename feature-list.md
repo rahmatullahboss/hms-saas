@@ -70,10 +70,10 @@
 | Doctor list + CRUD | [doctors.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/doctors.ts) | `StaffPage.tsx` |
 | Doctor dashboard (today's queue) | [doctorDashboard.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/apps/api/src/routes/tenant/doctorDashboard.ts) | `DoctorDashboard.tsx` |
 | Availability / schedule management | [doctorSchedule.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/apps/api/src/routes/tenant/doctorSchedule.ts) | `DoctorSchedule.tsx` |
-| Consultation notes | [consultations.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/consultations.ts) | — |
+| Consultation notes | [consultations.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/consultations.ts) | `ConsultationNotes.tsx` |
 | Digital prescription writing | [prescriptions.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/prescriptions.ts) → `POST /api/prescriptions` | `DigitalPrescription.tsx` |
 | Prescription print (PDF) | `GET /api/prescriptions/:id/print` | `PrescriptionPrint.tsx` |
-| Doctor commission structure | [commissions.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/commissions.ts) | — |
+| Doctor commission structure | [commissions.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/commissions.ts) | `CommissionManagement.tsx` |
 | Commission reports | `GET /api/commissions/reports` | `ReportsDashboard.tsx` |
 
 ---
@@ -85,7 +85,7 @@
 | Patient admission | [admissions.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/admissions.ts) → `POST /api/admissions` | `AdmissionIPD.tsx` |
 | Bed assignment | `PUT /api/admissions/:id/bed` | `BedManagement.tsx` |
 | Bed management dashboard | `GET /api/admissions/beds` | `BedManagement.tsx` |
-| IPD daily charges (ward, O2, food, etc.) | [ipdCharges.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/apps/api/src/routes/tenant/ipdCharges.ts) | — |
+| IPD daily charges (ward, O2, food, etc.) | [ipdCharges.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/apps/api/src/routes/tenant/ipdCharges.ts) | `IPDCharges.tsx` |
 | Nurse station (vitals, medication rounds) | [nurseStation.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/nurseStation.ts) | `NurseStation.tsx` |
 | Patient discharge process | [discharge.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/discharge.ts) → `POST /api/discharge` | `DischargeSummary.tsx` |
 | Discharge summary print (PDF) | `GET /api/discharge/:id/print` | `DischargeSummary.tsx` |
@@ -96,7 +96,7 @@
 
 | Feature | Backend | Frontend |
 |---------|---------|----------|
-| Lab test catalog (create/update/delete) | [tests.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/tests.ts) | — |
+| Lab test catalog (create/update/delete) | [tests.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/tests.ts) | `TestCatalog.tsx` |
 | Lab order creation | [lab.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/lab.ts) → `POST /api/lab/orders` | `LabTestOrderForm.tsx` |
 | Lab result entry | `PUT /api/lab/:id/result` | `LaboratoryDashboard.tsx` |
 | Lab report print (PDF) | `GET /api/lab/:id/print` | `LabReportPrint.tsx` |
@@ -112,7 +112,7 @@
 | Medicine inventory CRUD | [pharmacy.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/pharmacy.ts) | `PharmacyDashboard.tsx` |
 | Medicine dispensing against Rx | `POST /api/pharmacy/dispense` | `MedicineDispensing.tsx` |
 | Stock alerts (low stock) | `GET /api/pharmacy/stock-alerts` | `PharmacyDashboard.tsx` |
-| Pharmacy billing | — | `PharmacyDashboard.tsx` |
+| Pharmacy billing | [pharmacy.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/pharmacy.ts) → `POST /api/pharmacy/billing` | `PharmacyDashboard.tsx` |
 | Stock levels & reorder tracking | `GET /api/pharmacy/inventory` | `PharmacyDashboard.tsx` |
 
 ---
@@ -121,13 +121,13 @@
 
 | Feature | Backend | Frontend |
 |---------|---------|----------|
-| Bill creation (OPD/IPD/Lab/Pharmacy) | [billing.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/billing.ts) → `POST /api/billing` | — |
-| Payment collection (cash/card/bKash/Nagad) | `POST /api/billing/pay` | — |
-| **Payment idempotency** (duplicate prevention) | Unique [(idempotency_key, tenant_id)](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/apps/api/tests/doctors.test.ts#22-30) index | — |
-| Outstanding dues list | `GET /api/billing/due` | — |
-| Bill search & filter | `GET /api/billing?status=&date=` | — |
+| Bill creation (OPD/IPD/Lab/Pharmacy) | [billing.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/billing.ts) → `POST /api/billing` | `BillingDashboard.tsx` |
+| Payment collection (cash/card/bKash/Nagad) | `POST /api/billing/pay` | `BillingDashboard.tsx` |
+| **Payment idempotency** (duplicate prevention) | Unique [(idempotency_key, tenant_id)](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/apps/api/tests/doctors.test.ts#22-30) | `BillingDashboard.tsx` |
+| Outstanding dues list | `GET /api/billing/due` | `BillingDashboard.tsx` |
+| Bill search & filter | `GET /api/billing?status=&date=` | `BillingDashboard.tsx` |
 | Bill print (PDF) | `GET /api/billing/:id/print` | `BillPrint.tsx` |
-| Insurance claim management | — | `InsuranceClaims.tsx` |
+| Insurance claim management | [insurance.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/insurance.ts) | `InsuranceClaims.tsx` |
 | Auto receipt number generation | `sequence_counters` table | — |
 
 ---
@@ -137,14 +137,14 @@
 | Feature | Backend | Frontend |
 |---------|---------|----------|
 | Accounting dashboard (income vs expense) | [accounting.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/accounting.ts) | `AccountingDashboard.tsx` |
-| Double-entry journal (debit/credit) | [journal.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/journal.ts) | — |
+| Double-entry journal (debit/credit) | [journal.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/journal.ts) | `JournalEntries.tsx` |
 | Chart of accounts | [accounts.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/accounts.ts) | `ChartOfAccounts.tsx` |
 | Income recording | [income.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/income.ts) | `IncomeList.tsx` |
 | Expense recording | [expenses.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/expenses.ts) | `ExpenseList.tsx` |
 | Recurring expenses (auto-post) | [recurring.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/recurring.ts) | `RecurringExpenses.tsx` |
-| Profit & loss calculation | [profit.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/profit.ts) | — |
-| Shareholder management & dividends | [shareholders.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/shareholders.ts) | — |
-| Doctor commission reports | [commissions.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/commissions.ts) | — |
+| Profit & loss calculation | [profit.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/profit.ts) | `ProfitLoss.tsx` |
+| Shareholder management & dividends | [shareholders.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/shareholders.ts) | `ShareholderManagement.tsx` |
+| Doctor commission reports | [commissions.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/commissions.ts) | `CommissionManagement.tsx` |
 | Financial reports | [reports.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/reports.ts) | `Reports.tsx` |
 | Accounting audit log | [audit.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/audit.ts) | `AuditLogs.tsx` |
 
@@ -157,10 +157,10 @@
 | Revenue reports (daily/monthly) | [reports.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/reports.ts) | `ReportsDashboard.tsx` |
 | Patient statistics | [dashboard.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/dashboard.ts) | `HospitalAdminDashboard.tsx` |
 | Doctor performance | [commissions.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/commissions.ts) | `ReportsDashboard.tsx` |
-| Occupancy rates | [admissions.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/admissions.ts) | — |
-| Multi-branch analytics | — | `MultiBranchDashboard.tsx` |
-| Director executive dashboard | — | `DirectorDashboard.tsx` |
-| Medical Director dashboard | — | `MDDashboard.tsx` |
+| Occupancy rates | [admissions.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/admissions.ts) → `GET /api/admissions/occupancy` | `HospitalAdminDashboard.tsx` |
+| Multi-branch analytics | [branches.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/branches.ts) → `GET /api/branches/analytics` | `MultiBranchDashboard.tsx` |
+| Director executive dashboard | [dashboard.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/dashboard.ts) + [shareholders.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/shareholders.ts) | `DirectorDashboard.tsx` |
+| Medical Director dashboard | [dashboard.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/dashboard.ts) → daily-income/expenses/summary | `MDDashboard.tsx` |
 
 ---
 
@@ -172,7 +172,7 @@
 | Role-based access control (7 roles) | JWT middleware | `ProtectedRoute.tsx` |
 | Staff invitation via email | [invitations.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/invitations.ts) → `POST /api/invitations` | `InviteStaff.tsx` |
 | Accept invitation flow | `POST /api/invitations/accept` | `AcceptInvite.tsx` |
-| Commission structure | [commissions.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/commissions.ts) | — |
+| Commission structure | [commissions.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/commissions.ts) | `CommissionManagement.tsx` |
 | Staff deactivation | `DELETE /api/staff/:id` | `StaffPage.tsx` |
 
 ---
@@ -193,12 +193,12 @@
 
 | Feature | Backend | Frontend |
 |---------|---------|----------|
-| AI medical chat | [ai.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/ai.ts) via OpenRouter API | — |
-| Long-term memory | Cloudflare Vectorize (`hms-ai-memory`) | — |
-| Feedback system (👍/👎) | `POST /api/ai/feedback` | — |
-| AI PDF generation & analysis | `ai-pdf.ts` | — |
-| Rate limiting (per tenant/user) | KV-based token bucket | — |
-| Input summarization for memory | Auto-summary before store | — |
+| AI medical chat | [ai.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/src/routes/tenant/ai.ts) via OpenRouter API | `AIAssistant.tsx` |
+| Long-term memory | Cloudflare Vectorize (`hms-ai-memory`) | `AIAssistant.tsx` |
+| Feedback system (👍/👎) | `POST /api/ai/feedback` | `AIAssistant.tsx` |
+| AI PDF generation & analysis | `ai-pdf.ts` | `AIAssistant.tsx` |
+| Rate limiting (per tenant/user) | KV-based token bucket | `AIAssistant.tsx` |
+| Input summarization for memory | Auto-summary before store | `AIAssistant.tsx` |
 
 ---
 

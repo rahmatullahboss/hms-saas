@@ -68,6 +68,51 @@ app.get('/stats', async (c) => {
   });
 });
 
+// GET /api/admissions/occupancy — bed occupancy rates by ward
+app.get('/occupancy', async (c) => {
+  const tenantId = requireTenantId(c);
+  if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
+
+  try {
+    const wards = await c.env.DB.prepare(`
+      SELECT
+        ward_name,
+        COUNT(*) as total_beds,
+        SUM(CASE WHEN status = 'occupied' THEN 1 ELSE 0 END) as occupied_beds,
+        SUM(CASE WHEN status = 'available' THEN 1 ELSE 0 END) as available_beds
+      FROM beds
+      WHERE tenant_id = ?
+      GROUP BY ward_name
+      ORDER BY ward_name
+    `).bind(tenantId).all<{
+      ward_name: string; total_beds: number; occupied_beds: number; available_beds: number;
+    }>();
+
+    const wardStats = (wards.results || []).map((w) => ({
+      ward: w.ward_name,
+      total: w.total_beds,
+      occupied: w.occupied_beds,
+      available: w.available_beds,
+      occupancyRate: w.total_beds > 0 ? Math.round((w.occupied_beds / w.total_beds) * 100) : 0,
+    }));
+
+    const totalBeds = wardStats.reduce((s, w) => s + w.total, 0);
+    const totalOccupied = wardStats.reduce((s, w) => s + w.occupied, 0);
+
+    return c.json({
+      wards: wardStats,
+      overall: {
+        totalBeds,
+        occupied: totalOccupied,
+        available: totalBeds - totalOccupied,
+        occupancyRate: totalBeds > 0 ? Math.round((totalOccupied / totalBeds) * 100) : 0,
+      },
+    });
+  } catch {
+    throw new HTTPException(500, { message: 'Failed to fetch occupancy rates' });
+  }
+});
+
 // GET /api/admissions/beds?status=available
 app.get('/beds', async (c) => {
   const tenantId = requireTenantId(c);

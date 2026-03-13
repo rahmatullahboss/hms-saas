@@ -26,6 +26,59 @@ branchRoutes.get('/', async (c) => {
   }
 });
 
+// GET /api/branches/analytics — aggregate stats per branch for multi-branch dashboard
+branchRoutes.get('/analytics', async (c) => {
+  const tenantId = requireTenantId(c);
+
+  try {
+    const thisMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+    const lastMonth = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 7);
+
+    const branches = await c.env.DB.prepare(`
+      SELECT b.id, b.name, b.address, b.is_active,
+        (SELECT COUNT(*) FROM patients WHERE branch_id = b.id AND tenant_id = ?) as patients,
+        (SELECT COUNT(*) FROM users WHERE branch_id = b.id AND tenant_id = ?) as staff,
+        (SELECT COUNT(*) FROM beds WHERE branch_id = b.id AND tenant_id = ?) as beds_total,
+        (SELECT COUNT(*) FROM beds WHERE branch_id = b.id AND tenant_id = ? AND status = 'occupied') as beds_occupied,
+        (SELECT COALESCE(SUM(amount), 0) FROM income WHERE branch_id = b.id AND tenant_id = ? AND strftime('%Y-%m', date) = ?) as revenue,
+        (SELECT COALESCE(SUM(amount), 0) FROM income WHERE branch_id = b.id AND tenant_id = ? AND strftime('%Y-%m', date) = ?) as last_month_revenue
+      FROM branches b
+      WHERE b.tenant_id = ? AND b.is_active = 1
+      ORDER BY b.name ASC
+    `).bind(tenantId, tenantId, tenantId, tenantId, tenantId, thisMonth, tenantId, lastMonth, tenantId).all();
+
+    const analytics = (branches.results || []).map((b: Record<string, unknown>) => {
+      const revenue = Number(b.revenue) || 0;
+      const lastMonthRev = Number(b.last_month_revenue) || 0;
+      const bedsTotal = Number(b.beds_total) || 0;
+      const bedsOccupied = Number(b.beds_occupied) || 0;
+      const trend = lastMonthRev > 0
+        ? Math.round(((revenue - lastMonthRev) / lastMonthRev) * 100)
+        : 0;
+
+      return {
+        id: b.id,
+        name: b.name,
+        location: b.address ?? '',
+        status: b.is_active ? 'active' : 'inactive',
+        stats: {
+          patients: Number(b.patients) || 0,
+          revenue,
+          beds_total: bedsTotal,
+          beds_occupied: bedsOccupied,
+          staff: Number(b.staff) || 0,
+          occupancy_pct: bedsTotal > 0 ? Math.round((bedsOccupied / bedsTotal) * 100) : 0,
+        },
+        trend,
+      };
+    });
+
+    return c.json({ branches: analytics });
+  } catch {
+    throw new HTTPException(500, { message: 'Failed to fetch branch analytics' });
+  }
+});
+
 // GET /api/branches/:id — single branch with summary stats
 branchRoutes.get('/:id', async (c) => {
   const tenantId = requireTenantId(c);

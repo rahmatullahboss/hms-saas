@@ -49,6 +49,10 @@ import telemedicineRoutes from './routes/tenant/telemedicine';
 import patientPortalRoutes from './routes/tenant/patientPortal';
 import aiRoutes from './routes/tenant/ai';
 import insuranceRoutes from './routes/tenant/insurance';
+import ipdChargeRoutes from './routes/tenant/ipdCharges';
+import inboxRoutes from './routes/tenant/inbox';
+import pushRoutes from './routes/tenant/push';
+import fhirRoutes from './routes/tenant/fhir';
 
 import type { Env } from './types';
 
@@ -225,6 +229,10 @@ app.route('/api/telemedicine', telemedicineRoutes);
 app.route('/api/patient-portal', patientPortalRoutes);
 app.route('/api/ai', aiRoutes);
 app.route('/api/insurance', insuranceRoutes);
+app.route('/api/ipd-charges', ipdChargeRoutes);
+app.route('/api/inbox', inboxRoutes);
+app.route('/api/push', pushRoutes);
+app.route('/api/fhir', fhirRoutes);
 
 
 // ─── Not Found handler ──────────────────────────────────────────────

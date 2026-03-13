@@ -1,5 +1,5 @@
-import { ReactNode, useRef, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router';
+import { ReactNode } from 'react';
+import { useNavigate } from 'react-router';
 import toast from 'react-hot-toast';
 import { useAuth, logout } from '../hooks/useAuth';
 import Sidebar from './dashboard/Sidebar';
@@ -21,17 +21,11 @@ interface DashboardLayoutProps {
 export default function DashboardLayout({ children, role }: DashboardLayoutProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { pathname } = useLocation();
-  const mainRef = useRef<HTMLElement>(null);
 
-  // Reset scroll to top whenever the route changes.
-  // React Router's `preventScrollReset` only resets window scroll;
-  // our `<main>` uses `overflow-y-auto` so we must reset it manually.
-  useEffect(() => {
-    if (mainRef.current) {
-      mainRef.current.scrollTop = 0;
-    }
-  }, [pathname]);
+  // We intentionally do NOT auto-scroll `<main>` to top on every pathname
+  // change. React Router's `preventScrollReset` on sidebar `<Link>` already
+  // keeps window scroll stable. If specific pages need to scroll to top on
+  // mount, they can call `window.scrollTo(0, 0)` themselves.
 
   const handleLogout = () => {
     logout();
@@ -50,7 +44,7 @@ export default function DashboardLayout({ children, role }: DashboardLayoutProps
             userRole={user?.role ?? role}
             onLogout={handleLogout}
           />
-          <main ref={mainRef} className="flex-1 overflow-y-auto p-6">
+          <main className="flex-1 overflow-y-auto p-6">
             {/* Offline / sync indicator — only visible when there's something to report */}
             <div className="mb-4">
               <SyncStatusBar />

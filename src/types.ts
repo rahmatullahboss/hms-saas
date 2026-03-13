@@ -44,6 +44,10 @@ export interface Env {
   // ─── AI Memory (Vectorize + Workers AI) ───────────────────────────
   VECTORIZE?: Vectorize;          // wrangler.toml [[vectorize]] binding
   AI?: Ai;                        // wrangler.toml [ai] binding — Workers AI for embeddings
+  // ─── Web Push Notifications (VAPID) ─────────────────────────────────
+  VAPID_PUBLIC_KEY?: string;      // wrangler secret put VAPID_PUBLIC_KEY
+  VAPID_PRIVATE_KEY?: string;     // wrangler secret put VAPID_PRIVATE_KEY
+  VAPID_SUBJECT?: string;         // wrangler secret put VAPID_SUBJECT (e.g. "mailto:admin@hmssaas.com")
 }
 
 /**

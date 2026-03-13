@@ -1,4 +1,5 @@
 import { useRegisterSW } from 'virtual:pwa-register/react';
+import { usePushNotifications } from '../hooks/usePushNotifications';
 
 export function PWAUpdatePrompt() {
   const {
@@ -14,12 +15,24 @@ export function PWAUpdatePrompt() {
     },
   });
 
+  const {
+    isSupported,
+    permission,
+    isSubscribed,
+    loading: pushLoading,
+    subscribe: subscribePush,
+  } = usePushNotifications();
+
   const close = () => {
     setOfflineReady(false);
     setNeedRefresh(false);
   };
 
-  if (!needRefresh && !offlineReady) return null;
+  // Show notification prompt if push is supported and not yet granted
+  const showPushPrompt =
+    isSupported && permission === 'default' && !isSubscribed && !needRefresh && !offlineReady;
+
+  if (!needRefresh && !offlineReady && !showPushPrompt) return null;
 
   return (
     <div
@@ -44,7 +57,9 @@ export function PWAUpdatePrompt() {
       <p style={{ margin: 0, fontWeight: 500 }}>
         {offlineReady
           ? '✅ অ্যাপ অফলাইনে ব্যবহারের জন্য প্রস্তুত!'
-          : '🔄 নতুন আপডেট পাওয়া গেছে!'}
+          : needRefresh
+            ? '🔄 নতুন আপডেট পাওয়া গেছে!'
+            : '🔔 নোটিফিকেশন চালু করুন — গুরুত্বপূর্ণ আপডেট পেতে'}
       </p>
       <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
         {needRefresh && (
@@ -62,6 +77,25 @@ export function PWAUpdatePrompt() {
             }}
           >
             আপডেট করুন
+          </button>
+        )}
+        {showPushPrompt && (
+          <button
+            onClick={subscribePush}
+            disabled={pushLoading}
+            style={{
+              background: '#6366f1',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '0.5rem',
+              padding: '0.375rem 0.75rem',
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: '0.8rem',
+              opacity: pushLoading ? 0.6 : 1,
+            }}
+          >
+            {pushLoading ? '...' : '🔔 চালু করুন'}
           </button>
         )}
         <button

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useParams } from 'react-router';
 import {
   Receipt, Search, Plus, X, DollarSign, AlertTriangle,
   CreditCard, Printer, Eye, ChevronLeft, ChevronRight, FileText, Banknote
@@ -106,6 +107,16 @@ export default function BillingDashboard({ role = 'hospital_admin' }: { role?: s
   const [detailItems, setDetailItems] = useState<BillItem[]>([]);
 
   const { t } = useTranslation(['billing', 'common']);
+  const { slug = '' } = useParams<{ slug: string }>();
+
+  // ESC-to-close modals
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setShowCreate(false); setShowPay(false); setShowDetail(false); setPayBill(null); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   /* ─── Data Fetching ─────────────────────────────────────────── */
   const fetchBills = useCallback(async () => {
@@ -163,8 +174,8 @@ export default function BillingDashboard({ role = 'hospital_admin' }: { role?: s
     const items = lineItems.map(li => ({
       itemCategory: li.category,
       description: li.description || undefined,
-      quantity: parseInt(li.qty) || 1,
-      unitPrice: parseInt(li.price) || 0,
+      quantity: Number(li.qty) || 1,
+      unitPrice: Number(li.price) || 0,
     })).filter(i => i.unitPrice > 0);
     if (items.length === 0) return toast.error('Add at least one item with a price');
 
@@ -174,7 +185,7 @@ export default function BillingDashboard({ role = 'hospital_admin' }: { role?: s
       const { data } = await axios.post('/api/billing', {
         patientId,
         items,
-        discount: parseInt(createForm.discount) || 0,
+        discount: Number(createForm.discount) || 0,
       }, { headers: { Authorization: `Bearer ${token}` } });
       toast.success(`Bill created: ${data.invoiceNo}`);
       setShowCreate(false);
@@ -199,8 +210,8 @@ export default function BillingDashboard({ role = 'hospital_admin' }: { role?: s
   const updateLineItem = (idx: number, field: string, value: string) =>
     setLineItems(prev => prev.map((li, i) => i === idx ? { ...li, [field]: value } : li));
 
-  const subtotal = lineItems.reduce((s, li) => s + (parseInt(li.qty) || 0) * (parseInt(li.price) || 0), 0);
-  const grandTotal = Math.max(0, subtotal - (parseInt(createForm.discount) || 0));
+  const subtotal = lineItems.reduce((s, li) => s + (Number(li.qty) || 0) * (Number(li.price) || 0), 0);
+  const grandTotal = Math.max(0, subtotal - (Number(createForm.discount) || 0));
 
   /* ─── Collect Payment ───────────────────────────────────────── */
   const openPayModal = (bill: Bill) => {
@@ -380,7 +391,7 @@ export default function BillingDashboard({ role = 'hospital_admin' }: { role?: s
                             <button onClick={() => viewBillDetail(bill)} className="btn-ghost p-1.5" title="View">
                               <Eye className="w-4 h-4" />
                             </button>
-                            <button onClick={() => window.open(`billing/${bill.id}/print`, '_blank')} className="btn-ghost p-1.5" title="Print">
+                            <button onClick={() => window.open(`/h/${slug}/billing/${bill.id}/print`, '_blank')} className="btn-ghost p-1.5" title="Print">
                               <Printer className="w-4 h-4" />
                             </button>
                           </div>
@@ -445,7 +456,7 @@ export default function BillingDashboard({ role = 'hospital_admin' }: { role?: s
                         <input className="input w-24" type="number" min="0" placeholder="Price (৳)"
                           value={li.price} onChange={e => updateLineItem(idx, 'price', e.target.value)} />
                         <span className="w-20 text-right font-data text-sm py-2">
-                          ৳{((parseInt(li.qty) || 0) * (parseInt(li.price) || 0)).toLocaleString()}
+                          ৳{((Number(li.qty) || 0) * (Number(li.price) || 0)).toLocaleString()}
                         </span>
                         {lineItems.length > 1 && (
                           <button type="button" onClick={() => removeLineItem(idx)} className="btn-ghost p-1.5 text-red-500"><X className="w-4 h-4" /></button>
@@ -523,7 +534,7 @@ export default function BillingDashboard({ role = 'hospital_admin' }: { role?: s
                 <div className="flex justify-end gap-3 pt-2">
                   <button type="button" onClick={() => { setShowPay(false); setPayBill(null); }} className="btn-secondary">Cancel</button>
                   <button type="submit" disabled={paying} className="btn-primary">
-                    {paying ? 'Processing…' : `Pay ৳${parseInt(payForm.amount) > 0 ? parseInt(payForm.amount).toLocaleString() : '0'}`}
+                    {paying ? 'Processing…' : `Pay ৳${Number(payForm.amount) > 0 ? Number(payForm.amount).toLocaleString() : '0'}`}
                   </button>
                 </div>
               </form>
