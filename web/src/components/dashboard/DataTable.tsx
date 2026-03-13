@@ -1,4 +1,4 @@
-import { useState, ReactNode } from 'react';
+import { useState, useMemo, ReactNode } from 'react';
 import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface Column<T> {
@@ -37,19 +37,24 @@ export default function DataTable<T>({
     }
   };
 
-  const sortedData = [...data].sort((a, b) => {
-    if (!sortKey) return 0;
-    const aVal = (a as Record<string, unknown>)[sortKey];
-    const bVal = (b as Record<string, unknown>)[sortKey];
-    if (aVal === bVal) return 0;
-    if (aVal === null || aVal === undefined) return 1;
-    if (bVal === null || bVal === undefined) return -1;
-    const comparison = aVal < bVal ? -1 : 1;
-    return sortDirection === 'asc' ? comparison : -comparison;
-  });
+  const sortedData = useMemo(() => {
+    return [...data].sort((a, b) => {
+      if (!sortKey) return 0;
+      const aVal = (a as Record<string, unknown>)[sortKey];
+      const bVal = (b as Record<string, unknown>)[sortKey];
+      if (aVal === bVal) return 0;
+      if (aVal === null || aVal === undefined) return 1;
+      if (bVal === null || bVal === undefined) return -1;
+      const comparison = aVal < bVal ? -1 : 1;
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  }, [data, sortKey, sortDirection]);
 
   const totalPages = Math.ceil(sortedData.length / pageSize);
-  const paginatedData = sortedData.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  const paginatedData = useMemo(() => {
+    return sortedData.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  }, [sortedData, currentPage, pageSize]);
 
   if (loading) {
     return (
