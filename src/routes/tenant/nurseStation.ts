@@ -100,24 +100,33 @@ app.get('/dashboard', async (c) => {
 
   // Add latest vitals + active alert count for each patient
   const patients = [];
-  for (const adm of admissions as Record<string, unknown>[]) {
-    const vital = await c.env.DB.prepare(`
-      SELECT systolic, diastolic, temperature, heart_rate, spo2, respiratory_rate, recorded_at
-      FROM patient_vitals
-      WHERE tenant_id = ? AND patient_id = ?
-      ORDER BY recorded_at DESC LIMIT 1
-    `).bind(tenantId, adm.patient_id).first();
-
-    const alertRow = await c.env.DB.prepare(`
-      SELECT COUNT(*) AS cnt FROM vital_alerts
-      WHERE tenant_id = ? AND patient_id = ? AND status = 'active'
-    `).bind(tenantId, adm.patient_id).first<{ cnt: number }>();
-
-    patients.push({
-      ...adm,
-      latestVitals: vital ?? null,
-      activeAlerts: alertRow?.cnt ?? 0,
-    });
+  if (admissions.length > 0) {
+    const batchStatements = [];
+    for (const adm of admissions as Record<string, unknown>[]) {
+      batchStatements.push(
+        c.env.DB.prepare(`
+          SELECT systolic, diastolic, temperature, heart_rate, spo2, respiratory_rate, recorded_at
+          FROM patient_vitals
+          WHERE tenant_id = ? AND patient_id = ?
+          ORDER BY recorded_at DESC LIMIT 1
+        `).bind(tenantId, adm.patient_id),
+        c.env.DB.prepare(`
+          SELECT COUNT(*) AS cnt FROM vital_alerts
+          WHERE tenant_id = ? AND patient_id = ? AND status = 'active'
+        `).bind(tenantId, adm.patient_id)
+      );
+    }
+    const batchResults = await c.env.DB.batch(batchStatements);
+    for (let i = 0; i < admissions.length; i++) {
+      const adm = admissions[i];
+      const vitalRow = batchResults[i * 2].results[0];
+      const alertRow = batchResults[i * 2 + 1].results[0] as { cnt: number } | undefined;
+      patients.push({
+        ...adm,
+        latestVitals: vitalRow ?? null,
+        activeAlerts: alertRow?.cnt ?? 0,
+      });
+    }
   }
 
   const pendingVitals = patients.filter(p => !p.latestVitals).length;
