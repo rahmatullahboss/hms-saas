@@ -12,7 +12,22 @@ const patientRoutes = new Hono<{
   Variables: Variables;
 }>();
 
-// GET /api/patients — list patients with search + cursor pagination
+/**
+ * GET /api/patients
+ * Retrieves a list of patients for the current tenant.
+ * Supports searching by name, mobile, patient code, or ID, and uses cursor-based pagination.
+ *
+ * @param {string} [search] - Optional search query to filter patients.
+ * @param {string} [limit=50] - Optional number of patients to return per page (max 200).
+ * @param {string} [cursor] - Optional ID of the last patient seen, used for fetching the next page.
+ * @returns {Object} JSON response containing:
+ *   - patients: Array of patient records.
+ *   - nextCursor: The cursor to use for the next page, or null if no more pages.
+ *   - hasMore: Boolean indicating if there are more patients to fetch.
+ *
+ * @example
+ * // GET /api/patients?search=john&limit=20
+ */
 patientRoutes.get('/', async (c) => {
   const tenantId = requireTenantId(c);
   const search  = c.req.query('search') || '';
@@ -50,7 +65,17 @@ patientRoutes.get('/', async (c) => {
   }
 });
 
-// GET /api/patients/:id — single patient
+/**
+ * GET /api/patients/:id
+ * Retrieves a single patient by their ID for the current tenant.
+ *
+ * @param {string} id - The ID of the patient to fetch.
+ * @returns {Object} JSON response containing the patient record.
+ * @throws {HTTPException} 404 if the patient is not found.
+ *
+ * @example
+ * // GET /api/patients/123
+ */
 patientRoutes.get('/:id', async (c) => {
   const id = c.req.param('id');
   const tenantId = requireTenantId(c);
@@ -73,7 +98,25 @@ patientRoutes.get('/:id', async (c) => {
   }
 });
 
-// POST /api/patients — create patient with Zod validation
+/**
+ * POST /api/patients
+ * Creates a new patient record for the current tenant.
+ * Validates the request body against `createPatientSchema`.
+ * Generates a unique patient code, assigns a daily serial number for queue management,
+ * and creates an audit log entry.
+ *
+ * @param {Object} body - The patient data (validated by Zod).
+ * @returns {Object} JSON response containing:
+ *   - message: Success message.
+ *   - patientId: The ID of the newly created patient.
+ *   - patientCode: The uniquely generated patient code (e.g., P-000001).
+ *   - serial: The daily serial number assigned to the patient.
+ * @throws {HTTPException} 500 if the patient creation fails.
+ *
+ * @example
+ * // POST /api/patients
+ * // Body: { "name": "John Doe", "mobile": "1234567890", ... }
+ */
 patientRoutes.post('/', zValidator('json', createPatientSchema), async (c) => {
   const tenantId = requireTenantId(c);
   const data = c.req.valid('json');
@@ -135,7 +178,23 @@ patientRoutes.post('/', zValidator('json', createPatientSchema), async (c) => {
   }
 });
 
-// PUT /api/patients/:id — update patient with Zod validation
+/**
+ * PUT /api/patients/:id
+ * Updates an existing patient record for the current tenant.
+ * Validates the request body against `updatePatientSchema`.
+ * Only fields provided in the request will be updated; missing fields retain their existing values.
+ * Creates an audit log entry for the update.
+ *
+ * @param {string} id - The ID of the patient to update.
+ * @param {Object} body - The partial patient data to update (validated by Zod).
+ * @returns {Object} JSON response containing a success message.
+ * @throws {HTTPException} 404 if the patient is not found.
+ * @throws {HTTPException} 500 if the patient update fails.
+ *
+ * @example
+ * // PUT /api/patients/123
+ * // Body: { "mobile": "0987654321" }
+ */
 patientRoutes.put('/:id', zValidator('json', updatePatientSchema), async (c) => {
   const id = c.req.param('id');
   const tenantId = requireTenantId(c);
