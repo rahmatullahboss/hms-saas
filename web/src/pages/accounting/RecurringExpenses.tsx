@@ -135,7 +135,7 @@ export default function RecurringExpenses({ role = 'md' }: { role?: string }) {
             <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-modal w-full max-w-md">
               <div className="flex items-center justify-between p-5 border-b border-[var(--color-border)]">
                 <h3 className="font-semibold">Add Recurring Expense</h3>
-                <button onClick={() => setModal(false)} className="btn-ghost p-1.5"><X className="w-5 h-5"/></button>
+                <button onClick={() => setModal(false)} className="btn-ghost p-1.5" aria-label="Close modal"><X className="w-5 h-5"/></button>
               </div>
               <form onSubmit={handleSubmit} className="p-5 space-y-4">
                 <div><label className="label">Category</label>
