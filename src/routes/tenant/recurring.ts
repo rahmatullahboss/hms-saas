@@ -1,12 +1,11 @@
 import { Hono } from 'hono';
-import { notifyDashboard, createAuditLog } from '../../lib/accounting-helpers';
+import { createAuditLog } from '../../lib/accounting-helpers';
 
 const recurringRoutes = new Hono<{
   Bindings: {
     DB: D1Database;
     KV: KVNamespace;
     UPLOADS: R2Bucket;
-    DASHBOARD_DO: DurableObjectNamespace;
     ENVIRONMENT: string;
   };
   Variables: {
@@ -255,7 +254,6 @@ recurringRoutes.post('/:id/run', async (c) => {
       UPDATE recurring_expenses SET next_run_date = ? WHERE id = ? AND tenant_id = ?
     `).bind(nextRunDate.toISOString().split('T')[0], id, tenantId).run();
 
-    await notifyDashboard(c.env, tenantId, 'expense', (recurring as any).amount);
 
     await createAuditLog(
       c.env,

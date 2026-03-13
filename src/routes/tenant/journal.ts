@@ -6,7 +6,6 @@ const journalRoutes = new Hono<{
     DB: D1Database;
     KV: KVNamespace;
     UPLOADS: R2Bucket;
-    DASHBOARD_DO: DurableObjectNamespace;
     ENVIRONMENT: string;
   };
   Variables: {

@@ -8,8 +8,6 @@ export interface Env {
   UPLOADS: R2Bucket;
   // Static assets binding — serves React SPA via [assets] in wrangler.toml
   ASSETS: Fetcher;
-  // ─── Durable Objects ──────────────────────────────────────────────────
-  DASHBOARD_DO: DurableObjectNamespace;
   JWT_SECRET: string;
   ENVIRONMENT: string;
   ALLOWED_ORIGINS: string;

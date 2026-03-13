@@ -45,7 +45,6 @@ export default function AccountingDashboard({ role = 'md' }: { role?: string }) 
   const [expenseBreakdown, setExpenseBreakdown] = useState<ExpenseBreakdown[]>([]);
   const [trends, setTrends] = useState<Trend[]>([]);
   const [loading, setLoading] = useState(true);
-  const [wsConnected, setWsConnected] = useState(false);
   const [showIncomeModal, setShowIncomeModal] = useState(false);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [incomeForm, setIncomeForm] = useState({ date: new Date().toISOString().split('T')[0], source: 'other', amount: '', description: '' });
@@ -99,83 +98,11 @@ export default function AccountingDashboard({ role = 'md' }: { role?: string }) 
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 60000);
+    const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  useEffect(() => {
-    const token = localStorage.getItem('hms_token');
-    if (!token) return; // Can't connect without auth
 
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${wsProtocol}//${window.location.host}/api/accounting/ws?token=${encodeURIComponent(token)}`;
-    let ws: WebSocket | null = null;
-    let reconnectTimeout: ReturnType<typeof setTimeout>;
-    let reconnectDelay = 3000;
-    let attempts = 0;
-    const maxAttempts = 3; // Stop retrying after 3 failures — polling is the fallback
-    let disposed = false;
-
-    const connect = () => {
-      if (disposed || attempts >= maxAttempts) {
-        // Silently fall back to HTTP polling (already running via setInterval)
-        return;
-      }
-      attempts++;
-      ws = new WebSocket(wsUrl);
-
-      ws.onopen = () => {
-        setWsConnected(true);
-        reconnectDelay = 3000;
-        attempts = 0; // reset on successful connect
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const message = JSON.parse(event.data);
-          if (message.type === 'income_update' || message.type === 'expense_update' || message.type === 'sync') {
-            setData(prev => prev ? {
-              ...prev,
-              today: {
-                income: message.data.todayIncome,
-                expense: message.data.todayExpense,
-                profit: message.data.todayIncome - message.data.todayExpense,
-              },
-              mtd: {
-                income: message.data.mtdIncome,
-                expense: message.data.mtdExpense,
-                profit: message.data.mtdIncome - message.data.mtdExpense,
-              },
-              lastUpdated: message.data.lastUpdated,
-            } : null);
-          }
-        } catch {
-          // silently ignore parse errors
-        }
-      };
-
-      ws.onclose = () => {
-        setWsConnected(false);
-        if (!disposed && attempts < maxAttempts) {
-          reconnectTimeout = setTimeout(connect, reconnectDelay);
-          reconnectDelay = Math.min(reconnectDelay * 2, 30000);
-        }
-      };
-
-      ws.onerror = () => {
-        // Don't log — just close and let onclose handler retry
-        ws?.close();
-      };
-    };
-
-    connect();
-
-    return () => {
-      disposed = true;
-      if (ws) ws.close();
-      if (reconnectTimeout) clearTimeout(reconnectTimeout);
-    };
-  }, []);
 
   const handleAddIncome = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -221,7 +148,6 @@ export default function AccountingDashboard({ role = 'md' }: { role?: string }) 
           <h1 className="text-2xl font-bold text-gray-800">{t('dashboardTitle')}</h1>
           <p className="text-sm text-gray-500">
             {t('lastUpdated')}: {data?.lastUpdated ? new Date(data.lastUpdated).toLocaleString() : 'N/A'}
-            {wsConnected && <span className="ml-2 text-green-500">● {t('live')}</span>}
           </p>
         </div>
         <div className="flex gap-2">

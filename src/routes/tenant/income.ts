@@ -1,12 +1,11 @@
 import { Hono } from 'hono';
-import { notifyDashboard, createAuditLog } from '../../lib/accounting-helpers';
+import { createAuditLog } from '../../lib/accounting-helpers';
 
 const incomeRoutes = new Hono<{
   Bindings: {
     DB: D1Database;
     KV: KVNamespace;
     UPLOADS: R2Bucket;
-    DASHBOARD_DO: DurableObjectNamespace;
     ENVIRONMENT: string;
   };
   Variables: {
@@ -75,8 +74,6 @@ incomeRoutes.post('/', async (c) => {
       null,
       { date, source, amount, description }
     );
-
-    await notifyDashboard(c.env, tenantId, 'income', amount);
 
     return c.json({ 
       success: true, 
@@ -151,9 +148,6 @@ incomeRoutes.put('/:id', async (c) => {
       { date, source, amount, description }
     );
 
-    if (amountDiff !== 0) {
-      await notifyDashboard(c.env, tenantId, 'income', amountDiff);
-    }
 
     return c.json({ success: true, message: 'Income updated successfully' });
   } catch (error) {
@@ -190,8 +184,6 @@ incomeRoutes.delete('/:id', async (c) => {
       existing,
       null
     );
-
-    await notifyDashboard(c.env, tenantId, 'income', -(existing as any).amount);
 
     return c.json({ success: true, message: 'Income deleted successfully' });
   } catch (error) {

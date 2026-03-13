@@ -57,10 +57,10 @@ export async function securityHeaders(c: Context, next: Next) {
     [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline'",  // React needs this; tighten with nonce in future
-      "style-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "img-src 'self' data: blob:",
-      "font-src 'self'",
-      "connect-src 'self'",
+      "font-src 'self' https://fonts.gstatic.com",
+      "connect-src 'self' wss: ws:",         // WebSocket for telemedicine + Durable Objects
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",

@@ -1,31 +1,7 @@
-// accounting-helpers.ts — shared audit + dashboard notification utilities
-
-export interface Env {
-  DB: D1Database;
-  KV: KVNamespace;
-  UPLOADS: R2Bucket;
-  // Note: DASHBOARD_DO was removed — Durable Object not yet registered in wrangler.toml
-  // Add it back when the DO class is implemented and the binding is configured.
-  ENVIRONMENT: string;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export async function notifyDashboard(
-  env: Env,
-  tenantId: string,
-  type: 'income' | 'expense',
-  amount: number,
-  isToday: boolean = true,
-  isMTD: boolean = true
-): Promise<void> {
-  // DASHBOARD_DO binding is not yet configured — this is a future feature.
-  // Will be implemented when a DurableObject class is created and registered.
-}
-
-
+// accounting-helpers.ts — shared audit utilities
 
 export async function createAuditLog(
-  env: Env,
+  env: { DB: D1Database },
   tenantId: string,
   userId: string,
   action: string,
