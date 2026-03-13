@@ -1,14 +1,17 @@
-import { Context, Next } from 'hono';
+import type { Context, Next } from 'hono';
 
-// In-memory cache (use KV in production)
-interface CacheEntry {
-  value: any;
-  expiry: number;
-}
+/**
+ * KV-based caching for Cloudflare Workers.
+ *
+ * Workers are STATELESS — in-memory Maps are wiped between invocations.
+ * This module uses KV for persistent, globally-distributed caching.
+ *
+ * Best practice (per Cloudflare docs):
+ *   • Use KV for read-heavy, write-infrequent data
+ *   • TTL via KV's native `expirationTtl`
+ *   • Cache key includes tenant for multi-tenant isolation
+ */
 
-const memoryCache = new Map<string, CacheEntry>();
-
-// Default cache TTL (Time To Live) in seconds
 const DEFAULT_TTL = 300; // 5 minutes
 
 export interface CacheOptions {
@@ -17,67 +20,75 @@ export interface CacheOptions {
 }
 
 /**
- * Get value from cache
+ * Get value from KV cache
  */
-export function getCache(key: string): any | null {
-  const entry = memoryCache.get(key);
-  
-  if (!entry) {
+export async function getCache(kv: KVNamespace, key: string): Promise<unknown | null> {
+  try {
+    const raw = await kv.get(key, 'text');
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
     return null;
   }
-  
-  if (Date.now() > entry.expiry) {
-    memoryCache.delete(key);
-    return null;
-  }
-  
-  return entry.value;
 }
 
 /**
- * Set value in cache
+ * Set value in KV cache
  */
-export function setCache(key: string, value: any, ttl: number = DEFAULT_TTL): void {
-  memoryCache.set(key, {
-    value,
-    expiry: Date.now() + (ttl * 1000),
-  });
-}
-
-/**
- * Delete value from cache
- */
-export function deleteCache(key: string): boolean {
-  return memoryCache.delete(key);
-}
-
-/**
- * Clear all cache entries
- */
-export function clearCache(): void {
-  memoryCache.clear();
-}
-
-/**
- * Clear expired cache entries
- */
-export function cleanupCache(): void {
-  const now = Date.now();
-  for (const [key, entry] of memoryCache.entries()) {
-    if (now > entry.expiry) {
-      memoryCache.delete(key);
-    }
+export async function setCache(
+  kv: KVNamespace,
+  key: string,
+  value: unknown,
+  ttl: number = DEFAULT_TTL,
+): Promise<void> {
+  try {
+    await kv.put(key, JSON.stringify(value), { expirationTtl: ttl });
+  } catch {
+    // Non-fatal — cache miss is acceptable
   }
 }
 
-// Run cleanup every minute
-setInterval(cleanupCache, 60 * 1000);
+/**
+ * Delete value from KV cache
+ */
+export async function deleteCache(kv: KVNamespace, key: string): Promise<boolean> {
+  try {
+    await kv.delete(key);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /**
- * Cache middleware
- * Caches GET request responses
+ * Invalidate cache by prefix pattern.
+ * Note: KV list is eventually consistent; this is best-effort.
  */
-export async function cacheMiddleware(c: Context, next: Next, options: CacheOptions = {}): Promise<void> {
+export async function invalidateCache(
+  kv: KVNamespace,
+  prefix: string,
+): Promise<number> {
+  let count = 0;
+  try {
+    const list = await kv.list({ prefix });
+    const deletes = list.keys.map((k) => kv.delete(k.name));
+    await Promise.allSettled(deletes);
+    count = list.keys.length;
+  } catch {
+    // Best-effort
+  }
+  return count;
+}
+
+/**
+ * Cache middleware for Hono.
+ * Caches GET responses in KV with tenant-scoped keys.
+ */
+export async function cacheMiddleware(
+  c: Context<{ Bindings: { KV: KVNamespace } }>,
+  next: Next,
+  options: CacheOptions = {},
+): Promise<void> {
   const ttl = options.ttl ?? DEFAULT_TTL;
   const key = options.key ?? `cache:${c.req.method}:${c.req.url}`;
 
@@ -87,59 +98,25 @@ export async function cacheMiddleware(c: Context, next: Next, options: CacheOpti
   }
 
   // Return cached response if available
-  const cached = getCache(key);
+  const cached = await getCache(c.env.KV, key);
   if (cached !== null) {
-    c.res = c.json(cached) as unknown as Response;
+    c.res = new Response(JSON.stringify(cached), {
+      headers: { 'Content-Type': 'application/json' },
+    });
     return;
   }
 
   // Let the handler run
   await next();
 
-  // Try to cache the response body if it was a 200
+  // Cache the response body if 200
   try {
     if (c.res.status === 200) {
       const body = await c.res.clone().json();
-      setCache(key, body, ttl);
+      // Fire-and-forget — don't block the response
+      c.executionCtx.waitUntil(setCache(c.env.KV, key, body, ttl));
     }
   } catch {
     // Ignore clone/parse errors — cache miss is non-fatal
   }
-}
-
-/**
- * Invalidate cache by pattern
- */
-export function invalidateCache(pattern: string): number {
-  let count = 0;
-  for (const key of memoryCache.keys()) {
-    if (key.includes(pattern)) {
-      memoryCache.delete(key);
-      count++;
-    }
-  }
-  return count;
-}
-
-/**
- * Get cache statistics
- */
-export function getCacheStats() {
-  const now = Date.now();
-  let active = 0;
-  let expired = 0;
-  
-  for (const entry of memoryCache.values()) {
-    if (now > entry.expiry) {
-      expired++;
-    } else {
-      active++;
-    }
-  }
-  
-  return {
-    total: memoryCache.size,
-    active,
-    expired,
-  };
 }

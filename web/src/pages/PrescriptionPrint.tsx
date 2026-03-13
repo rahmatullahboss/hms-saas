@@ -96,12 +96,19 @@ export default function PrescriptionPrint({ role = 'hospital_admin' }: { role?: 
 
   const [rx, setRx] = useState<Prescription>(DEMO);
   const [loading, setLoading] = useState(true);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`/api/prescriptions/${prescriptionId}/print`, { headers: authHeaders() });
-      if (res.data.prescription) setRx(res.data.prescription);
+      const [rxRes, settingsRes] = await Promise.all([
+        axios.get(`/api/prescriptions/${prescriptionId}/print`, { headers: authHeaders() }).catch(() => null),
+        axios.get('/api/settings', { headers: authHeaders() }).catch(() => null),
+      ]);
+      if (rxRes?.data?.prescription) setRx(rxRes.data.prescription);
+      if (settingsRes?.data?.settings?.hospital_logo_url) {
+        setLogoUrl(settingsRes.data.settings.hospital_logo_url);
+      }
     } catch {
       setRx(DEMO); // fallback to demo
     } finally {
@@ -155,9 +162,13 @@ export default function PrescriptionPrint({ role = 'hospital_admin' }: { role?: 
 
             {/* Hospital Header */}
             <div className="text-center mb-4">
-              <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-2"
-                   style={{ background: '#088eaf' }}>
-                <FileText className="w-7 h-7 text-white" />
+              <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-2 overflow-hidden"
+                   style={{ background: logoUrl ? 'transparent' : '#088eaf' }}>
+                {logoUrl ? (
+                  <img src={logoUrl} alt="Hospital Logo" className="w-full h-full object-contain" />
+                ) : (
+                  <FileText className="w-7 h-7 text-white" />
+                )}
               </div>
               <h1 className="text-xl font-bold" style={{ color: '#088eaf' }}>
                 {rx.hospital_name ?? 'City General Hospital'}

@@ -158,16 +158,23 @@ export default function BillPrint({
   const [items, setItems]       = useState<InvoiceItem[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading]   = useState(true);
+  const [logoUrl, setLogoUrl]   = useState<string | null>(null);
 
   const fetchBill = useCallback(async () => {
     setLoading(true);
     const token = localStorage.getItem('hms_token');
     const headers = { Authorization: `Bearer ${token}` };
     try {
-      const res = await axios.get(`/api/billing/${billId}`, { headers });
-      setBill(res.data.bill as BillDetail);
-      setItems(res.data.items ?? []);
-      setPayments(res.data.payments ?? []);
+      const [billRes, settingsRes] = await Promise.all([
+        axios.get(`/api/billing/${billId}`, { headers }),
+        axios.get('/api/settings', { headers }).catch(() => null),
+      ]);
+      setBill(billRes.data.bill as BillDetail);
+      setItems(billRes.data.items ?? []);
+      setPayments(billRes.data.payments ?? []);
+      if (settingsRes?.data?.settings?.hospital_logo_url) {
+        setLogoUrl(settingsRes.data.settings.hospital_logo_url);
+      }
     } catch (err) {
       console.error('[BillPrint] Fetch failed:', err);
       // Deterministic mock data for dev
@@ -251,9 +258,14 @@ export default function BillPrint({
           {/* Header */}
           <div className="invoice-header bg-gradient-to-r from-slate-800 to-slate-700 text-white p-6">
             <div className="flex justify-between items-start">
-              <div>
-                <h1 className="text-xl font-bold tracking-tight">{hospitalName}</h1>
-                <p className="text-slate-300 text-sm mt-1">Healthcare with Compassion</p>
+              <div className="flex items-center gap-3">
+                {logoUrl && (
+                  <img src={logoUrl} alt="Hospital Logo" className="w-12 h-12 object-contain rounded-lg bg-white/10 p-1" />
+                )}
+                <div>
+                  <h1 className="text-xl font-bold tracking-tight">{hospitalName}</h1>
+                  <p className="text-slate-300 text-sm mt-1">Healthcare with Compassion</p>
+                </div>
               </div>
               <div className="text-right">
                 <p className="text-2xl font-bold tracking-wider">INVOICE</p>

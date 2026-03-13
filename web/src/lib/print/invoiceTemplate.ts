@@ -20,7 +20,7 @@ export interface InvoiceData {
   discount: number;
   totalAmount: number;
   paidAmount: number;
-  hospital?: { name: string; address?: string; phone?: string };
+  hospital?: { name: string; address?: string; phone?: string; logoUrl?: string };
 }
 
 export function printInvoice(inv: InvoiceData): void {
@@ -37,10 +37,13 @@ export function printInvoice(inv: InvoiceData): void {
 
   const html = `
     <div class="flex-between">
-      <div>
-        <h1>${inv.hospital?.name ?? 'Hospital Management System'}</h1>
-        ${inv.hospital?.address ? `<div class="text-sm">${inv.hospital.address}</div>` : ''}
-        ${inv.hospital?.phone ? `<div class="text-sm">📞 ${inv.hospital.phone}</div>` : ''}
+      <div style="display:flex;align-items:center;gap:10px">
+        ${inv.hospital?.logoUrl ? `<img src="${inv.hospital.logoUrl}" alt="Logo" style="height:48px;width:48px;object-fit:contain" />` : ''}
+        <div>
+          <h1>${inv.hospital?.name ?? 'Hospital Management System'}</h1>
+          ${inv.hospital?.address ? `<div class="text-sm">${inv.hospital.address}</div>` : ''}
+          ${inv.hospital?.phone ? `<div class="text-sm">📞 ${inv.hospital.phone}</div>` : ''}
+        </div>
       </div>
       <div class="text-right">
         <h2>INVOICE</h2>

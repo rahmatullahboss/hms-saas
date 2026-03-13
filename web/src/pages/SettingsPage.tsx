@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
-import { ChevronRight, Save, Building2, CreditCard, Users, Bell } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { ChevronRight, Save, Building2, CreditCard, Users, Bell, Upload, Trash2, ImageIcon } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
 import { useTranslation } from 'react-i18next';
+import { compressImage } from '../lib/compressImage';
 
 interface HospitalSettings {
   share_price: string;
@@ -71,6 +72,9 @@ export default function SettingsPage({ role = 'hospital_admin' }: { role?: strin
   const [loading,   setLoading]  = useState(true);
   const [saving,    setSaving]   = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('hospital');
+  const [logoUrl,   setLogoUrl]  = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { fetchSettings(); }, []);
 
@@ -79,7 +83,12 @@ export default function SettingsPage({ role = 'hospital_admin' }: { role?: strin
     try {
       const token = localStorage.getItem('hms_token');
       const { data } = await axios.get('/api/settings', { headers: { Authorization: `Bearer ${token}` } });
-      if (data.settings) setSettings(s => ({ ...s, ...data.settings }));
+      if (data.settings) {
+        setSettings(s => ({ ...s, ...data.settings }));
+        if (data.settings.hospital_logo_url) {
+          setLogoUrl(data.settings.hospital_logo_url + '?t=' + Date.now());
+        }
+      }
       if (data.hospital_info) setHospitalInfo(h => ({ ...h, ...data.hospital_info }));
       if (data.notifications) setNotifications(n => ({ ...n, ...data.notifications }));
     } catch (err) {
@@ -114,9 +123,89 @@ export default function SettingsPage({ role = 'hospital_admin' }: { role?: strin
     setNotifications(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
+  // ── Logo upload / remove ──
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      // Compress on client side
+      const compressed = await compressImage(file, 400, 0.8);
+      const formData = new FormData();
+      formData.append('logo', compressed, file.name);
+
+      const token = localStorage.getItem('hms_token');
+      await axios.post('/api/settings/logo', formData, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setLogoUrl('/api/settings/logo?t=' + Date.now());
+      toast.success('Logo uploaded!');
+    } catch (err) {
+      console.error('[Settings] Logo upload error:', err);
+      toast.error('Failed to upload logo');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleLogoRemove = async () => {
+    try {
+      const token = localStorage.getItem('hms_token');
+      await axios.delete('/api/settings/logo', { headers: { Authorization: `Bearer ${token}` } });
+      setLogoUrl(null);
+      toast.success('Logo removed');
+    } catch (err) {
+      console.error('[Settings] Logo remove error:', err);
+      toast.error('Failed to remove logo');
+    }
+  };
+
   const tabContent: Record<Tab, React.ReactNode> = {
     hospital: (
       <div className="space-y-4">
+        {/* ── Hospital Logo ── */}
+        <div className="flex items-center gap-5 p-4 rounded-xl bg-[var(--color-border-light)]">
+          <div className="w-[88px] h-[88px] rounded-xl border-2 border-dashed border-[var(--color-border)] flex items-center justify-center overflow-hidden bg-white shrink-0">
+            {logoUrl ? (
+              <img src={logoUrl} alt="Hospital Logo" className="w-full h-full object-contain" />
+            ) : (
+              <ImageIcon className="w-8 h-8 text-[var(--color-text-muted)]" />
+            )}
+          </div>
+          <div className="flex-1 space-y-2">
+            <p className="text-sm font-medium text-[var(--color-text-primary)]">Hospital Logo</p>
+            <p className="text-xs text-[var(--color-text-muted)]">Shown on invoices, prescriptions, lab reports. PNG/JPG/WebP, auto-compressed to 400px.</p>
+            <div className="flex gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                onChange={handleLogoUpload}
+                className="hidden"
+                id="logo-upload"
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="btn-secondary text-xs !py-1.5 !px-3 flex items-center gap-1.5"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                {uploading ? 'Uploading…' : logoUrl ? 'Change Logo' : 'Upload Logo'}
+              </button>
+              {logoUrl && (
+                <button
+                  onClick={handleLogoRemove}
+                  className="btn-secondary text-xs !py-1.5 !px-3 flex items-center gap-1.5 text-red-500 hover:text-red-600"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Remove
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
         <Field label="Hospital Name" value={hospitalInfo.name} onChange={hi('name')} placeholder="e.g. Dhaka General Hospital"
           hint="Shown in header, reports, and printed documents." />
         <Field label="Hospital Address" value={hospitalInfo.address} onChange={hi('address')} placeholder="Full address…" />

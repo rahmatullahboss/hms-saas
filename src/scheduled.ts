@@ -1,5 +1,6 @@
 import { createSmsProvider, SmsTemplates } from './lib/sms';
 import { sendEmail, EmailTemplates } from './lib/email';
+import type { Env } from './types';
 
 export default {
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
@@ -205,18 +206,4 @@ async function checkMedicineExpiry(env: Env): Promise<void> {
   }
 }
 
-// ─── Local Env interface ──────────────────────────────────────────────────────
-interface Env {
-  DB: D1Database;
-  KV: KVNamespace;
-  UPLOADS: R2Bucket;
-  ENVIRONMENT: string;
-  JWT_SECRET: string;
-  // Email
-  RESEND_API_KEY?: string;
-  RESEND_FROM_EMAIL?: string;
-  // SMS
-  SMS_PROVIDER?: string;
-  SMS_API_KEY?: string;
-  SMS_SENDER_ID?: string;
-}
+
