@@ -4,7 +4,7 @@ import { requireTenantId } from '../../lib/context-helpers';
 
 const settingsRoutes = new Hono<{
   Bindings: { DB: D1Database; UPLOADS: R2Bucket };
-  Variables: { tenantId?: string };
+  Variables: { tenantId?: string; role?: string };
 }>();
 
 // ─── Get all settings ────────────────────────────────────────────────────────
@@ -159,6 +159,11 @@ settingsRoutes.delete('/logo', async (c) => {
 
 // ─── Update setting ──────────────────────────────────────────────────────────
 settingsRoutes.put('/:key', async (c) => {
+  const callerRole = c.get('role');
+  if (callerRole !== 'hospital_admin' && callerRole !== 'director' && callerRole !== 'md') {
+    return c.json({ error: 'Forbidden: Insufficient permissions to update settings' }, 403);
+  }
+
   const key = c.req.param('key');
   const tenantId = requireTenantId(c);
   const { value } = await c.req.json();
@@ -176,6 +181,11 @@ settingsRoutes.put('/:key', async (c) => {
 
 // ─── Bulk update settings ────────────────────────────────────────────────────
 settingsRoutes.put('/', async (c) => {
+  const callerRole = c.get('role');
+  if (callerRole !== 'hospital_admin' && callerRole !== 'director' && callerRole !== 'md') {
+    return c.json({ error: 'Forbidden: Insufficient permissions to update settings' }, 403);
+  }
+
   const tenantId = requireTenantId(c);
   const settings = await c.req.json();
 
