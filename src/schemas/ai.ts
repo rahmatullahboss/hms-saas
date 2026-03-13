@@ -23,7 +23,7 @@ export type PrescriptionAssistInput = z.infer<typeof prescriptionAssistSchema>;
 // ─── Diagnosis Suggestions ──────────────────────────────────────────────────
 
 export const diagnosisSuggestSchema = z.object({
-  symptoms: z.string().min(3, 'Describe symptoms'),
+  symptoms: z.string().min(3, 'Describe symptoms').max(2000, 'Symptoms text too long'),
   vitals: z.object({
     bp: z.string().optional(),
     temperature: z.string().optional(),
@@ -32,7 +32,7 @@ export const diagnosisSuggestSchema = z.object({
   }).optional(),
   patientAge: z.number().int().min(0).max(150).optional(),
   patientGender: z.enum(['Male', 'Female', 'Other']).optional(),
-  medicalHistory: z.string().optional(),
+  medicalHistory: z.string().max(2000).optional(),
 });
 
 export type DiagnosisSuggestInput = z.infer<typeof diagnosisSuggestSchema>;
@@ -40,7 +40,7 @@ export type DiagnosisSuggestInput = z.infer<typeof diagnosisSuggestSchema>;
 // ─── Auto-Billing from Notes ────────────────────────────────────────────────
 
 export const billingFromNotesSchema = z.object({
-  consultationNotes: z.string().min(10, 'Notes must be at least 10 characters'),
+  consultationNotes: z.string().min(10, 'Notes must be at least 10 characters').max(5000, 'Notes too long'),
   patientId: z.number().int().positive().optional(),
 });
 
@@ -49,7 +49,7 @@ export type BillingFromNotesInput = z.infer<typeof billingFromNotesSchema>;
 // ─── Symptom Triage Chatbot ─────────────────────────────────────────────────
 
 export const triageChatSchema = z.object({
-  message: z.string().min(1, 'Message is required'),
+  message: z.string().min(1, 'Message is required').max(1000, 'Message too long'),
   conversationHistory: z.array(
     z.object({
       role: z.enum(['user', 'assistant']),
@@ -63,7 +63,7 @@ export type TriageChatInput = z.infer<typeof triageChatSchema>;
 // ─── Clinical Note Summarization ────────────────────────────────────────────
 
 export const noteSummarySchema = z.object({
-  note: z.string().min(20, 'Note must be at least 20 characters'),
+  note: z.string().min(20, 'Note must be at least 20 characters').max(5000, 'Note too long'),
   format: z.enum(['brief', 'soap']).optional().default('soap'),
 });
 

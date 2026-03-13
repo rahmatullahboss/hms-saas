@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { HTTPException } from 'hono/http-exception';
+import { z } from 'zod';
 import {
   callAIJson,
   checkAIRateLimit,
@@ -17,6 +18,13 @@ import {
   labInterpretSchema,
   dashboardInsightsSchema,
 } from '../../schemas/ai';
+import {
+  saveInteraction,
+  buildMemoryContext,
+  recordFeedback,
+  type AIFeature,
+  type UserAction,
+} from '../../lib/ai-memory';
 import type { Env, Variables } from '../../types';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 
@@ -70,6 +78,7 @@ function handleAIError(err: unknown): never {
 
 aiRoutes.post('/prescription-assist', zValidator('json', prescriptionAssistSchema), async (c) => {
   const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
   const data = c.req.valid('json');
   const { apiKey, model } = getConfig(c.env);
 
@@ -91,6 +100,9 @@ aiRoutes.post('/prescription-assist', zValidator('json', prescriptionAssistSchem
       }
     }
 
+    const inputSummary = `Rx: ${data.medications.map((m) => m.name).join(', ')}`;
+    const memoryContext = await buildMemoryContext(c.env, tenantId, userId, 'prescription_assist', inputSummary);
+
     const userMessage = `Medications being prescribed:
 ${data.medications.map((m, i) => `${i + 1}. ${m.name}${m.dosage ? ` ${m.dosage}` : ''}${m.frequency ? ` ${m.frequency}` : ''}${m.duration ? ` for ${m.duration}` : ''}`).join('\n')}
 ${patientContext}
@@ -99,12 +111,17 @@ ${data.patientAge ? `Age: ${data.patientAge}` : ''}
 ${data.patientWeight ? `Weight: ${data.patientWeight}kg` : ''}`;
 
     const messages: ChatMessage[] = [
-      { role: 'system', content: SYSTEM_PROMPTS.prescriptionAssist },
+      { role: 'system', content: SYSTEM_PROMPTS.prescriptionAssist + memoryContext },
       { role: 'user', content: userMessage },
     ];
 
     const aiResult = await callAIJson<Record<string, unknown>>(apiKey, messages, { model });
-    return c.json({ ...aiResult.data, usage: aiResult.usage });
+    const responseJson = JSON.stringify(aiResult.data);
+
+    // Save interaction for learning (non-blocking)
+    const interactionId = await saveInteraction(c.env, tenantId, userId, 'prescription_assist', inputSummary, responseJson);
+
+    return c.json({ ...aiResult.data, interactionId, usage: aiResult.usage });
   } catch (err) {
     handleAIError(err);
   }
@@ -115,6 +132,8 @@ ${data.patientWeight ? `Weight: ${data.patientWeight}kg` : ''}`;
 // ═══════════════════════════════════════════════════════════════════════════════
 
 aiRoutes.post('/diagnosis-suggest', zValidator('json', diagnosisSuggestSchema), async (c) => {
+  const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
   const data = c.req.valid('json');
   const { apiKey, model } = getConfig(c.env);
 
@@ -126,18 +145,24 @@ aiRoutes.post('/diagnosis-suggest', zValidator('json', diagnosisSuggestSchema), 
           .join(', ')
       : 'Not provided';
 
+    const inputSummary = `Dx: ${data.symptoms.substring(0, 100)}`;
+    const memoryContext = await buildMemoryContext(c.env, tenantId, userId, 'diagnosis_suggest', inputSummary);
+
     const userMessage = `Patient Symptoms: ${data.symptoms}
 Vitals: ${vitalsStr}
 Age: ${data.patientAge ?? 'unknown'}, Gender: ${data.patientGender ?? 'unknown'}
 ${data.medicalHistory ? `Medical History: ${data.medicalHistory}` : ''}`;
 
     const messages: ChatMessage[] = [
-      { role: 'system', content: SYSTEM_PROMPTS.diagnosisSuggest },
+      { role: 'system', content: SYSTEM_PROMPTS.diagnosisSuggest + memoryContext },
       { role: 'user', content: userMessage },
     ];
 
     const aiResult = await callAIJson<Record<string, unknown>>(apiKey, messages, { model });
-    return c.json({ ...aiResult.data, usage: aiResult.usage });
+    const responseJson = JSON.stringify(aiResult.data);
+    const interactionId = await saveInteraction(c.env, tenantId, userId, 'diagnosis_suggest', inputSummary, responseJson);
+
+    return c.json({ ...aiResult.data, interactionId, usage: aiResult.usage });
   } catch (err) {
     handleAIError(err);
   }
@@ -149,28 +174,34 @@ ${data.medicalHistory ? `Medical History: ${data.medicalHistory}` : ''}`;
 
 aiRoutes.post('/billing-from-notes', zValidator('json', billingFromNotesSchema), async (c) => {
   const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
   const data = c.req.valid('json');
   const { apiKey, model } = getConfig(c.env);
 
   try {
-    // Fetch available test/service prices for context
     const { results: tests } = await c.env.DB.prepare(
       `SELECT name, price FROM tests WHERE tenant_id = ? ORDER BY name LIMIT 50`,
     ).bind(tenantId).all<{ name: string; price: number }>();
 
     const priceContext = tests.length
-      ? `\nAvailable services and their prices:\n${tests.map((t) => `- ${t.name}: ৳${t.price}`).join('\n')}`
+      ? `\nAvailable services and their prices:\n${tests.map((t) => `- ${t.name}: ${t.price} BDT`).join('\n')}`
       : '';
+
+    const inputSummary = `Billing: ${data.consultationNotes.substring(0, 100)}`;
+    const memoryContext = await buildMemoryContext(c.env, tenantId, userId, 'billing_from_notes', inputSummary);
 
     const userMessage = `Consultation Notes:\n${data.consultationNotes}${priceContext}`;
 
     const messages: ChatMessage[] = [
-      { role: 'system', content: SYSTEM_PROMPTS.billingFromNotes },
+      { role: 'system', content: SYSTEM_PROMPTS.billingFromNotes + memoryContext },
       { role: 'user', content: userMessage },
     ];
 
     const aiResult = await callAIJson<Record<string, unknown>>(apiKey, messages, { model });
-    return c.json({ ...aiResult.data, usage: aiResult.usage });
+    const responseJson = JSON.stringify(aiResult.data);
+    const interactionId = await saveInteraction(c.env, tenantId, userId, 'billing_from_notes', inputSummary, responseJson);
+
+    return c.json({ ...aiResult.data, interactionId, usage: aiResult.usage });
   } catch (err) {
     handleAIError(err);
   }
@@ -182,11 +213,11 @@ aiRoutes.post('/billing-from-notes', zValidator('json', billingFromNotesSchema),
 
 aiRoutes.post('/triage', zValidator('json', triageChatSchema), async (c) => {
   const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
   const data = c.req.valid('json');
   const { apiKey, model } = getConfig(c.env);
 
   try {
-    // Get available doctor specialties for this hospital
     const { results: specialties } = await c.env.DB.prepare(
       `SELECT DISTINCT specialty FROM doctors WHERE tenant_id = ? AND status = 'active' ORDER BY specialty`,
     ).bind(tenantId).all<{ specialty: string }>();
@@ -200,8 +231,11 @@ aiRoutes.post('/triage', zValidator('json', triageChatSchema), async (c) => {
       `Available departments at this hospital: ${deptList}.`,
     );
 
+    const inputSummary = `Triage: ${data.message.substring(0, 100)}`;
+    const memoryContext = await buildMemoryContext(c.env, tenantId, userId, 'triage', inputSummary);
+
     const messages: ChatMessage[] = [
-      { role: 'system', content: systemPrompt },
+      { role: 'system', content: systemPrompt + memoryContext },
       ...data.conversationHistory.map((m) => ({
         role: m.role as 'user' | 'assistant',
         content: m.content,
@@ -210,7 +244,10 @@ aiRoutes.post('/triage', zValidator('json', triageChatSchema), async (c) => {
     ];
 
     const aiResult = await callAIJson<Record<string, unknown>>(apiKey, messages, { model, temperature: 0.5 });
-    return c.json({ ...aiResult.data, usage: aiResult.usage });
+    const responseJson = JSON.stringify(aiResult.data);
+    const interactionId = await saveInteraction(c.env, tenantId, userId, 'triage', inputSummary, responseJson);
+
+    return c.json({ ...aiResult.data, interactionId, usage: aiResult.usage });
   } catch (err) {
     handleAIError(err);
   }
@@ -221,19 +258,26 @@ aiRoutes.post('/triage', zValidator('json', triageChatSchema), async (c) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 aiRoutes.post('/summarize-note', zValidator('json', noteSummarySchema), async (c) => {
+  const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
   const data = c.req.valid('json');
   const { apiKey, model } = getConfig(c.env);
 
   try {
+    const inputSummary = `Summary: ${data.note.substring(0, 100)}`;
+    const memoryContext = await buildMemoryContext(c.env, tenantId, userId, 'summarize_note', inputSummary);
     const userMessage = `Format: ${data.format.toUpperCase()}\n\nClinical Note:\n${data.note}`;
 
     const messages: ChatMessage[] = [
-      { role: 'system', content: SYSTEM_PROMPTS.summarizeNote },
+      { role: 'system', content: SYSTEM_PROMPTS.summarizeNote + memoryContext },
       { role: 'user', content: userMessage },
     ];
 
     const aiResult = await callAIJson<Record<string, unknown>>(apiKey, messages, { model });
-    return c.json({ ...aiResult.data, usage: aiResult.usage });
+    const responseJson = JSON.stringify(aiResult.data);
+    const interactionId = await saveInteraction(c.env, tenantId, userId, 'summarize_note', inputSummary, responseJson);
+
+    return c.json({ ...aiResult.data, interactionId, usage: aiResult.usage });
   } catch (err) {
     handleAIError(err);
   }
@@ -244,22 +288,30 @@ aiRoutes.post('/summarize-note', zValidator('json', noteSummarySchema), async (c
 // ═══════════════════════════════════════════════════════════════════════════════
 
 aiRoutes.post('/interpret-lab', zValidator('json', labInterpretSchema), async (c) => {
+  const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
   const data = c.req.valid('json');
   const { apiKey, model } = getConfig(c.env);
 
   try {
+    const inputSummary = `Lab: ${data.results.map((r) => r.testName).join(', ').substring(0, 100)}`;
+    const memoryContext = await buildMemoryContext(c.env, tenantId, userId, 'interpret_lab', inputSummary);
+
     const userMessage = `Lab Results:
 ${data.results.map((r, i) => `${i + 1}. ${r.testName}: ${r.value}${r.unit ? ` ${r.unit}` : ''}${r.normalRange ? ` (ref: ${r.normalRange})` : ''}`).join('\n')}
 ${data.patientAge ? `Patient Age: ${data.patientAge}` : ''}
 ${data.patientGender ? `Patient Gender: ${data.patientGender}` : ''}`;
 
     const messages: ChatMessage[] = [
-      { role: 'system', content: SYSTEM_PROMPTS.interpretLab },
+      { role: 'system', content: SYSTEM_PROMPTS.interpretLab + memoryContext },
       { role: 'user', content: userMessage },
     ];
 
     const aiResult = await callAIJson<Record<string, unknown>>(apiKey, messages, { model });
-    return c.json({ ...aiResult.data, usage: aiResult.usage });
+    const responseJson = JSON.stringify(aiResult.data);
+    const interactionId = await saveInteraction(c.env, tenantId, userId, 'interpret_lab', inputSummary, responseJson);
+
+    return c.json({ ...aiResult.data, interactionId, usage: aiResult.usage });
   } catch (err) {
     handleAIError(err);
   }
@@ -316,13 +368,57 @@ ${visitData.results.map((r: Record<string, unknown>) => `${r.month}: ${r.visit_c
 
 Total Expenses: ৳${(expenseData as Record<string, unknown>)?.total_expenses ?? 0}`;
 
+    const inputSummary = `Dashboard insights ${data.dateRange.from} to ${data.dateRange.to}`;
+    const memoryContext = await buildMemoryContext(c.env, tenantId, requireUserId(c), 'dashboard_insights', inputSummary);
+
     const messages: ChatMessage[] = [
-      { role: 'system', content: SYSTEM_PROMPTS.dashboardInsights },
+      { role: 'system', content: SYSTEM_PROMPTS.dashboardInsights + memoryContext },
       { role: 'user', content: userMessage },
     ];
 
     const aiResult = await callAIJson<Record<string, unknown>>(apiKey, messages, { model, temperature: 0.4 });
-    return c.json({ ...aiResult.data, usage: aiResult.usage });
+    const responseJson = JSON.stringify(aiResult.data);
+    const interactionId = await saveInteraction(c.env, tenantId, requireUserId(c), 'dashboard_insights', inputSummary, responseJson);
+
+    return c.json({ ...aiResult.data, interactionId, usage: aiResult.usage });
+  } catch (err) {
+    handleAIError(err);
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Doctor Feedback Endpoint
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const feedbackSchema = z.object({
+  interactionId: z.number().int().positive(),
+  action: z.enum(['accepted', 'rejected', 'modified']),
+  modification: z.string().optional(),
+});
+
+aiRoutes.post('/feedback', zValidator('json', feedbackSchema), async (c) => {
+  const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
+  const data = c.req.valid('json');
+
+  try {
+    // Verify ownership: interaction must belong to this tenant + user
+    const interaction = await c.env.DB.prepare(
+      `SELECT id FROM ai_interactions WHERE id = ? AND tenant_id = ? AND user_id = ?`,
+    ).bind(data.interactionId, tenantId, userId).first<{ id: number }>();
+
+    if (!interaction) {
+      throw new HTTPException(404, { message: 'Interaction not found' });
+    }
+
+    await recordFeedback(
+      c.env,
+      tenantId,
+      data.interactionId,
+      data.action as UserAction,
+      data.modification,
+    );
+    return c.json({ success: true, message: 'Feedback recorded. AI will learn from this.' });
   } catch (err) {
     handleAIError(err);
   }

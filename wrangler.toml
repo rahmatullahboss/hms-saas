@@ -38,6 +38,14 @@ id = "ed8650b9af6549ecbaf5cc90b187d53b"
 binding = "UPLOADS"
 bucket_name = "hms-uploads"
 
+# ─── AI Memory (Vectorize + Workers AI) ──────────────────────────────
+[[vectorize]]
+binding = "VECTORIZE"
+index_name = "hms-ai-memory"
+
+[ai]
+binding = "AI"
+
 # ─── Default (development) vars ───────────────────────────────────────
 # JWT_SECRET must be set as a Wrangler secret (never in vars!):
 #   wrangler secret put JWT_SECRET
