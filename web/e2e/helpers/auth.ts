@@ -37,22 +37,21 @@ export const roleUsers: Record<HMSRole, object> = {
   super_admin: { id: 99, name: 'Super Admin', email: 'super@hms.com', role: 'super_admin' },
 };
 
-const FAKE_TOKEN = 'e2e-test-hms-token-abc123';
-
 /**
  * Log in as a given role by:
- * 1. Injecting hms_token into localStorage
- * 2. Mocking /api/auth/me with the role user
- * 3. Navigating to the role's dashboard (or a custom path)
+ * 1. Generating a structurally-valid JWT inside the browser (where btoa exists)
+ * 2. Storing it as hms_token in localStorage
+ * 3. Mocking /api/auth/me with the role user
+ * 4. Navigating to the role's dashboard (or a custom path)
  */
 export async function loginAs(
   page: Page,
   role: HMSRole,
   customPath?: string
 ) {
-  const user = roleUsers[role];
+  const user = roleUsers[role] as { id: number; email: string; role: string };
 
-  // Mock auth/me so ProtectedRoute recognizes the user as authenticated
+  // Mock auth/me so any fetch to /api/auth/me returns the user
   await page.route('**/api/auth/me', (route: Route) => {
     route.fulfill({
       status: 200,
@@ -64,13 +63,29 @@ export async function loginAs(
   // Navigate to a neutral page first so we can set localStorage
   await page.goto('/login');
 
-  // Inject auth token into localStorage 
+  // Generate JWT and inject auth token inside the browser context
+  // (btoa is natively available in the browser)
   await page.evaluate(
-    ({ token, slug }: { token: string; slug: string }) => {
+    ({ userId, userRole, slug }: { userId: string; userRole: string; slug: string }) => {
+      const b64url = (obj: object) =>
+        btoa(JSON.stringify(obj))
+          .replace(/\+/g, '-')
+          .replace(/\//g, '_')
+          .replace(/=+$/g, '');
+      const header = { alg: 'HS256', typ: 'JWT' };
+      const payload = {
+        userId,
+        role: userRole,
+        tenantId: slug,
+        permissions: ['*'],
+        iat: Math.floor(Date.now() / 1000),
+        exp: Math.floor(Date.now() / 1000) + 86400,
+      };
+      const token = `${b64url(header)}.${b64url(payload)}.fake-sig`;
       localStorage.setItem('hms_token', token);
       localStorage.setItem('hms_slug', slug);
     },
-    { token: FAKE_TOKEN, slug: SLUG }
+    { userId: String(user.id), userRole: user.role, slug: SLUG }
   );
 
   // Determine target URL
