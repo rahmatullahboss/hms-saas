@@ -209,7 +209,7 @@ export default function HospitalAdminDashboard({ role = 'hospital_admin' }: { ro
               <span className="section-subtitle">{t('last7days', { defaultValue: 'Last 7 days' })}</span>
             </div>
             <div className="h-56">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minHeight={0}>
                 <LineChart data={revenueData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
                   <XAxis dataKey="day" stroke="var(--color-text-muted)" fontSize={12} tickLine={false} axisLine={false} />
@@ -233,7 +233,7 @@ export default function HospitalAdminDashboard({ role = 'hospital_admin' }: { ro
               <span className="section-subtitle">{t('thisWeek', { defaultValue: 'This week' })}</span>
             </div>
             <div className="h-56">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minHeight={0}>
                 <BarChart
                   data={[
                     { name: 'Pending',   value: stats?.pendingTests   ?? 0 },

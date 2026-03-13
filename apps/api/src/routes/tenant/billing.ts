@@ -17,7 +17,7 @@ billingRoutes.get('/', async (c) => {
     let query = `
       SELECT b.*, p.name as patient_name, p.patient_code, p.mobile as patient_mobile
       FROM bills b
-      JOIN patients p ON b.patient_id = p.id
+      JOIN patients p ON b.patient_id = p.id AND p.tenant_id = b.tenant_id
       WHERE b.tenant_id = ?`;
     const params: (string | number)[] = [tenantId!];
 
@@ -29,7 +29,8 @@ billingRoutes.get('/', async (c) => {
     query += ' ORDER BY b.created_at DESC LIMIT 100';
     const bills = await c.env.DB.prepare(query).bind(...params).all();
     return c.json({ bills: bills.results });
-  } catch {
+  } catch (error) {
+    console.error('[billing] Failed to fetch bills:', error);
     throw new HTTPException(500, { message: 'Failed to fetch bills' });
   }
 });
@@ -43,13 +44,14 @@ billingRoutes.get('/due', async (c) => {
       SELECT b.*, p.name as patient_name, p.patient_code, p.mobile as patient_mobile,
              (b.total_amount - b.paid_amount) as outstanding
       FROM bills b
-      JOIN patients p ON b.patient_id = p.id
+      JOIN patients p ON b.patient_id = p.id AND p.tenant_id = b.tenant_id
       WHERE b.tenant_id = ? AND b.status IN ('open', 'partially_paid')
         AND b.total_amount > b.paid_amount
       ORDER BY b.created_at ASC
     `).bind(tenantId).all();
     return c.json({ bills: bills.results });
-  } catch {
+  } catch (error) {
+    console.error('[billing] Failed to fetch dues:', error);
     throw new HTTPException(500, { message: 'Failed to fetch dues' });
   }
 });
@@ -80,7 +82,7 @@ billingRoutes.get('/:id', async (c) => {
   try {
     const bill = await c.env.DB.prepare(`
       SELECT b.*, p.name as patient_name, p.patient_code, p.mobile, p.address
-      FROM bills b JOIN patients p ON b.patient_id = p.id
+      FROM bills b JOIN patients p ON b.patient_id = p.id AND p.tenant_id = b.tenant_id
       WHERE b.id = ? AND b.tenant_id = ?
     `).bind(id, tenantId).first();
     if (!bill) throw new HTTPException(404, { message: 'Bill not found' });

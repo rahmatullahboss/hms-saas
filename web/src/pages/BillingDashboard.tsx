@@ -377,8 +377,8 @@ export default function BillingDashboard({ role = 'hospital_admin' }: { role?: s
                         <td className="font-medium">{bill.patient_name}</td>
                         <td className="text-[var(--color-text-muted)] font-data">{bill.patient_code}</td>
                         <td className="text-[var(--color-text-secondary)] font-data">{new Date(bill.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
-                        <td className="font-data font-medium">৳{bill.total_amount.toLocaleString()}</td>
-                        <td className="font-data text-emerald-600">৳{bill.paid_amount.toLocaleString()}</td>
+                        <td className="font-data font-medium">৳{(bill.total_amount ?? 0).toLocaleString()}</td>
+                        <td className="font-data text-emerald-600">৳{(bill.paid_amount ?? 0).toLocaleString()}</td>
                         {activeTab === 'dues' && <td className="font-data text-red-600 font-semibold">৳{outstanding.toLocaleString()}</td>}
                         <td><span className={`badge ${st.badge}`}>{st.label}</span></td>
                         <td>
@@ -565,8 +565,8 @@ export default function BillingDashboard({ role = 'hospital_admin' }: { role?: s
                           <td className="capitalize">{item.itemCategory.replace('_', ' ')}</td>
                           <td>{item.description || '—'}</td>
                           <td className="text-right font-data">{item.quantity}</td>
-                          <td className="text-right font-data">৳{item.unitPrice.toLocaleString()}</td>
-                          <td className="text-right font-data font-medium">৳{item.lineTotal.toLocaleString()}</td>
+                          <td className="text-right font-data">৳{(item.unitPrice ?? 0).toLocaleString()}</td>
+                          <td className="text-right font-data font-medium">৳{(item.lineTotal ?? 0).toLocaleString()}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -575,12 +575,12 @@ export default function BillingDashboard({ role = 'hospital_admin' }: { role?: s
                   <div className="text-center py-6 text-[var(--color-text-muted)]">Loading items…</div>
                 )}
                 <div className="text-right space-y-1 text-sm border-t border-[var(--color-border)] pt-3">
-                  <div>Subtotal: <span className="font-data">৳{detailBill.subtotal.toLocaleString()}</span></div>
-                  <div>Discount: <span className="font-data text-amber-600">-৳{detailBill.discount.toLocaleString()}</span></div>
-                  <div className="font-semibold text-base pt-1">Total: ৳{detailBill.total_amount.toLocaleString()}</div>
-                  <div className="text-emerald-600">Paid: ৳{detailBill.paid_amount.toLocaleString()}</div>
+                  <div>Subtotal: <span className="font-data">৳{(detailBill.subtotal ?? 0).toLocaleString()}</span></div>
+                  <div>Discount: <span className="font-data text-amber-600">-৳{(detailBill.discount ?? 0).toLocaleString()}</span></div>
+                  <div className="font-semibold text-base pt-1">Total: ৳{(detailBill.total_amount ?? 0).toLocaleString()}</div>
+                  <div className="text-emerald-600">Paid: ৳{(detailBill.paid_amount ?? 0).toLocaleString()}</div>
                   {detailBill.status !== 'paid' && (
-                    <div className="text-red-600 font-semibold">Due: ৳{(detailBill.total_amount - detailBill.paid_amount).toLocaleString()}</div>
+                    <div className="text-red-600 font-semibold">Due: ৳{((detailBill.total_amount ?? 0) - (detailBill.paid_amount ?? 0)).toLocaleString()}</div>
                   )}
                 </div>
               </div>

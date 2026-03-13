@@ -28,59 +28,64 @@ const recordVitalsSchema = z.object({
 nurseStation.get('/dashboard', async (c) => {
   const tenantId = Number(c.get('tenantId'));
 
-  // Get active admissions with latest vitals
-  const { results: patients } = await c.env.DB.prepare(`
-    SELECT a.id as admission_id, a.admission_no, a.patient_id, a.provisional_diagnosis,
-           a.status as admission_status, a.admission_date,
-           p.name as patient_name, p.patient_code,
-           b.ward_name, b.bed_number,
-           s.name as doctor_name
-    FROM admissions a
-    JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id
-    LEFT JOIN beds b ON b.id = a.bed_id AND b.tenant_id = a.tenant_id
-    LEFT JOIN staff s ON s.id = a.doctor_id AND s.tenant_id = a.tenant_id
-    WHERE a.tenant_id = ? AND a.status IN ('admitted', 'critical')
-    ORDER BY CASE a.status WHEN 'critical' THEN 0 ELSE 1 END, a.admission_date DESC
-    LIMIT 50
-  `).bind(tenantId).all();
+  try {
+    // Get active admissions with latest vitals
+    const { results: patients } = await c.env.DB.prepare(`
+      SELECT a.id as admission_id, a.admission_no, a.patient_id, a.provisional_diagnosis,
+             a.status as admission_status, a.admission_date,
+             p.name as patient_name, p.patient_code,
+             b.ward_name, b.bed_number,
+             s.name as doctor_name
+      FROM admissions a
+      JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id
+      LEFT JOIN beds b ON b.id = a.bed_id AND b.tenant_id = a.tenant_id
+      LEFT JOIN staff s ON s.id = a.doctor_id AND s.tenant_id = a.tenant_id
+      WHERE a.tenant_id = ? AND a.status IN ('admitted', 'critical')
+      ORDER BY CASE a.status WHEN 'critical' THEN 0 ELSE 1 END, a.admission_date DESC
+      LIMIT 50
+    `).bind(tenantId).all();
 
-  // Get latest vitals for each patient
-  const patientIds = patients.map((p: Record<string, unknown>) => p.patient_id);
-  let vitalsMap: Record<number, Record<string, unknown>> = {};
+    // Get latest vitals for each patient
+    const patientIds = patients.map((p: Record<string, unknown>) => p.patient_id);
+    let vitalsMap: Record<number, Record<string, unknown>> = {};
 
-  if (patientIds.length > 0) {
-    const placeholders = patientIds.map(() => '?').join(',');
-    const { results: vitals } = await c.env.DB.prepare(`
-      SELECT v.* FROM patient_vitals v
-      INNER JOIN (
-        SELECT patient_id, MAX(recorded_at) as max_at
-        FROM patient_vitals WHERE tenant_id = ? AND patient_id IN (${placeholders})
-        GROUP BY patient_id
-      ) latest ON v.patient_id = latest.patient_id AND v.recorded_at = latest.max_at
-      WHERE v.tenant_id = ?
-    `).bind(tenantId, ...patientIds, tenantId).all();
+    if (patientIds.length > 0) {
+      const placeholders = patientIds.map(() => '?').join(',');
+      const { results: vitals } = await c.env.DB.prepare(`
+        SELECT v.* FROM patient_vitals v
+        INNER JOIN (
+          SELECT patient_id, MAX(recorded_at) as max_at
+          FROM patient_vitals WHERE tenant_id = ? AND patient_id IN (${placeholders})
+          GROUP BY patient_id
+        ) latest ON v.patient_id = latest.patient_id AND v.recorded_at = latest.max_at
+        WHERE v.tenant_id = ?
+      `).bind(tenantId, ...patientIds, tenantId).all();
 
-    for (const v of vitals) {
-      vitalsMap[v.patient_id as number] = v;
+      for (const v of vitals) {
+        vitalsMap[v.patient_id as number] = v;
+      }
     }
+
+    // Stats
+    const activeCount = patients.length;
+    const pendingVitals = patients.filter((p: Record<string, unknown>) => !vitalsMap[p.patient_id as number]).length;
+
+    return c.json({
+      patients: patients.map((p: Record<string, unknown>) => ({
+        ...p,
+        latestVitals: vitalsMap[p.patient_id as number] ?? null,
+      })),
+      stats: {
+        activePatients: activeCount,
+        pendingVitals,
+        roundsCompleted: activeCount - pendingVitals,
+        totalRounds: activeCount,
+      },
+    });
+  } catch (error) {
+    console.error('[nurse-station] Dashboard error:', error);
+    return c.json({ error: 'Failed to fetch dashboard data' }, 500);
   }
-
-  // Stats
-  const activeCount = patients.length;
-  const pendingVitals = patients.filter((p: Record<string, unknown>) => !vitalsMap[p.patient_id as number]).length;
-
-  return c.json({
-    patients: patients.map((p: Record<string, unknown>) => ({
-      ...p,
-      latestVitals: vitalsMap[p.patient_id as number] ?? null,
-    })),
-    stats: {
-      activePatients: activeCount,
-      pendingVitals,
-      roundsCompleted: activeCount - pendingVitals,
-      totalRounds: activeCount,
-    },
-  });
 });
 
 // ─── GET /api/nurse-station/vitals — recent vitals log ────────────────────────
