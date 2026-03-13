@@ -1,4 +1,7 @@
 import { describe, it, expect } from 'vitest';
+import { Hono } from 'hono';
+import paymentRoutes from '../src/routes/tenant/payments';
+import type { Env, Variables } from '../src/types';
 
 // ─── Payment & Financial Transactions Tests ───────────────────────────────────
 // Covers: src/routes/tenant/payments.ts
@@ -261,6 +264,132 @@ describe('HMS Payment & Financial Transaction Tests', () => {
 
     it('should have exactly 2 settlement types', () => {
       expect(SETTLEMENT_TYPES.length).toBe(2);
+    });
+  });
+
+  // ─── Payment Initiation Permission Check ────────────────────────────────────
+  describe('Payment Initiation Permission Check', () => {
+    const setupTestApp = (role?: string) => {
+      const app = new Hono<{ Bindings: Env; Variables: Variables }>();
+
+      // Inject required context variables
+      app.use('*', async (c, next) => {
+        c.set('tenantId', 'test-tenant');
+        c.set('userId', 1);
+        if (role) {
+          c.set('role', role as any);
+        }
+
+        // Mock DB
+        c.env = {
+          ...c.env,
+          DB: {
+            prepare: () => ({
+              bind: () => ({
+                first: async () => null, // Returns null so we get a 404 Bill not found instead of 403
+              }),
+            }),
+          } as any,
+          ENVIRONMENT: 'test',
+        };
+
+        await next();
+      });
+
+      app.route('/payments', paymentRoutes);
+      return app;
+    };
+
+    const validPayload = {
+      billId: 1,
+      amount: 100,
+      gateway: 'bkash',
+      callbackUrl: 'http://localhost/callback',
+    };
+
+    it('should allow hospital_admin to initiate payment', async () => {
+      const app = setupTestApp('hospital_admin');
+      const res = await app.request('/payments/initiate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(validPayload),
+      });
+      expect(res.status).not.toBe(403);
+      expect(res.status).toBe(404); // Bill not found, meaning it passed the 403 check
+    });
+
+    it('should allow reception to initiate payment', async () => {
+      const app = setupTestApp('reception');
+      const res = await app.request('/payments/initiate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(validPayload),
+      });
+      expect(res.status).not.toBe(403);
+      expect(res.status).toBe(404);
+    });
+
+    it('should allow accountant to initiate payment', async () => {
+      const app = setupTestApp('accountant');
+      const res = await app.request('/payments/initiate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(validPayload),
+      });
+      expect(res.status).not.toBe(403);
+      expect(res.status).toBe(404);
+    });
+
+    it('should deny doctor from initiating payment', async () => {
+      const app = setupTestApp('doctor');
+      const res = await app.request('/payments/initiate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(validPayload),
+      });
+      expect(res.status).toBe(403);
+      const text = await res.text();
+      expect(text).toContain('Only authorized staff can initiate payments');
+    });
+
+    it('should deny nurse from initiating payment', async () => {
+      const app = setupTestApp('nurse');
+      const res = await app.request('/payments/initiate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(validPayload),
+      });
+      expect(res.status).toBe(403);
+    });
+
+    it('should deny patient from initiating payment', async () => {
+      const app = setupTestApp('patient');
+      const res = await app.request('/payments/initiate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(validPayload),
+      });
+      expect(res.status).toBe(403);
+    });
+
+    it('should deny lab_technician from initiating payment', async () => {
+      const app = setupTestApp('lab_technician');
+      const res = await app.request('/payments/initiate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(validPayload),
+      });
+      expect(res.status).toBe(403);
+    });
+
+    it('should deny request with missing/undefined role', async () => {
+      const app = setupTestApp(undefined);
+      const res = await app.request('/payments/initiate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(validPayload),
+      });
+      expect(res.status).toBe(403);
     });
   });
 });
