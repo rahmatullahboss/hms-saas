@@ -1,0 +1,71 @@
+---
+import LanguageToggle from '../components/LanguageToggle.astro';
+
+export interface Props {
+  title?: string;
+  description?: string;
+}
+
+const {
+  title = 'HMS SaaS — Hospital Management System for Bangladesh',
+  description = 'Cloud-native Hospital Management System built for Bangladesh. OPD, Billing, Lab, Pharmacy, Telemedicine, AI — all in one. No server required.',
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+
+    <!-- OG / WhatsApp / Facebook -->
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/og-image.png" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- SEO -->
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://hmssaas.com" />
+
+    <!-- Schema.org -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "HMS SaaS",
+        "applicationCategory": "HealthApplication",
+        "operatingSystem": "Web",
+        "description": "Cloud-native Hospital Management System for Bangladesh"
+      }
+    </script>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!-- Google Analytics 4 -->
+    <!-- TODO: Replace G-XXXXXXXXXX with your real GA4 Measurement ID -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-XXXXXXXXXX');
+    </script>
+  </head>
+  <body class="bg-white text-gray-900 font-sans antialiased">
+    <slot />
+    <LanguageToggle />
+  </body>
+</html>

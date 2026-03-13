@@ -180,7 +180,7 @@ aiRoutes.post('/billing-from-notes', zValidator('json', billingFromNotesSchema),
 
   try {
     const { results: tests } = await c.env.DB.prepare(
-      `SELECT name, price FROM tests WHERE tenant_id = ? ORDER BY name LIMIT 50`,
+      `SELECT name, price FROM lab_test_catalog WHERE tenant_id = ? AND is_active = 1 ORDER BY name LIMIT 50`,
     ).bind(tenantId).all<{ name: string; price: number }>();
 
     const priceContext = tests.length
@@ -219,7 +219,7 @@ aiRoutes.post('/triage', zValidator('json', triageChatSchema), async (c) => {
 
   try {
     const { results: specialties } = await c.env.DB.prepare(
-      `SELECT DISTINCT specialty FROM doctors WHERE tenant_id = ? AND status = 'active' ORDER BY specialty`,
+      `SELECT DISTINCT specialty FROM doctors WHERE tenant_id = ? AND is_active = 1 ORDER BY specialty`,
     ).bind(tenantId).all<{ specialty: string }>();
 
     const deptList = specialties.length

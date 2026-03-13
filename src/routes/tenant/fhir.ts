@@ -176,7 +176,7 @@ fhirRoutes.get('/MedicationRequest', async (c) => {
   const sql = `
     SELECT p.*, d.name as doctor_name
     FROM prescriptions p
-    LEFT JOIN doctors d ON p.doctor_id = d.id
+    LEFT JOIN doctors d ON p.doctor_id = d.id AND d.tenant_id = p.tenant_id
     WHERE ${allWhere.join(' AND ')}
     ORDER BY p.created_at DESC LIMIT ?
   `;
@@ -188,7 +188,9 @@ fhirRoutes.get('/MedicationRequest', async (c) => {
   if (results.length === 0) return fhirResponse(toBundle([], baseUrl));
 
   const itemBatch = results.map((rx: any) =>
-    c.env.DB.prepare('SELECT * FROM prescription_items WHERE prescription_id = ?').bind(rx.id)
+    c.env.DB.prepare(
+      'SELECT pi.* FROM prescription_items pi JOIN prescriptions pr ON pi.prescription_id = pr.id AND pr.tenant_id = ? WHERE pi.prescription_id = ?'
+    ).bind(tenantId, rx.id)
   );
   const batchResults = await c.env.DB.batch(itemBatch);
 
@@ -213,14 +215,14 @@ fhirRoutes.get('/MedicationRequest/:id', async (c) => {
   const rxId = rawId.split('-')[0];
 
   const rx = await c.env.DB.prepare(
-    `SELECT p.*, d.name as doctor_name FROM prescriptions p LEFT JOIN doctors d ON p.doctor_id = d.id
+    `SELECT p.*, d.name as doctor_name FROM prescriptions p LEFT JOIN doctors d ON p.doctor_id = d.id AND d.tenant_id = p.tenant_id
      WHERE p.id = ? AND p.tenant_id = ?`
   ).bind(rxId, tenantId).first();
   if (!rx) throw new HTTPException(404, { message: 'MedicationRequest not found' });
 
   const { results: items } = await c.env.DB.prepare(
-    'SELECT * FROM prescription_items WHERE prescription_id = ?'
-  ).bind(rxId).all();
+    'SELECT pi.* FROM prescription_items pi JOIN prescriptions pr ON pi.prescription_id = pr.id AND pr.tenant_id = ? WHERE pi.prescription_id = ?'
+  ).bind(tenantId, rxId).all();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const all = toFhirMedicationRequests(rx as any, items as any, baseUrl);
@@ -248,7 +250,7 @@ fhirRoutes.get('/Encounter', async (c) => {
   const sql = `
     SELECT v.*, d.name as doctor_name
     FROM visits v
-    LEFT JOIN doctors d ON v.doctor_id = d.id
+    LEFT JOIN doctors d ON v.doctor_id = d.id AND d.tenant_id = v.tenant_id
     WHERE ${allWhere.join(' AND ')}
     ORDER BY v.created_at DESC LIMIT ?
   `;
@@ -266,7 +268,7 @@ fhirRoutes.get('/Encounter/:id', async (c) => {
   const id = c.req.param('id');
 
   const row = await c.env.DB.prepare(
-    `SELECT v.*, d.name as doctor_name FROM visits v LEFT JOIN doctors d ON v.doctor_id = d.id
+    `SELECT v.*, d.name as doctor_name FROM visits v LEFT JOIN doctors d ON v.doctor_id = d.id AND d.tenant_id = v.tenant_id
      WHERE v.id = ? AND v.tenant_id = ?`
   ).bind(id, tenantId).first();
   if (!row) throw new HTTPException(404, { message: 'Encounter not found' });
@@ -295,7 +297,7 @@ fhirRoutes.get('/Appointment', async (c) => {
   const sql = `
     SELECT a.*, d.name as doctor_name
     FROM appointments a
-    LEFT JOIN doctors d ON a.doctor_id = d.id
+    LEFT JOIN doctors d ON a.doctor_id = d.id AND d.tenant_id = a.tenant_id
     WHERE ${allWhere.join(' AND ')}
     ORDER BY a.appt_date DESC, a.appt_time DESC LIMIT ?
   `;
@@ -313,7 +315,7 @@ fhirRoutes.get('/Appointment/:id', async (c) => {
   const id = c.req.param('id');
 
   const row = await c.env.DB.prepare(
-    `SELECT a.*, d.name as doctor_name FROM appointments a LEFT JOIN doctors d ON a.doctor_id = d.id
+    `SELECT a.*, d.name as doctor_name FROM appointments a LEFT JOIN doctors d ON a.doctor_id = d.id AND d.tenant_id = a.tenant_id
      WHERE a.id = ? AND a.tenant_id = ?`
   ).bind(id, tenantId).first();
   if (!row) throw new HTTPException(404, { message: 'Appointment not found' });

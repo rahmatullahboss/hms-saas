@@ -115,8 +115,8 @@ export async function saveInteraction(
 
       // Update D1 with vector_id
       await env.DB.prepare(
-        `UPDATE ai_interactions SET vector_id = ? WHERE id = ?`,
-      ).bind(vectorId, interactionId).run();
+        `UPDATE ai_interactions SET vector_id = ? WHERE id = ? AND tenant_id = ?`,
+      ).bind(vectorId, interactionId, tenantId).run();
     }
   } catch (err) {
     // Don't fail the main request if vectorization fails
