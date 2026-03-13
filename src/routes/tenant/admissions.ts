@@ -133,6 +133,12 @@ app.post('/beds', async (c) => {
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
+  const role = c.get('role');
+  const allowedRoles = ['hospital_admin', 'director', 'md'];
+  if (!role || !allowedRoles.includes(role)) {
+    throw new HTTPException(403, { message: 'Not authorized to create beds' });
+  }
+
   const body = await c.req.json<{
     ward_name: string;
     bed_number: string;
@@ -160,6 +166,13 @@ app.post('/beds', async (c) => {
 app.put('/beds/:id', async (c) => {
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
+
+  const role = c.get('role');
+  const allowedRoles = ['hospital_admin', 'director', 'md'];
+  if (!role || !allowedRoles.includes(role)) {
+    throw new HTTPException(403, { message: 'Not authorized to update beds' });
+  }
+
   const id = c.req.param('id');
   const body = await c.req.json<{ status?: string; notes?: string }>();
 
@@ -174,6 +187,12 @@ app.put('/beds/:id', async (c) => {
 app.post('/', async (c) => {
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
+
+  const role = c.get('role');
+  const allowedRoles = ['receptionist', 'doctor', 'nurse', 'hospital_admin', 'md'];
+  if (!role || !allowedRoles.includes(role)) {
+    throw new HTTPException(403, { message: 'Not authorized to create admissions' });
+  }
 
   const body = await c.req.json<{
     patient_id: number;
@@ -215,6 +234,12 @@ app.post('/', async (c) => {
 app.put('/:id', async (c) => {
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
+
+  const role = c.get('role');
+  const allowedRoles = ['receptionist', 'doctor', 'nurse', 'hospital_admin', 'md'];
+  if (!role || !allowedRoles.includes(role)) {
+    throw new HTTPException(403, { message: 'Not authorized to update admissions' });
+  }
 
   const id = c.req.param('id');
   const body = await c.req.json<{ status: string }>();

@@ -168,6 +168,13 @@ app.get('/vitals', async (c) => {
 app.post('/vitals', zValidator('json', vitalsSchema), async (c) => {
   const tenantId = requireTenantId(c);
   const userId   = requireUserId(c);
+  const role     = c.get('role');
+
+  const allowedRoles = ['nurse', 'doctor', 'md', 'hospital_admin'];
+  if (!role || !allowedRoles.includes(role)) {
+    throw new HTTPException(403, { message: 'Not authorized to record vitals' });
+  }
+
   const body     = c.req.valid('json');
 
   const result = await c.env.DB.prepare(`
@@ -258,6 +265,13 @@ app.get('/active-alerts', async (c) => {
 app.put('/alerts/:id/acknowledge', async (c) => {
   const tenantId = requireTenantId(c);
   const userId   = requireUserId(c);
+  const role     = c.get('role');
+
+  const allowedRoles = ['nurse', 'doctor', 'md', 'hospital_admin'];
+  if (!role || !allowedRoles.includes(role)) {
+    throw new HTTPException(403, { message: 'Not authorized to acknowledge alerts' });
+  }
+
   const id       = Number(c.req.param('id'));
 
   await c.env.DB.prepare(`
@@ -271,6 +285,13 @@ app.put('/alerts/:id/acknowledge', async (c) => {
 // PUT /api/nurse-station/alerts/:id/resolve
 app.put('/alerts/:id/resolve', async (c) => {
   const tenantId = requireTenantId(c);
+  const role     = c.get('role');
+
+  const allowedRoles = ['nurse', 'doctor', 'md', 'hospital_admin'];
+  if (!role || !allowedRoles.includes(role)) {
+    throw new HTTPException(403, { message: 'Not authorized to resolve alerts' });
+  }
+
   const id       = Number(c.req.param('id'));
 
   await c.env.DB.prepare(`
