@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { createAuditLog } from '../../lib/accounting-helpers';
+import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 
 const journalRoutes = new Hono<{
   Bindings: {
@@ -16,7 +17,7 @@ const journalRoutes = new Hono<{
 }>();
 
 journalRoutes.get('/', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const { startDate, endDate, accountId } = c.req.query();
 
   let query = `
@@ -57,8 +58,8 @@ journalRoutes.get('/', async (c) => {
 });
 
 journalRoutes.post('/', async (c) => {
-  const tenantId = c.get('tenantId');
-  const userId = c.get('userId');
+  const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
   const body = await c.req.json();
   const { entry_date, reference, description, debit_account_id, credit_account_id, amount } = body;
 
@@ -113,7 +114,7 @@ journalRoutes.post('/', async (c) => {
 });
 
 journalRoutes.get('/:id', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const id = c.req.param('id');
 
   try {
@@ -141,8 +142,8 @@ journalRoutes.get('/:id', async (c) => {
 });
 
 journalRoutes.delete('/:id', async (c) => {
-  const tenantId = c.get('tenantId');
-  const userId = c.get('userId');
+  const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
   const role = c.get('role');
   const id = c.req.param('id');
 

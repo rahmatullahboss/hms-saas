@@ -4,35 +4,45 @@ import { HTTPException } from 'hono/http-exception';
 import { createMedicineSchema, updateMedicineSchema, createPurchaseSchema, createSupplierSchema, updateSupplierSchema, createSaleSchema } from '../../schemas/pharmacy';
 import { getNextSequence } from '../../lib/sequence';
 import type { Env, Variables } from '../../types';
+import { requireTenantId, requireUserId } from '../../lib/context-helpers';
+import { getPagination, paginationMeta } from '../../lib/pagination';
 
 const pharmacyRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // ─── MEDICINES ────────────────────────────────────────────────────────────────
 
 pharmacyRoutes.get('/medicines', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const search = c.req.query('search') || '';
+  const { page, limit, offset } = getPagination(c);
 
   try {
-    let query = `
+    let whereClause = 'WHERE m.tenant_id = ? AND m.is_active = 1';
+    const params: (string | number)[] = [tenantId];
+
+    if (search) { whereClause += ' AND (m.name LIKE ? OR m.generic_name LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
+
+    const countResult = await c.env.DB.prepare(
+      `SELECT COUNT(*) as total FROM medicines m ${whereClause}`
+    ).bind(...params).first<{ total: number }>();
+    const total = countResult?.total ?? 0;
+
+    const medicines = await c.env.DB.prepare(`
       SELECT m.*, COALESCE(SUM(b.quantity_available), 0) as stock_qty
       FROM medicines m
       LEFT JOIN medicine_stock_batches b ON m.id = b.medicine_id AND b.tenant_id = m.tenant_id
-      WHERE m.tenant_id = ? AND m.is_active = 1`;
-    const params: (string | number)[] = [tenantId!];
+      ${whereClause}
+      GROUP BY m.id ORDER BY m.name LIMIT ? OFFSET ?
+    `).bind(...params, limit, offset).all();
 
-    if (search) { query += ' AND (m.name LIKE ? OR m.generic_name LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
-
-    query += ' GROUP BY m.id ORDER BY m.name';
-    const medicines = await c.env.DB.prepare(query).bind(...params).all();
-    return c.json({ medicines: medicines.results });
+    return c.json({ medicines: medicines.results, meta: paginationMeta(page, limit, total) });
   } catch {
     throw new HTTPException(500, { message: 'Failed to fetch medicines' });
   }
 });
 
 pharmacyRoutes.post('/medicines', zValidator('json', createMedicineSchema), async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const data = c.req.valid('json');
 
   try {
@@ -47,7 +57,7 @@ pharmacyRoutes.post('/medicines', zValidator('json', createMedicineSchema), asyn
 });
 
 pharmacyRoutes.put('/medicines/:id', zValidator('json', updateMedicineSchema), async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const id = c.req.param('id');
   const data = c.req.valid('json');
 
@@ -78,7 +88,7 @@ pharmacyRoutes.put('/medicines/:id', zValidator('json', updateMedicineSchema), a
 
 // GET /api/pharmacy/medicines/:id/stock — batch-wise stock for one medicine
 pharmacyRoutes.get('/medicines/:id/stock', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const id = c.req.param('id');
 
   try {
@@ -94,7 +104,7 @@ pharmacyRoutes.get('/medicines/:id/stock', async (c) => {
 // ─── SUPPLIERS ────────────────────────────────────────────────────────────────
 
 pharmacyRoutes.get('/suppliers', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   try {
     const suppliers = await c.env.DB.prepare(
       'SELECT * FROM suppliers WHERE tenant_id = ? ORDER BY name',
@@ -106,7 +116,7 @@ pharmacyRoutes.get('/suppliers', async (c) => {
 });
 
 pharmacyRoutes.post('/suppliers', zValidator('json', createSupplierSchema), async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const data = c.req.valid('json');
   try {
     const result = await c.env.DB.prepare(
@@ -119,7 +129,7 @@ pharmacyRoutes.post('/suppliers', zValidator('json', createSupplierSchema), asyn
 });
 
 pharmacyRoutes.put('/suppliers/:id', zValidator('json', updateSupplierSchema), async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const id = c.req.param('id');
   const data = c.req.valid('json');
   try {
@@ -148,7 +158,7 @@ pharmacyRoutes.put('/suppliers/:id', zValidator('json', updateSupplierSchema), a
 // ─── PURCHASES ───────────────────────────────────────────────────────────────
 
 pharmacyRoutes.get('/purchases', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const { supplierId, from, to } = c.req.query();
 
   try {
@@ -173,8 +183,8 @@ pharmacyRoutes.get('/purchases', async (c) => {
 });
 
 pharmacyRoutes.post('/purchases', zValidator('json', createPurchaseSchema), async (c) => {
-  const tenantId = c.get('tenantId');
-  const userId = c.get('userId');
+  const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
   const data = c.req.valid('json');
 
   try {
@@ -241,8 +251,8 @@ pharmacyRoutes.post('/purchases', zValidator('json', createPurchaseSchema), asyn
 // ─── SALES ────────────────────────────────────────────────────────────────────
 
 pharmacyRoutes.post('/sales', zValidator('json', createSaleSchema), async (c) => {
-  const tenantId = c.get('tenantId');
-  const userId = c.get('userId');
+  const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
   const data = c.req.valid('json');
   const saleDate = new Date().toISOString().split('T')[0];
 
@@ -295,7 +305,7 @@ pharmacyRoutes.post('/sales', zValidator('json', createSaleSchema), async (c) =>
 // ─── ALERTS ───────────────────────────────────────────────────────────────────
 
 pharmacyRoutes.get('/alerts/low-stock', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   try {
     const medicines = await c.env.DB.prepare(`
       SELECT m.id, m.name, m.reorder_level, COALESCE(SUM(b.quantity_available), 0) as stock_qty
@@ -313,7 +323,7 @@ pharmacyRoutes.get('/alerts/low-stock', async (c) => {
 });
 
 pharmacyRoutes.get('/alerts/expiring', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const days = Number(c.req.query('days') || 30);
   try {
     const batches = await c.env.DB.prepare(`
@@ -334,7 +344,7 @@ pharmacyRoutes.get('/alerts/expiring', async (c) => {
 // ─── SUMMARY ─────────────────────────────────────────────────────────────────
 
 pharmacyRoutes.get('/summary', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   try {
     const totalInvestment = await c.env.DB.prepare(`
       SELECT SUM(total_amount) as total FROM medicine_purchases WHERE tenant_id = ?

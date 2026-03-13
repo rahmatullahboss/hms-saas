@@ -5,6 +5,7 @@ import { createPatientSchema, updatePatientSchema } from '../../schemas/patient'
 import { getNextSequence } from '../../lib/sequence';
 import { createAuditLog } from '../../lib/accounting-helpers';
 import type { Env, Variables } from '../../types';
+import { requireTenantId } from '../../lib/context-helpers';
 
 const patientRoutes = new Hono<{
   Bindings: Env;
@@ -13,7 +14,7 @@ const patientRoutes = new Hono<{
 
 // GET /api/patients — list patients with search + cursor pagination
 patientRoutes.get('/', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const search  = c.req.query('search') || '';
   const limit   = Math.min(parseInt(c.req.query('limit') || '50', 10), 200);
   const cursor  = c.req.query('cursor'); // last seen id for cursor pagination
@@ -52,7 +53,7 @@ patientRoutes.get('/', async (c) => {
 // GET /api/patients/:id — single patient
 patientRoutes.get('/:id', async (c) => {
   const id = c.req.param('id');
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
 
   try {
     const patient = await c.env.DB.prepare(
@@ -74,7 +75,7 @@ patientRoutes.get('/:id', async (c) => {
 
 // POST /api/patients — create patient with Zod validation
 patientRoutes.post('/', zValidator('json', createPatientSchema), async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const data = c.req.valid('json');
 
   try {
@@ -137,7 +138,7 @@ patientRoutes.post('/', zValidator('json', createPatientSchema), async (c) => {
 // PUT /api/patients/:id — update patient with Zod validation
 patientRoutes.put('/:id', zValidator('json', updatePatientSchema), async (c) => {
   const id = c.req.param('id');
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const data = c.req.valid('json');
 
   try {

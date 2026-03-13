@@ -1,12 +1,13 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { Env, Variables } from '../../types';
+import { requireTenantId } from '../../lib/context-helpers';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // GET /api/appointments?date=YYYY-MM-DD&doctorId=&status=
 app.get('/', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
   const date = c.req.query('date') || new Date().toISOString().split('T')[0];
@@ -33,7 +34,7 @@ app.get('/', async (c) => {
 
 // POST /api/appointments
 app.post('/', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
   const body = await c.req.json<{
@@ -78,7 +79,7 @@ app.post('/', async (c) => {
 
 // PUT /api/appointments/:id — update status
 app.put('/:id', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
   const id = c.req.param('id');

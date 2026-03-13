@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { createAuditLog } from '../../lib/accounting-helpers';
+import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 
 const accountsRoutes = new Hono<{
   Bindings: {
@@ -16,7 +17,7 @@ const accountsRoutes = new Hono<{
 }>();
 
 accountsRoutes.get('/', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const { type } = c.req.query();
 
   let query = 'SELECT * FROM chart_of_accounts WHERE tenant_id = ?';
@@ -39,8 +40,8 @@ accountsRoutes.get('/', async (c) => {
 });
 
 accountsRoutes.post('/', async (c) => {
-  const tenantId = c.get('tenantId');
-  const userId = c.get('userId');
+  const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
   const role = c.get('role');
   const body = await c.req.json();
   const { code, name, type, parent_id } = body;
@@ -88,7 +89,7 @@ accountsRoutes.post('/', async (c) => {
 });
 
 accountsRoutes.get('/:id', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const id = c.req.param('id');
 
   try {
@@ -108,8 +109,8 @@ accountsRoutes.get('/:id', async (c) => {
 });
 
 accountsRoutes.put('/:id', async (c) => {
-  const tenantId = c.get('tenantId');
-  const userId = c.get('userId');
+  const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
   const role = c.get('role');
   const id = c.req.param('id');
   const body = await c.req.json();
@@ -158,7 +159,7 @@ accountsRoutes.put('/:id', async (c) => {
 });
 
 accountsRoutes.get('/verify-balance', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
 
   try {
     const debitSum = await c.env.DB.prepare(`
@@ -190,8 +191,8 @@ accountsRoutes.get('/verify-balance', async (c) => {
 });
 
 accountsRoutes.delete('/:id', async (c) => {
-  const tenantId = c.get('tenantId');
-  const userId = c.get('userId');
+  const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
   const role = c.get('role');
   const id = c.req.param('id');
 

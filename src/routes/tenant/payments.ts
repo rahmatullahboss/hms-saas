@@ -4,6 +4,7 @@ import { HTTPException } from 'hono/http-exception';
 import { createPaymentGateway, type GatewayName } from '../../lib/payment-gateway';
 import { initiatePaymentSchema } from '../../schemas/payment';
 import type { Env, Variables } from '../../types';
+import { requireTenantId } from '../../lib/context-helpers';
 
 const paymentRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -13,7 +14,7 @@ const PAYMENT_STAFF_ROLES = ['hospital_admin', 'reception', 'accountant'];
 // ─── POST /api/payments/initiate ─────────────────────────────────────────────
 // Initiates bKash or Nagad payment, returns redirect URL for the patient.
 paymentRoutes.post('/initiate', zValidator('json', initiatePaymentSchema), async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const userId   = c.get('userId');
   const role     = c.get('role');
   if (!role || !PAYMENT_STAFF_ROLES.includes(role)) {
@@ -68,7 +69,7 @@ paymentRoutes.post('/initiate', zValidator('json', initiatePaymentSchema), async
 const VALID_GATEWAYS = ['bkash', 'nagad'];
 
 paymentRoutes.post('/verify', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const userId   = c.get('userId');
 
   let body: { paymentId?: string; gateway?: string };
@@ -159,7 +160,7 @@ paymentRoutes.post('/verify', async (c) => {
 
 // ─── GET /api/payments/logs — list gateway payment logs (admin only) ───────
 paymentRoutes.get('/logs', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const role     = c.get('role');
   if (role !== 'hospital_admin') throw new HTTPException(403, { message: 'Admin only' });
 

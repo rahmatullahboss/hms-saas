@@ -1,13 +1,14 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { Env, Variables } from '../../types';
+import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // ─── GET /api/patient-portal/summary — aggregated patient self-service data ──
 app.get('/summary', async (c) => {
-  const tenantId = c.get('tenantId');
-  const userId = c.get('userId');
+  const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
   if (!tenantId || !userId) throw new HTTPException(401, { message: 'Auth required' });
 
   // Find patient linked to this user

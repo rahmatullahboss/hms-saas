@@ -33,6 +33,9 @@ export interface Env {
   CF_REALTIME_APP_ID?:     string;  // wrangler secret put CF_REALTIME_APP_ID
   CF_REALTIME_APP_SECRET?: string;  // wrangler secret put CF_REALTIME_APP_SECRET
   CF_ACCOUNT_ID?:          string;  // your Cloudflare account ID (optional, for admin APIs)
+  // ─── AI (OpenRouter) ──────────────────────────────────────────────
+  OPENROUTER_API_KEY?: string;    // wrangler secret put OPENROUTER_API_KEY
+  AI_MODEL?: string;              // optional override, default: openrouter/healer-alpha
 }
 
 /**

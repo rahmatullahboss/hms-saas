@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { requireTenantId } from '../../lib/context-helpers';
 
 const dashboardRoutes = new Hono<{
   Bindings: { DB: D1Database };
@@ -7,7 +8,7 @@ const dashboardRoutes = new Hono<{
 
 // Get dashboard stats
 dashboardRoutes.get('/stats', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   
   try {
     const today = new Date().toISOString().split('T')[0];
@@ -96,7 +97,7 @@ dashboardRoutes.get('/stats', async (c) => {
 
 // Get daily income
 dashboardRoutes.get('/daily-income', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const date = c.req.query('date') || new Date().toISOString().split('T')[0];
   
   try {
@@ -121,7 +122,7 @@ dashboardRoutes.get('/daily-income', async (c) => {
 
 // Get daily expenses
 dashboardRoutes.get('/daily-expenses', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const date = c.req.query('date') || new Date().toISOString().split('T')[0];
   
   try {
@@ -146,7 +147,7 @@ dashboardRoutes.get('/daily-expenses', async (c) => {
 
 // Get monthly summary
 dashboardRoutes.get('/monthly-summary', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const month = c.req.query('month') || new Date().toISOString().slice(0, 7);
   
   try {

@@ -47,6 +47,7 @@ import prescriptionRoutes from './routes/tenant/prescriptions';
 import dischargeRoutes from './routes/tenant/discharge';
 import telemedicineRoutes from './routes/tenant/telemedicine';
 import patientPortalRoutes from './routes/tenant/patientPortal';
+import aiRoutes from './routes/tenant/ai';
 
 import type { Env } from './types';
 
@@ -178,6 +179,7 @@ app.route('/api/prescriptions', prescriptionRoutes);
 app.route('/api/discharge', dischargeRoutes);
 app.route('/api/telemedicine', telemedicineRoutes);
 app.route('/api/patient-portal', patientPortalRoutes);
+app.route('/api/ai', aiRoutes);
 
 
 // ─── Not Found handler ──────────────────────────────────────────────

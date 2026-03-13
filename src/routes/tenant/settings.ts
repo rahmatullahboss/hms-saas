@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
+import { requireTenantId } from '../../lib/context-helpers';
 
 const settingsRoutes = new Hono<{
   Bindings: { DB: D1Database; UPLOADS: R2Bucket };
@@ -8,7 +9,7 @@ const settingsRoutes = new Hono<{
 
 // ─── Get all settings ────────────────────────────────────────────────────────
 settingsRoutes.get('/', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
 
   try {
     const settings = await c.env.DB.prepare(
@@ -54,7 +55,7 @@ settingsRoutes.get('/', async (c) => {
 // Accepts multipart/form-data with a "logo" file field.
 // The image should be compressed client-side before uploading.
 settingsRoutes.post('/logo', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Unauthorized' });
 
   const formData = await c.req.formData();
@@ -100,7 +101,7 @@ settingsRoutes.post('/logo', async (c) => {
 
 // ─── Serve hospital logo ─────────────────────────────────────────────────────
 settingsRoutes.get('/logo', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Unauthorized' });
 
   try {
@@ -131,7 +132,7 @@ settingsRoutes.get('/logo', async (c) => {
 
 // ─── Delete hospital logo ────────────────────────────────────────────────────
 settingsRoutes.delete('/logo', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Unauthorized' });
 
   try {
@@ -159,7 +160,7 @@ settingsRoutes.delete('/logo', async (c) => {
 // ─── Update setting ──────────────────────────────────────────────────────────
 settingsRoutes.put('/:key', async (c) => {
   const key = c.req.param('key');
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const { value } = await c.req.json();
 
   try {
@@ -175,7 +176,7 @@ settingsRoutes.put('/:key', async (c) => {
 
 // ─── Bulk update settings ────────────────────────────────────────────────────
 settingsRoutes.put('/', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const settings = await c.req.json();
 
   try {

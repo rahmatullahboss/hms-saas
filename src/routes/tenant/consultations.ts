@@ -6,6 +6,7 @@ import { createVideoProvider } from '../../lib/video';
 import { createSmsProvider, SmsTemplates } from '../../lib/sms';
 import { sendEmail, EmailTemplates } from '../../lib/email';
 import type { Env, Variables } from '../../types';
+import { requireTenantId } from '../../lib/context-helpers';
 
 const consultationRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -15,7 +16,7 @@ const DOCTOR_ROLES = ['doctor', 'hospital_admin'];
 
 // ─── GET /api/consultations — list consultations with filters ─────────────────
 consultationRoutes.get('/', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const { doctorId, patientId, status, from, to } = c.req.query();
 
   let query = `
@@ -48,7 +49,7 @@ consultationRoutes.get('/', async (c) => {
 
 // ─── GET /api/consultations/:id — single consultation detail ─────────────────
 consultationRoutes.get('/:id', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const id = c.req.param('id');
 
   try {
@@ -71,7 +72,7 @@ consultationRoutes.get('/:id', async (c) => {
 
 // ─── POST /api/consultations — book new teleconsultation ─────────────────────
 consultationRoutes.post('/', zValidator('json', createConsultationSchema), async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const userId   = c.get('userId');
   const role     = c.get('role');
   if (!role || !CONSULTATION_STAFF_ROLES.includes(role)) {
@@ -155,7 +156,7 @@ consultationRoutes.post('/', zValidator('json', createConsultationSchema), async
 
 // ─── PUT /api/consultations/:id — update scheduled time or notes ──────────────
 consultationRoutes.put('/:id', zValidator('json', updateConsultationSchema), async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const id = c.req.param('id');
   const data = c.req.valid('json');
 
@@ -191,7 +192,7 @@ consultationRoutes.put('/:id', zValidator('json', updateConsultationSchema), asy
 
 // ─── PUT /api/consultations/:id/end — mark complete + save prescription ───────
 consultationRoutes.put('/:id/end', zValidator('json', endConsultationSchema), async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const id = c.req.param('id');
   const role = c.get('role');
   if (!role || !DOCTOR_ROLES.includes(role)) {
@@ -226,7 +227,7 @@ consultationRoutes.put('/:id/end', zValidator('json', endConsultationSchema), as
 
 // ─── DELETE /api/consultations/:id — cancel (soft: set status cancelled) ─────
 consultationRoutes.delete('/:id', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const id = c.req.param('id');
 
   try {

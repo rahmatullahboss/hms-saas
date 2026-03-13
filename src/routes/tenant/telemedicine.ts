@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { Env, Variables } from '../../types';
+import { requireTenantId } from '../../lib/context-helpers';
 
 /**
  * Telemedicine route — manages rooms via KV store.
@@ -27,7 +28,7 @@ interface TeleRoom {
 
 // ─── GET /api/telemedicine/rooms — list all active rooms ─────────────────────
 app.get('/rooms', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
   const listJson = await c.env.KV.get(roomListKey(tenantId));
@@ -44,7 +45,7 @@ app.get('/rooms', async (c) => {
 
 // ─── GET /api/telemedicine/rooms/:id — get single room ───────────────────────
 app.get('/rooms/:id', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
   const id = c.req.param('id');
@@ -56,7 +57,7 @@ app.get('/rooms/:id', async (c) => {
 
 // ─── POST /api/telemedicine/rooms — create room ──────────────────────────────
 app.post('/rooms', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
   const body = await c.req.json<{
@@ -99,7 +100,7 @@ app.post('/rooms', async (c) => {
 
 // ─── POST /api/telemedicine/rooms/:id/join — join a room (get SFU session) ───
 app.post('/rooms/:id/join', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
   const id = c.req.param('id');
@@ -140,7 +141,7 @@ app.post('/rooms/:id/join', async (c) => {
 
 // ─── POST /api/telemedicine/sessions/:sessionId/tracks — proxy to SFU ────────
 app.post('/sessions/:sessionId/tracks', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
   if (!c.env.CF_REALTIME_APP_ID || !c.env.CF_REALTIME_APP_SECRET) {
@@ -168,7 +169,7 @@ app.post('/sessions/:sessionId/tracks', async (c) => {
 
 // ─── DELETE /api/telemedicine/rooms/:id — end room ───────────────────────────
 app.delete('/rooms/:id', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
   const id = c.req.param('id');

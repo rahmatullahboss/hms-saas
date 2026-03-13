@@ -1,12 +1,13 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { Env, Variables } from '../../types';
+import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // ─── GET /api/discharge/:admissionId — admission + existing summary ──────────
 app.get('/:admissionId', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
   const admId = c.req.param('admissionId');
@@ -46,11 +47,11 @@ app.get('/:admissionId', async (c) => {
 
 // ─── PUT /api/discharge/:admissionId — upsert discharge summary ──────────────
 app.put('/:admissionId', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
   const admId = c.req.param('admissionId');
-  const userId = c.get('userId');
+  const userId = requireUserId(c);
   const body = await c.req.json<{
     admission_diagnosis?: string;
     final_diagnosis?: string;

@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { createAuditLog } from '../../lib/accounting-helpers';
+import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 
 const incomeRoutes = new Hono<{
   Bindings: {
@@ -16,7 +17,7 @@ const incomeRoutes = new Hono<{
 }>();
 
 incomeRoutes.get('/', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const { startDate, endDate, source } = c.req.query();
 
   let query = 'SELECT * FROM income WHERE tenant_id = ?';
@@ -47,8 +48,8 @@ incomeRoutes.get('/', async (c) => {
 });
 
 incomeRoutes.post('/', async (c) => {
-  const tenantId = c.get('tenantId');
-  const userId = c.get('userId');
+  const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
   const body = await c.req.json();
   const { date, source, amount, description, bill_id } = body;
 
@@ -87,7 +88,7 @@ incomeRoutes.post('/', async (c) => {
 });
 
 incomeRoutes.get('/:id', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const id = c.req.param('id');
 
   try {
@@ -107,8 +108,8 @@ incomeRoutes.get('/:id', async (c) => {
 });
 
 incomeRoutes.put('/:id', async (c) => {
-  const tenantId = c.get('tenantId');
-  const userId = c.get('userId');
+  const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
   const id = c.req.param('id');
   const body = await c.req.json();
   const { date, source, amount, description } = body;
@@ -157,8 +158,8 @@ incomeRoutes.put('/:id', async (c) => {
 });
 
 incomeRoutes.delete('/:id', async (c) => {
-  const tenantId = c.get('tenantId');
-  const userId = c.get('userId');
+  const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
   const id = c.req.param('id');
 
   try {

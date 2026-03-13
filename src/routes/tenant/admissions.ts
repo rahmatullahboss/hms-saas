@@ -1,12 +1,13 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { Env, Variables } from '../../types';
+import { requireTenantId } from '../../lib/context-helpers';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // GET /api/admissions?status=all|admitted|discharged|...&search=
 app.get('/', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
   const status = c.req.query('status') || 'all';
@@ -38,7 +39,7 @@ app.get('/', async (c) => {
 
 // GET /api/admissions/stats
 app.get('/stats', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
   const current = await c.env.DB.prepare(
@@ -69,7 +70,7 @@ app.get('/stats', async (c) => {
 
 // GET /api/admissions/beds?status=available
 app.get('/beds', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
   const status = c.req.query('status');
@@ -84,7 +85,7 @@ app.get('/beds', async (c) => {
 
 // POST /api/admissions/beds — add a new bed
 app.post('/beds', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
   const body = await c.req.json<{
@@ -112,7 +113,7 @@ app.post('/beds', async (c) => {
 
 // PUT /api/admissions/beds/:id — update bed status
 app.put('/beds/:id', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
   const id = c.req.param('id');
   const body = await c.req.json<{ status?: string; notes?: string }>();
@@ -126,7 +127,7 @@ app.put('/beds/:id', async (c) => {
 
 // POST /api/admissions
 app.post('/', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
   const body = await c.req.json<{
@@ -167,7 +168,7 @@ app.post('/', async (c) => {
 
 // PUT /api/admissions/:id
 app.put('/:id', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
   const id = c.req.param('id');

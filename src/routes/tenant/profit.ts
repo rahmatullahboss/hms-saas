@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { createAuditLog } from '../../lib/accounting-helpers';
+import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 
 const profitRoutes = new Hono<{
   Bindings: {
@@ -16,7 +17,7 @@ const profitRoutes = new Hono<{
 }>();
 
 profitRoutes.get('/calculate', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const { month } = c.req.query();
 
   const targetMonth = month || new Date().toISOString().substring(0, 7);
@@ -64,8 +65,8 @@ profitRoutes.get('/calculate', async (c) => {
 });
 
 profitRoutes.post('/distribute', async (c) => {
-  const tenantId = c.get('tenantId');
-  const userId = c.get('userId');
+  const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
   const role = c.get('role');
   const { month } = await c.req.json();
 
@@ -148,7 +149,7 @@ profitRoutes.post('/distribute', async (c) => {
 });
 
 profitRoutes.get('/history', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
 
   try {
     const result = await c.env.DB.prepare(`

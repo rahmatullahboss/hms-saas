@@ -1,12 +1,13 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { Env, Variables } from '../../types';
+import { requireTenantId } from '../../lib/context-helpers';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // GET /api/doctor-schedules/doctors — doctors with schedule_count
 app.get('/doctors', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
   const { results } = await c.env.DB.prepare(`
@@ -22,7 +23,7 @@ app.get('/doctors', async (c) => {
 
 // GET /api/doctor-schedules?doctor_id=
 app.get('/', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
   const doctorId = c.req.query('doctor_id');
@@ -42,7 +43,7 @@ app.get('/', async (c) => {
 
 // POST /api/doctor-schedules
 app.post('/', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
   const body = await c.req.json<{
@@ -75,7 +76,7 @@ app.post('/', async (c) => {
 
 // PUT /api/doctor-schedules/:id
 app.put('/:id', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
   const id = c.req.param('id');
@@ -111,7 +112,7 @@ app.put('/:id', async (c) => {
 
 // DELETE /api/doctor-schedules/:id
 app.delete('/:id', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
   const id = c.req.param('id');

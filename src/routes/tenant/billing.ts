@@ -5,30 +5,38 @@ import { createBillSchema, paymentSchema } from '../../schemas/billing';
 import { getNextSequence } from '../../lib/sequence';
 import { createAuditLog } from '../../lib/accounting-helpers';
 import type { Env, Variables } from '../../types';
+import { requireTenantId, requireUserId } from '../../lib/context-helpers';
+import { getPagination, paginationMeta } from '../../lib/pagination';
 
 const billingRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // GET /api/billing — list all bills
 billingRoutes.get('/', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const { status, from, to, search } = c.req.query();
+  const { page, limit, offset } = getPagination(c);
 
   try {
-    let query = `
-      SELECT b.*, p.name as patient_name, p.patient_code, p.mobile as patient_mobile
-      FROM bills b
-      JOIN patients p ON b.patient_id = p.id
-      WHERE b.tenant_id = ?`;
-    const params: (string | number)[] = [tenantId!];
+    let whereClause = 'WHERE b.tenant_id = ?';
+    const params: (string | number)[] = [tenantId];
 
-    if (status) { query += ' AND b.status = ?'; params.push(status); }
-    if (from)   { query += ' AND date(b.created_at) >= ?'; params.push(from); }
-    if (to)     { query += ' AND date(b.created_at) <= ?'; params.push(to); }
-    if (search) { query += ' AND (p.name LIKE ? OR b.invoice_no LIKE ? OR p.patient_code LIKE ?)'; params.push(`%${search}%`, `%${search}%`, `%${search}%`); }
+    if (status) { whereClause += ' AND b.status = ?'; params.push(status); }
+    if (from)   { whereClause += ' AND date(b.created_at) >= ?'; params.push(from); }
+    if (to)     { whereClause += ' AND date(b.created_at) <= ?'; params.push(to); }
+    if (search) { whereClause += ' AND (p.name LIKE ? OR b.invoice_no LIKE ? OR p.patient_code LIKE ?)'; params.push(`%${search}%`, `%${search}%`, `%${search}%`); }
 
-    query += ' ORDER BY b.created_at DESC LIMIT 100';
-    const bills = await c.env.DB.prepare(query).bind(...params).all();
-    return c.json({ bills: bills.results });
+    const countResult = await c.env.DB.prepare(
+      `SELECT COUNT(*) as total FROM bills b JOIN patients p ON b.patient_id = p.id ${whereClause}`
+    ).bind(...params).first<{ total: number }>();
+    const total = countResult?.total ?? 0;
+
+    const bills = await c.env.DB.prepare(
+      `SELECT b.*, p.name as patient_name, p.patient_code, p.mobile as patient_mobile
+       FROM bills b JOIN patients p ON b.patient_id = p.id
+       ${whereClause} ORDER BY b.created_at DESC LIMIT ? OFFSET ?`
+    ).bind(...params, limit, offset).all();
+
+    return c.json({ bills: bills.results, meta: paginationMeta(page, limit, total) });
   } catch {
     throw new HTTPException(500, { message: 'Failed to fetch bills' });
   }
@@ -36,7 +44,7 @@ billingRoutes.get('/', async (c) => {
 
 // GET /api/billing/due — outstanding dues
 billingRoutes.get('/due', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
 
   try {
     const bills = await c.env.DB.prepare(`
@@ -56,7 +64,7 @@ billingRoutes.get('/due', async (c) => {
 
 // GET /api/billing/patient/:patientId — all bills for a patient
 billingRoutes.get('/patient/:patientId', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const patientId = c.req.param('patientId');
 
   try {
@@ -74,7 +82,7 @@ billingRoutes.get('/patient/:patientId', async (c) => {
 
 // GET /api/billing/:id — single bill with items
 billingRoutes.get('/:id', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const id = c.req.param('id');
 
   try {
@@ -102,8 +110,8 @@ billingRoutes.get('/:id', async (c) => {
 
 // POST /api/billing — create itemized bill
 billingRoutes.post('/', zValidator('json', createBillSchema), async (c) => {
-  const tenantId = c.get('tenantId');
-  const userId = c.get('userId');
+  const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
   const data = c.req.valid('json');
 
   try {
@@ -152,8 +160,8 @@ billingRoutes.post('/', zValidator('json', createBillSchema), async (c) => {
 
 // POST /api/billing/pay — collect payment on a bill
 billingRoutes.post('/pay', zValidator('json', paymentSchema), async (c) => {
-  const tenantId = c.get('tenantId');
-  const userId = c.get('userId');
+  const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
   const data = c.req.valid('json');
 
   try {

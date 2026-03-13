@@ -5,12 +5,13 @@ import { createVisitSchema, updateVisitSchema, dischargeSchema } from '../../sch
 import { getNextSequence } from '../../lib/sequence';
 import { createAuditLog } from '../../lib/accounting-helpers';
 import type { Env, Variables } from '../../types';
+import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 
 const visitRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // GET /api/visits — list visits with filters
 visitRoutes.get('/', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const { patientId, doctorId, type, date } = c.req.query();
 
   try {
@@ -38,7 +39,7 @@ visitRoutes.get('/', async (c) => {
 
 // GET /api/visits/:id — single visit detail
 visitRoutes.get('/:id', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const id = c.req.param('id');
 
   try {
@@ -61,8 +62,8 @@ visitRoutes.get('/:id', async (c) => {
 
 // POST /api/visits — create new OPD or IPD visit
 visitRoutes.post('/', zValidator('json', createVisitSchema), async (c) => {
-  const tenantId = c.get('tenantId');
-  const userId = c.get('userId');
+  const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
   const data = c.req.valid('json');
 
   try {
@@ -101,8 +102,8 @@ visitRoutes.post('/', zValidator('json', createVisitSchema), async (c) => {
 
 // PUT /api/visits/:id — update notes, doctor
 visitRoutes.put('/:id', zValidator('json', updateVisitSchema), async (c) => {
-  const tenantId = c.get('tenantId');
-  const userId = c.get('userId');
+  const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
   const id = c.req.param('id');
   const data = c.req.valid('json');
 
@@ -133,8 +134,8 @@ visitRoutes.put('/:id', zValidator('json', updateVisitSchema), async (c) => {
 
 // POST /api/visits/:id/discharge — mark IPD discharge
 visitRoutes.post('/:id/discharge', zValidator('json', dischargeSchema), async (c) => {
-  const tenantId = c.get('tenantId');
-  const userId = c.get('userId');
+  const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
   const id = c.req.param('id');
   const data = c.req.valid('json');
 

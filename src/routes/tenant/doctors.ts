@@ -3,6 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { HTTPException } from 'hono/http-exception';
 import { createDoctorSchema, updateDoctorSchema } from '../../schemas/doctor';
 import type { Env, Variables } from '../../types';
+import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 
 type AppContext = Context<{ Bindings: Env; Variables: Variables }>;
 
@@ -10,7 +11,7 @@ const doctorRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // GET /api/doctors — list all active doctors
 doctorRoutes.get('/', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const search = c.req.query('search') || '';
 
   try {
@@ -33,8 +34,8 @@ doctorRoutes.get('/', async (c) => {
 
 // GET /api/doctors/dashboard — doctor's own dashboard data
 doctorRoutes.get('/dashboard', async (c) => {
-  const tenantId = c.get('tenantId');
-  const userId = c.get('userId');
+  const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
   if (!tenantId || !userId) throw new HTTPException(401, { message: 'Auth required' });
 
   try {
@@ -136,7 +137,7 @@ async function buildDashboard(c: AppContext, doctor: Record<string, unknown>, te
 
 // GET /api/doctors/:id
 doctorRoutes.get('/:id', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const id = c.req.param('id');
 
   try {
@@ -154,8 +155,8 @@ doctorRoutes.get('/:id', async (c) => {
 
 // POST /api/doctors — create doctor
 doctorRoutes.post('/', zValidator('json', createDoctorSchema), async (c) => {
-  const tenantId = c.get('tenantId');
-  const userId = c.get('userId');
+  const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
   const data = c.req.valid('json');
 
   try {
@@ -173,7 +174,7 @@ doctorRoutes.post('/', zValidator('json', createDoctorSchema), async (c) => {
 
 // PUT /api/doctors/:id — update doctor
 doctorRoutes.put('/:id', zValidator('json', updateDoctorSchema), async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const id = c.req.param('id');
   const data = c.req.valid('json');
 
@@ -204,7 +205,7 @@ doctorRoutes.put('/:id', zValidator('json', updateDoctorSchema), async (c) => {
 
 // DELETE /api/doctors/:id — soft delete
 doctorRoutes.delete('/:id', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const id = c.req.param('id');
 
   try {

@@ -48,6 +48,9 @@ ALLOWED_ORIGINS = "http://localhost:5174,http://localhost:5173"
 # Without the secret, emails are logged to console (stub mode)
 RESEND_FROM_EMAIL = "HMS Dev <dev@hms.local>"
 # SMS — set SMS_API_KEY + SMS_SENDER_ID via wrangler secrets when service is purchased
+# ─── AI (OpenRouter) ──────────────────────────────────────────────────────────
+# wrangler secret put OPENROUTER_API_KEY
+# Optional: set AI_MODEL env var to override default (openrouter/healer-alpha)
 SMS_PROVIDER = "stub"
 # ─── Phase 3: bKash / Nagad / Daily.co (set real values via wrangler secrets) ─
 # wrangler secret put BKASH_APP_KEY

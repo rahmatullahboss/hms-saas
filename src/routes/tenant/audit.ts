@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { requireTenantId } from '../../lib/context-helpers';
 
 const auditRoutes = new Hono<{
   Bindings: {
@@ -15,7 +16,7 @@ const auditRoutes = new Hono<{
 }>();
 
 auditRoutes.get('/', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const { userId, tableName, startDate, endDate, limit = '50' } = c.req.query();
 
   let query = 'SELECT a.*, u.name as user_name FROM audit_logs a LEFT JOIN users u ON a.user_id = u.id WHERE a.tenant_id = ?';
@@ -52,7 +53,7 @@ auditRoutes.get('/', async (c) => {
 
 // Alias: GET /api/audit/logs → same as GET /api/audit/
 auditRoutes.get('/logs', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const { userId, tableName, startDate, endDate, limit = '50' } = c.req.query();
 
   let query = 'SELECT a.*, u.name as user_name FROM audit_logs a LEFT JOIN users u ON a.user_id = u.id WHERE a.tenant_id = ?';
@@ -76,7 +77,7 @@ auditRoutes.get('/logs', async (c) => {
 });
 
 auditRoutes.get('/:id', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const id = c.req.param('id');
 
   try {

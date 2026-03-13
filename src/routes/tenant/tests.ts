@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { requireTenantId } from '../../lib/context-helpers';
 
 const testRoutes = new Hono<{
   Bindings: { DB: D1Database };
@@ -7,7 +8,7 @@ const testRoutes = new Hono<{
 
 // Get all tests
 testRoutes.get('/', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const patientId = c.req.query('patient');
   const status = c.req.query('status');
   
@@ -36,7 +37,7 @@ testRoutes.get('/', async (c) => {
 
 // Create test for patient
 testRoutes.post('/', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const { patientId, testName } = await c.req.json();
   
   if (!patientId || !testName) {
@@ -60,7 +61,7 @@ testRoutes.post('/', async (c) => {
 // Update test result
 testRoutes.put('/:id/result', async (c) => {
   const id = c.req.param('id');
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const { result } = await c.req.json();
   
   try {

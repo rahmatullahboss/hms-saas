@@ -3,12 +3,13 @@ import { zValidator } from '@hono/zod-validator';
 import { HTTPException } from 'hono/http-exception';
 import { createCommissionSchema, markCommissionPaidSchema } from '../../schemas/commission';
 import type { Env, Variables } from '../../types';
+import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 
 const commissionRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // GET /api/commissions — list commissions with filters
 commissionRoutes.get('/', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const { status, person } = c.req.query();
 
   try {
@@ -32,7 +33,7 @@ commissionRoutes.get('/', async (c) => {
 
 // GET /api/commissions/summary — totals for unpaid vs paid
 commissionRoutes.get('/summary', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
 
   try {
     const summary = await c.env.DB.prepare(`
@@ -51,8 +52,8 @@ commissionRoutes.get('/summary', async (c) => {
 
 // POST /api/commissions — record new commission
 commissionRoutes.post('/', zValidator('json', createCommissionSchema), async (c) => {
-  const tenantId = c.get('tenantId');
-  const userId = c.get('userId');
+  const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
   const data = c.req.valid('json');
 
   try {
@@ -79,7 +80,7 @@ commissionRoutes.post('/', zValidator('json', createCommissionSchema), async (c)
 
 // POST /api/commissions/:id/pay — mark commission as paid
 commissionRoutes.post('/:id/pay', zValidator('json', markCommissionPaidSchema), async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const id = c.req.param('id');
   const data = c.req.valid('json');
 

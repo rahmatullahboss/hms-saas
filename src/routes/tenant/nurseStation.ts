@@ -1,12 +1,13 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { Env, Variables } from '../../types';
+import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // GET /api/nurse-station/dashboard — active inpatients with latest vitals
 app.get('/dashboard', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
   const { results: admissions } = await c.env.DB.prepare(`
@@ -51,7 +52,7 @@ app.get('/dashboard', async (c) => {
 
 // GET /api/nurse-station/vitals?limit=10
 app.get('/vitals', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
   const limit = Number(c.req.query('limit')) || 10;
@@ -69,7 +70,7 @@ app.get('/vitals', async (c) => {
 
 // POST /api/nurse-station/vitals
 app.post('/vitals', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
   const body = await c.req.json<{
@@ -86,7 +87,7 @@ app.post('/vitals', async (c) => {
 
   if (!body.patient_id) throw new HTTPException(400, { message: 'patient_id required' });
 
-  const userId = c.get('userId');
+  const userId = requireUserId(c);
 
   await c.env.DB.prepare(`
     INSERT INTO patient_vitals (tenant_id, patient_id, systolic, diastolic, temperature, heart_rate, spo2, respiratory_rate, weight, notes, recorded_by)

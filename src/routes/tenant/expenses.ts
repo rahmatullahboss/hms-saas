@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { createAuditLog } from '../../lib/accounting-helpers';
+import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 
 const expenseRoutes = new Hono<{
   Bindings: {
@@ -18,7 +19,7 @@ const expenseRoutes = new Hono<{
 const APPROVAL_THRESHOLD = 10000;
 
 expenseRoutes.get('/', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const { startDate, endDate, category, status } = c.req.query();
 
   let query = 'SELECT * FROM expenses WHERE tenant_id = ?';
@@ -53,7 +54,7 @@ expenseRoutes.get('/', async (c) => {
 });
 
 expenseRoutes.get('/pending', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const role = c.get('role');
 
   if (role !== 'director') {
@@ -77,8 +78,8 @@ expenseRoutes.get('/pending', async (c) => {
 });
 
 expenseRoutes.post('/', async (c) => {
-  const tenantId = c.get('tenantId');
-  const userId = c.get('userId');
+  const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
   const body = await c.req.json();
   const { date, category, amount, description } = body;
 
@@ -131,7 +132,7 @@ expenseRoutes.post('/', async (c) => {
 });
 
 expenseRoutes.get('/:id', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const id = c.req.param('id');
 
   try {
@@ -155,8 +156,8 @@ expenseRoutes.get('/:id', async (c) => {
 });
 
 expenseRoutes.put('/:id', async (c) => {
-  const tenantId = c.get('tenantId');
-  const userId = c.get('userId');
+  const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
   const id = c.req.param('id');
   const body = await c.req.json();
   const { date, category, amount, description } = body;
@@ -209,8 +210,8 @@ expenseRoutes.put('/:id', async (c) => {
 });
 
 expenseRoutes.post('/:id/approve', async (c) => {
-  const tenantId = c.get('tenantId');
-  const userId = c.get('userId');
+  const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
   const role = c.get('role');
   const id = c.req.param('id');
 
@@ -255,8 +256,8 @@ expenseRoutes.post('/:id/approve', async (c) => {
 });
 
 expenseRoutes.post('/:id/reject', async (c) => {
-  const tenantId = c.get('tenantId');
-  const userId = c.get('userId');
+  const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
   const role = c.get('role');
   const id = c.req.param('id');
 

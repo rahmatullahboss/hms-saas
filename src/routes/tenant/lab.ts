@@ -4,13 +4,15 @@ import { HTTPException } from 'hono/http-exception';
 import { createLabTestSchema, updateLabTestSchema, createLabOrderSchema, updateLabItemResultSchema } from '../../schemas/lab';
 import { getNextSequence } from '../../lib/sequence';
 import type { Env, Variables } from '../../types';
+import { requireTenantId, requireUserId } from '../../lib/context-helpers';
+import { getPagination, paginationMeta } from '../../lib/pagination';
 
 const labCatalogRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // ─── Lab Test Catalog CRUD ────────────────────────────────────────────────────
 
 labCatalogRoutes.get('/', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const search = c.req.query('search') || '';
 
   try {
@@ -31,7 +33,7 @@ labCatalogRoutes.get('/', async (c) => {
 });
 
 labCatalogRoutes.post('/', zValidator('json', createLabTestSchema), async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const data = c.req.valid('json');
 
   try {
@@ -46,7 +48,7 @@ labCatalogRoutes.post('/', zValidator('json', createLabTestSchema), async (c) =>
 });
 
 labCatalogRoutes.put('/:id', zValidator('json', updateLabTestSchema), async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const id = c.req.param('id');
   const data = c.req.valid('json');
 
@@ -74,7 +76,7 @@ labCatalogRoutes.put('/:id', zValidator('json', updateLabTestSchema), async (c) 
 });
 
 labCatalogRoutes.delete('/:id', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const id = c.req.param('id');
 
   try {
@@ -97,27 +99,34 @@ labCatalogRoutes.delete('/:id', async (c) => {
 
 // GET /api/lab/orders — list orders, with optional filters
 labCatalogRoutes.get('/orders', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const { patientId, date, status } = c.req.query();
+  const { page, limit, offset } = getPagination(c);
 
   try {
-    let query = `
+    let whereClause = 'WHERE lo.tenant_id = ?';
+    const params: (string | number)[] = [tenantId];
+
+    if (patientId) { whereClause += ' AND lo.patient_id = ?'; params.push(patientId); }
+    if (date)      { whereClause += ' AND lo.order_date = ?'; params.push(date); }
+
+    const countResult = await c.env.DB.prepare(
+      `SELECT COUNT(*) as total FROM lab_orders lo ${whereClause}`
+    ).bind(...params).first<{ total: number }>();
+    const total = countResult?.total ?? 0;
+
+    const orders = await c.env.DB.prepare(`
       SELECT lo.*, p.name as patient_name, p.patient_code, p.mobile as patient_mobile,
              COUNT(loi.id) as total_items,
              SUM(CASE WHEN loi.status = 'pending' THEN 1 ELSE 0 END) as pending_items
       FROM lab_orders lo
       JOIN patients p ON lo.patient_id = p.id
       LEFT JOIN lab_order_items loi ON lo.id = loi.lab_order_id
-      WHERE lo.tenant_id = ?
-    `;
-    const params: (string | number)[] = [tenantId!];
+      ${whereClause}
+      GROUP BY lo.id ORDER BY lo.created_at DESC LIMIT ? OFFSET ?
+    `).bind(...params, limit, offset).all();
 
-    if (patientId) { query += ' AND lo.patient_id = ?'; params.push(patientId); }
-    if (date)      { query += ' AND lo.order_date = ?'; params.push(date); }
-
-    query += ' GROUP BY lo.id ORDER BY lo.created_at DESC LIMIT 100';
-    const orders = await c.env.DB.prepare(query).bind(...params).all();
-    return c.json({ orders: orders.results });
+    return c.json({ orders: orders.results, meta: paginationMeta(page, limit, total) });
   } catch {
     throw new HTTPException(500, { message: 'Failed to fetch lab orders' });
   }
@@ -125,7 +134,7 @@ labCatalogRoutes.get('/orders', async (c) => {
 
 // GET /api/lab/orders/queue/today — today's pending test queue (for lab portal)
 labCatalogRoutes.get('/orders/queue/today', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const today = new Date().toISOString().split('T')[0];
 
   try {
@@ -150,7 +159,7 @@ labCatalogRoutes.get('/orders/queue/today', async (c) => {
 
 // GET /api/lab/orders/:id — order detail with items
 labCatalogRoutes.get('/orders/:id', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const id = c.req.param('id');
 
   try {
@@ -177,8 +186,8 @@ labCatalogRoutes.get('/orders/:id', async (c) => {
 
 // POST /api/lab/orders — create lab order
 labCatalogRoutes.post('/orders', zValidator('json', createLabOrderSchema), async (c) => {
-  const tenantId = c.get('tenantId');
-  const userId = c.get('userId');
+  const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
   const data = c.req.valid('json');
   const orderDate = data.orderDate ?? new Date().toISOString().split('T')[0];
 
@@ -217,7 +226,7 @@ labCatalogRoutes.post('/orders', zValidator('json', createLabOrderSchema), async
 
 // PUT /api/lab/items/:itemId/result — set result for a single test item
 labCatalogRoutes.put('/items/:itemId/result', zValidator('json', updateLabItemResultSchema), async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const itemId = c.req.param('itemId');
   const data = c.req.valid('json');
 
@@ -240,7 +249,7 @@ labCatalogRoutes.put('/items/:itemId/result', zValidator('json', updateLabItemRe
 
 // POST /api/lab/orders/:id/print — increment print count
 labCatalogRoutes.post('/orders/:id/print', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const id = c.req.param('id');
 
   try {

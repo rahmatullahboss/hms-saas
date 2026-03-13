@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { createAuditLog } from '../../lib/accounting-helpers';
+import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 
 const recurringRoutes = new Hono<{
   Bindings: {
@@ -16,7 +17,7 @@ const recurringRoutes = new Hono<{
 }>();
 
 recurringRoutes.get('/', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const { isActive } = c.req.query();
 
   let query = `
@@ -45,8 +46,8 @@ recurringRoutes.get('/', async (c) => {
 });
 
 recurringRoutes.post('/', async (c) => {
-  const tenantId = c.get('tenantId');
-  const userId = c.get('userId');
+  const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
   const body = await c.req.json();
   const { category_id, amount, description, frequency, next_run_date, end_date } = body;
 
@@ -98,7 +99,7 @@ recurringRoutes.post('/', async (c) => {
 });
 
 recurringRoutes.get('/:id', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const id = c.req.param('id');
 
   try {
@@ -122,8 +123,8 @@ recurringRoutes.get('/:id', async (c) => {
 });
 
 recurringRoutes.put('/:id', async (c) => {
-  const tenantId = c.get('tenantId');
-  const userId = c.get('userId');
+  const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
   const id = c.req.param('id');
   const body = await c.req.json();
   const { category_id, amount, description, frequency, next_run_date, end_date, is_active } = body;
@@ -172,8 +173,8 @@ recurringRoutes.put('/:id', async (c) => {
 });
 
 recurringRoutes.delete('/:id', async (c) => {
-  const tenantId = c.get('tenantId');
-  const userId = c.get('userId');
+  const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
   const id = c.req.param('id');
 
   try {
@@ -208,8 +209,8 @@ recurringRoutes.delete('/:id', async (c) => {
 });
 
 recurringRoutes.post('/:id/run', async (c) => {
-  const tenantId = c.get('tenantId');
-  const userId = c.get('userId');
+  const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
   const id = c.req.param('id');
 
   try {

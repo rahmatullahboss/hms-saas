@@ -3,12 +3,13 @@ import { zValidator } from '@hono/zod-validator';
 import { HTTPException } from 'hono/http-exception';
 import { createBranchSchema, updateBranchSchema } from '../../schemas/branch';
 import type { Env, Variables } from '../../types';
+import { requireTenantId } from '../../lib/context-helpers';
 
 const branchRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // GET /api/branches — list all branches for this tenant
 branchRoutes.get('/', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
 
   try {
     const branches = await c.env.DB.prepare(`
@@ -27,7 +28,7 @@ branchRoutes.get('/', async (c) => {
 
 // GET /api/branches/:id — single branch with summary stats
 branchRoutes.get('/:id', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const id = c.req.param('id');
 
   try {
@@ -65,7 +66,7 @@ branchRoutes.get('/:id', async (c) => {
 
 // GET /api/branches/:id/report — detailed monthly income/expense breakdown
 branchRoutes.get('/:id/report', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const role     = c.get('role');
   const id = c.req.param('id');
   if (role !== 'hospital_admin') throw new HTTPException(403, { message: 'Only admins can view financial reports' });
@@ -117,7 +118,7 @@ branchRoutes.get('/:id/report', async (c) => {
 
 // POST /api/branches — create new branch (hospital_admin only)
 branchRoutes.post('/', zValidator('json', createBranchSchema), async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const role     = c.get('role');
   if (role !== 'hospital_admin') throw new HTTPException(403, { message: 'Only admins can create branches' });
 
@@ -136,7 +137,7 @@ branchRoutes.post('/', zValidator('json', createBranchSchema), async (c) => {
 
 // PUT /api/branches/:id — update branch info (hospital_admin only)
 branchRoutes.put('/:id', zValidator('json', updateBranchSchema), async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const role     = c.get('role');
   const id       = c.req.param('id');
   if (role !== 'hospital_admin') throw new HTTPException(403, { message: 'Only admins can update branches' });
@@ -169,7 +170,7 @@ branchRoutes.put('/:id', zValidator('json', updateBranchSchema), async (c) => {
 
 // DELETE /api/branches/:id — soft-delete (sets is_active=0, hospital_admin only)
 branchRoutes.delete('/:id', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const role     = c.get('role');
   const id       = c.req.param('id');
   if (role !== 'hospital_admin') throw new HTTPException(403, { message: 'Only admins can delete branches' });

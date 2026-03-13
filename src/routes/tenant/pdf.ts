@@ -13,6 +13,7 @@ import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { renderInvoiceHtml, renderPatientCardHtml } from '../../lib/pdf-bangla';
 import type { Env, Variables } from '../../types';
+import { requireTenantId } from '../../lib/context-helpers';
 
 const ALLOWED_PDF_ROLES = ['hospital_admin', 'reception', 'doctor', 'nurse'];
 
@@ -20,7 +21,7 @@ const pdfRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // ─── GET /invoice/:billingId ───────────────────────────────────────────────────
 pdfRoutes.get('/invoice/:billingId', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const billingId = c.req.param('billingId');
   const role = c.get('role');
   if (!role || !ALLOWED_PDF_ROLES.includes(role)) {
@@ -115,7 +116,7 @@ pdfRoutes.get('/invoice/:billingId', async (c) => {
 
 // ─── GET /patient-card/:patientId ─────────────────────────────────────────────
 pdfRoutes.get('/patient-card/:patientId', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const patientId = c.req.param('patientId');
   const role = c.get('role');
   if (!role || !ALLOWED_PDF_ROLES.includes(role)) {

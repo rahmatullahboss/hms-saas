@@ -3,12 +3,13 @@ import { zValidator } from '@hono/zod-validator';
 import { HTTPException } from 'hono/http-exception';
 import { createShareholderSchema, updateShareholderSchema, distributeMonthlyProfitSchema } from '../../schemas/shareholder';
 import type { Env, Variables } from '../../types';
+import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 
 const shareholderRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // GET /api/shareholders — list shareholders with totals
 shareholderRoutes.get('/', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const type = c.req.query('type');
 
   try {
@@ -32,7 +33,7 @@ shareholderRoutes.get('/', async (c) => {
 
 // POST /api/shareholders — add shareholder with Zod validation
 shareholderRoutes.post('/', zValidator('json', createShareholderSchema), async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const data = c.req.valid('json');
 
   try {
@@ -66,7 +67,7 @@ shareholderRoutes.post('/', zValidator('json', createShareholderSchema), async (
 
 // PUT /api/shareholders/:id
 shareholderRoutes.put('/:id', zValidator('json', updateShareholderSchema), async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const id = c.req.param('id');
   const data = c.req.valid('json');
 
@@ -96,7 +97,7 @@ shareholderRoutes.put('/:id', zValidator('json', updateShareholderSchema), async
 
 // GET /api/shareholders/calculate?month=YYYY-MM
 shareholderRoutes.get('/calculate', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const month = c.req.query('month') || new Date().toISOString().slice(0, 7);
 
   try {
@@ -145,8 +146,8 @@ shareholderRoutes.get('/calculate', async (c) => {
 
 // POST /api/shareholders/distribute — approve + create per-person distribution records
 shareholderRoutes.post('/distribute', zValidator('json', distributeMonthlyProfitSchema), async (c) => {
-  const tenantId = c.get('tenantId');
-  const userId = c.get('userId');
+  const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
   const data = c.req.valid('json');
   const month = data.month;
 
@@ -213,7 +214,7 @@ shareholderRoutes.post('/distribute', zValidator('json', distributeMonthlyProfit
 
 // GET /api/shareholders/distributions — list all distribution periods
 shareholderRoutes.get('/distributions', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   try {
     const distributions = await c.env.DB.prepare(
       'SELECT * FROM profit_distributions WHERE tenant_id = ? ORDER BY month DESC',
@@ -226,7 +227,7 @@ shareholderRoutes.get('/distributions', async (c) => {
 
 // GET /api/shareholders/distributions/:id — per-person breakdown for one distribution
 shareholderRoutes.get('/distributions/:id', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const id = c.req.param('id');
 
   try {
@@ -252,7 +253,7 @@ shareholderRoutes.get('/distributions/:id', async (c) => {
 
 // POST /api/shareholders/distributions/:id/pay/:shareholderId
 shareholderRoutes.post('/distributions/:id/pay/:shareholderId', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const { id, shareholderId } = c.req.param();
 
   try {

@@ -3,12 +3,13 @@ import { zValidator } from '@hono/zod-validator';
 import { HTTPException } from 'hono/http-exception';
 import { createStaffSchema, updateStaffSchema, paySalarySchema } from '../../schemas/staff';
 import type { Env, Variables } from '../../types';
+import { requireTenantId } from '../../lib/context-helpers';
 
 const staffRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // GET /api/staff — list active staff
 staffRoutes.get('/', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
 
   try {
     const staff = await c.env.DB.prepare(
@@ -23,7 +24,7 @@ staffRoutes.get('/', async (c) => {
 // GET /api/staff/salary-report?month=YYYY-MM — monthly salary report for all staff
 // ⚠ MUST be defined BEFORE /:id to prevent 'salary-report' from matching as :id
 staffRoutes.get('/salary-report', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const month = c.req.query('month') || new Date().toISOString().slice(0, 7);
 
   try {
@@ -55,7 +56,7 @@ staffRoutes.get('/salary-report', async (c) => {
 
 // GET /api/staff/:id
 staffRoutes.get('/:id', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const id = c.req.param('id');
 
   try {
@@ -72,7 +73,7 @@ staffRoutes.get('/:id', async (c) => {
 
 // POST /api/staff — add staff member with Zod validation
 staffRoutes.post('/', zValidator('json', createStaffSchema), async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const data = c.req.valid('json');
 
   try {
@@ -89,7 +90,7 @@ staffRoutes.post('/', zValidator('json', createStaffSchema), async (c) => {
 
 // PUT /api/staff/:id — update staff details
 staffRoutes.put('/:id', zValidator('json', updateStaffSchema), async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const id = c.req.param('id');
   const data = c.req.valid('json');
 
@@ -121,7 +122,7 @@ staffRoutes.put('/:id', zValidator('json', updateStaffSchema), async (c) => {
 
 // DELETE /api/staff/:id — soft deactivate
 staffRoutes.delete('/:id', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const id = c.req.param('id');
 
   try {
@@ -143,7 +144,7 @@ staffRoutes.delete('/:id', async (c) => {
 // POST /api/staff/:id/salary — pay salary with bonus & deduction
 staffRoutes.post('/:id/salary', zValidator('json', paySalarySchema), async (c) => {
   const id = c.req.param('id');
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const data = c.req.valid('json');
 
   try {
@@ -187,7 +188,7 @@ staffRoutes.post('/:id/salary', zValidator('json', paySalarySchema), async (c) =
 // GET /api/staff/:id/salary — salary history for one staff member
 staffRoutes.get('/:id/salary', async (c) => {
   const id = c.req.param('id');
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
 
   try {
     const payments = await c.env.DB.prepare(

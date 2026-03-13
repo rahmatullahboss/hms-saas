@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { requireTenantId } from '../../lib/context-helpers';
 
 const reportsRoutes = new Hono<{
   Bindings: {
@@ -15,7 +16,7 @@ const reportsRoutes = new Hono<{
 }>();
 
 reportsRoutes.get('/pl', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const { startDate, endDate } = c.req.query();
 
   if (!startDate || !endDate) {
@@ -61,7 +62,7 @@ reportsRoutes.get('/pl', async (c) => {
 });
 
 reportsRoutes.get('/income-by-source', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const { startDate, endDate } = c.req.query();
 
   let query = 'SELECT source, SUM(amount) as total, COUNT(*) as count FROM income WHERE tenant_id = ?';
@@ -97,7 +98,7 @@ reportsRoutes.get('/income-by-source', async (c) => {
 });
 
 reportsRoutes.get('/expense-by-category', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const { startDate, endDate } = c.req.query();
 
   let query = 'SELECT category, SUM(amount) as total, COUNT(*) as count FROM expenses WHERE tenant_id = ? AND status = \'approved\'';
@@ -133,7 +134,7 @@ reportsRoutes.get('/expense-by-category', async (c) => {
 });
 
 reportsRoutes.get('/monthly', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const { year } = c.req.query();
   const targetYear = year || new Date().getFullYear().toString();
 

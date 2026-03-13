@@ -1,10 +1,11 @@
 import { Hono } from 'hono';
 import type { Env, Variables } from '../../types';
+import { requireTenantId } from '../../lib/context-helpers';
 
 const dashboardRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 dashboardRoutes.get('/summary', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const today = new Date().toISOString().split('T')[0];
   const monthStart = today.substring(0, 7) + '-01';
 
@@ -50,7 +51,7 @@ dashboardRoutes.get('/summary', async (c) => {
 });
 
 dashboardRoutes.get('/mtd', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const today = new Date().toISOString().split('T')[0];
   const monthStart = today.substring(0, 7) + '-01';
 
@@ -83,7 +84,7 @@ dashboardRoutes.get('/mtd', async (c) => {
 });
 
 dashboardRoutes.get('/trends', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
 
   try {
     const sixMonthsAgo = new Date();
@@ -130,7 +131,7 @@ dashboardRoutes.get('/trends', async (c) => {
 });
 
 dashboardRoutes.get('/income-breakdown', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const today = new Date().toISOString().split('T')[0];
   const monthStart = today.substring(0, 7) + '-01';
 
@@ -158,7 +159,7 @@ dashboardRoutes.get('/income-breakdown', async (c) => {
 });
 
 dashboardRoutes.get('/expense-breakdown', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const today = new Date().toISOString().split('T')[0];
   const monthStart = today.substring(0, 7) + '-01';
 

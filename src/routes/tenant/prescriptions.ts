@@ -1,12 +1,13 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { Env, Variables } from '../../types';
+import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // ─── GET /api/prescriptions?status=&patient= — list prescriptions ────────────
 app.get('/', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
   const status = c.req.query('status');
@@ -33,7 +34,7 @@ app.get('/', async (c) => {
 
 // ─── GET /api/prescriptions/:id — single prescription with items ─────────────
 app.get('/:id', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
   const id = c.req.param('id');
@@ -57,7 +58,7 @@ app.get('/:id', async (c) => {
 
 // ─── GET /api/prescriptions/:id/print — rich print data ──────────────────────
 app.get('/:id/print', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
   const id = c.req.param('id');
@@ -94,10 +95,10 @@ app.get('/:id/print', async (c) => {
 
 // ─── POST /api/prescriptions — create prescription ────────────────────────────
 app.post('/', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
-  const userId = c.get('userId');
+  const userId = requireUserId(c);
   const body = await c.req.json<{
     patientId: number;
     doctorId?: number;
@@ -150,7 +151,7 @@ app.post('/', async (c) => {
 
 // ─── PUT /api/prescriptions/:id — update prescription ─────────────────────────
 app.put('/:id', async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
   const id = c.req.param('id');

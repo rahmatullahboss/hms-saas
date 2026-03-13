@@ -16,6 +16,7 @@ import { HTTPException } from 'hono/http-exception';
 import { createSmsProvider, SmsTemplates } from '../../lib/sms';
 import { sendEmail, EmailTemplates } from '../../lib/email';
 import type { Env, Variables } from '../../types';
+import { requireTenantId } from '../../lib/context-helpers';
 
 const notificationRoutes = new Hono<{
   Bindings: Env;
@@ -112,7 +113,7 @@ notificationRoutes.post('/email', zValidator('json', emailSchema), async (c) => 
 // ─── POST /appointment — Appointment reminder ─────────────────────────────────
 notificationRoutes.post('/appointment', zValidator('json', appointmentSchema), async (c) => {
   const data = c.req.valid('json');
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   requireNotificationRole(c.get('role'));
 
   // Get hospital name for this tenant
@@ -153,7 +154,7 @@ notificationRoutes.post('/appointment', zValidator('json', appointmentSchema), a
 // ─── POST /lab-ready — Lab report notification ────────────────────────────────
 notificationRoutes.post('/lab-ready', zValidator('json', labReadySchema), async (c) => {
   const data = c.req.valid('json');
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   requireNotificationRole(c.get('role'));
 
   const tenant = await c.env.DB.prepare(
@@ -185,7 +186,7 @@ notificationRoutes.post('/lab-ready', zValidator('json', labReadySchema), async 
 // ─── POST /invoice — Invoice summary email ────────────────────────────────────
 notificationRoutes.post('/invoice', zValidator('json', invoiceSchema), async (c) => {
   const data = c.req.valid('json');
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   requireNotificationRole(c.get('role'));
 
   const tenant = await c.env.DB.prepare(
