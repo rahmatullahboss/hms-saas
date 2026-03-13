@@ -144,7 +144,7 @@ labCatalogRoutes.delete('/:id', async (c) => {
 // GET /api/lab/orders — list orders, with optional filters
 labCatalogRoutes.get('/orders', async (c) => {
   const tenantId = c.get('tenantId');
-  const { patientId, date, status } = c.req.query();
+  const { patientId, date } = c.req.query();
 
   try {
     let query = `

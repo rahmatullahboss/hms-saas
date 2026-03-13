@@ -83,8 +83,8 @@ patientRoutes.post('/', zValidator('json', createPatientSchema), async (c) => {
 
     const result = await c.env.DB.prepare(
       `INSERT INTO patients
-         (name, father_husband, address, mobile, guardian_mobile, age, gender, blood_group, patient_code, tenant_id, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+         (name, father_husband, address, mobile, guardian_mobile, email, age, gender, blood_group, patient_code, tenant_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
     )
       .bind(
         data.name,
@@ -92,6 +92,7 @@ patientRoutes.post('/', zValidator('json', createPatientSchema), async (c) => {
         data.address,
         data.mobile,
         data.guardianMobile ?? null,
+        data.email ?? null,
         data.age ?? null,
         data.gender ?? null,
         data.bloodGroup ?? null,

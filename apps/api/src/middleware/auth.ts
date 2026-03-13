@@ -22,6 +22,12 @@ export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
     return;
   }
 
+  // Patient portal public endpoints (OTP) — skip token check
+  if (path === '/api/patient-portal/request-otp' || path === '/api/patient-portal/verify-otp') {
+    await next();
+    return;
+  }
+
   const authHeader = c.req.header('Authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return c.json({ error: 'No token provided' }, 401);

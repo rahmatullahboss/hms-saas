@@ -19,6 +19,18 @@ import RecurringExpenses from './pages/accounting/RecurringExpenses';
 import ChartOfAccounts from './pages/accounting/ChartOfAccounts';
 import PharmacyDashboard from './pages/PharmacyDashboard';
 import StaffPage from './pages/StaffPage';
+import PatientLogin from './pages/patient/PatientLogin';
+import PatientPortalDashboard from './pages/patient/PatientPortalDashboard';
+import PatientAppointments from './pages/patient/PatientAppointments';
+import PatientLabResults from './pages/patient/PatientLabResults';
+import PatientPrescriptions from './pages/patient/PatientPrescriptions';
+import PatientBills from './pages/patient/PatientBills';
+import PatientProfilePage from './pages/patient/PatientProfile';
+import BookAppointment from './pages/patient/BookAppointment';
+import PatientMessages from './pages/patient/PatientMessages';
+import PatientTimeline from './pages/patient/PatientTimeline';
+import PatientFamily from './pages/patient/PatientFamily';
+import PatientPortalLayout from './components/PatientPortalLayout';
 
 function Unauthorized() {
   return (
@@ -100,6 +112,23 @@ function App() {
           <Route path="/director/shareholders" element={<DirectorDashboard />} />
           <Route path="/director/profit" element={<DirectorDashboard />} />
           <Route path="/director/settings" element={<SettingsPage />} />
+        </Route>
+
+        {/* ─── Patient Portal Routes ────────────────────────── */}
+        <Route path="/patient/login" element={<PatientLogin />} />
+        <Route element={<ProtectedRoute allowedRoles={['patient']} redirectTo="/patient/login" />}>
+          <Route element={<PatientPortalLayout />}>
+            <Route path="/patient/dashboard" element={<PatientPortalDashboard />} />
+            <Route path="/patient/appointments" element={<PatientAppointments />} />
+            <Route path="/patient/book-appointment" element={<BookAppointment />} />
+            <Route path="/patient/lab-results" element={<PatientLabResults />} />
+            <Route path="/patient/prescriptions" element={<PatientPrescriptions />} />
+            <Route path="/patient/bills" element={<PatientBills />} />
+            <Route path="/patient/messages" element={<PatientMessages />} />
+            <Route path="/patient/timeline" element={<PatientTimeline />} />
+            <Route path="/patient/family" element={<PatientFamily />} />
+            <Route path="/patient/profile" element={<PatientProfilePage />} />
+          </Route>
         </Route>
 
         {/* ─── Default redirect ───────────────────────────── */}

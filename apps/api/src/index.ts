@@ -44,6 +44,7 @@ import ipdChargeRoutes from './routes/tenant/ipdCharges';
 import telemedicineRoutes from './routes/tenant/telemedicine';
 import consultationRoutes from './routes/tenant/consultations';
 import invitationRoutes from './routes/tenant/invitations';
+import patientPortalRoutes from './routes/tenant/patientPortal';
 
 import type { Env } from './types';
 
@@ -124,6 +125,21 @@ app.route('/api/admin', adminRoutes);
 app.use('/api/auth/*', tenantMiddleware);
 app.use('/api/auth/register', authMiddleware);
 app.route('/api/auth', authRoutes);
+
+// ─── Patient Portal routes ───────────────────────────────────────────
+// Auth endpoints (request-otp, verify-otp) are public; data endpoints
+// use patient JWT checked inside the route handler itself.
+app.use('/api/patient-portal/*', tenantMiddleware);
+app.use('/api/patient-portal/me', authMiddleware);
+app.use('/api/patient-portal/dashboard', authMiddleware);
+app.use('/api/patient-portal/appointments', authMiddleware);
+app.use('/api/patient-portal/prescriptions', authMiddleware);
+app.use('/api/patient-portal/prescriptions/*', authMiddleware);
+app.use('/api/patient-portal/lab-results', authMiddleware);
+app.use('/api/patient-portal/bills', authMiddleware);
+app.use('/api/patient-portal/vitals', authMiddleware);
+app.use('/api/patient-portal/visits', authMiddleware);
+app.route('/api/patient-portal', patientPortalRoutes);
 
 // ─── Protected tenant routes ─────────────────────────────────────────
 app.use('/api/*', tenantMiddleware);

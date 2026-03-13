@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
-import { useParams } from 'react-router-dom';
 import { FlaskConical, Clock, TestTube, CheckCircle2, AlertTriangle, ArrowRight } from 'lucide-react';
 
 interface LabQueueItem {
@@ -90,8 +89,6 @@ function PriorityBadge({ priority }: { priority: string }) {
 }
 
 export default function LaboratoryDashboard({ role = 'laboratory' }: { role?: string }) {
-  const { slug } = useParams();
-  const basePath = slug ? `/h/${slug}` : '';
   const [queue, setQueue] = useState<LabQueueItem[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);

@@ -6,6 +6,7 @@ export const createPatientSchema = z.object({
   address: z.string().min(1, 'Address is required'),
   mobile: z.string().min(11, 'Mobile must be at least 11 digits').max(15),
   guardianMobile: z.string().optional(),
+  email: z.string().email().optional(),
   age: z.number().int().positive().optional(),
   gender: z.enum(['male', 'female', 'other']).optional(),
   bloodGroup: z.string().optional(),
