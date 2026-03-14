@@ -49,8 +49,8 @@ function fmt(date: string) {
 function fmtTime(date: string) {
   return new Date(date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 }
-function money(n: number) {
-  return `৳${n.toLocaleString('en-BD')}`;
+function money(n: number | null | undefined) {
+  return `৳${(n ?? 0).toLocaleString('en-BD')}`;
 }
 
 /** Get hospital name from localStorage tenant data */
@@ -205,7 +205,7 @@ export default function BillPrint({
 
   const handlePrint = () => window.print();
 
-  const outstanding = bill ? bill.total_amount - bill.paid_amount : 0;
+  const outstanding = bill ? (bill.total_amount ?? 0) - (bill.paid_amount ?? 0) : 0;
   const hospitalName = getHospitalName();
 
   // ── Loading skeleton ──
@@ -333,7 +333,7 @@ export default function BillPrint({
                   <span>Subtotal</span>
                   <span className="font-mono">{money(bill.subtotal)}</span>
                 </div>
-                {bill.discount > 0 && (
+                {(bill.discount ?? 0) > 0 && (
                   <div className="flex justify-between text-gray-600">
                     <span>Discount</span>
                     <span className="font-mono text-red-500">-{money(bill.discount)}</span>

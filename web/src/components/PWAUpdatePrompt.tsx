@@ -36,6 +36,7 @@ export function PWAUpdatePrompt() {
 
   return (
     <div
+      className="no-print"
       style={{
         position: 'fixed',
         bottom: '1rem',

@@ -103,6 +103,9 @@ export default function TelemedicineRoom({ role = 'hospital_admin' }: { role?: s
       // 2. Join room → get our own CF Calls session
       const joinRes = await axios.post(`/api/telemedicine/rooms/${roomId}/join`, {}, { headers: authHeaders() });
       const { sessionId } = joinRes.data;
+      if (!sessionId) {
+        throw new Error('Telemedicine service is not configured. Please contact your administrator.');
+      }
       setMySessionId(sessionId);
 
       // 3. Get local media

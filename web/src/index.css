@@ -362,3 +362,14 @@
 ::-webkit-scrollbar-track { background: var(--color-bg-primary); }
 ::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--color-text-muted); }
+
+/* ── Print ── */
+@media print {
+  .no-print,
+  aside,
+  nav,
+  header,
+  [data-no-print] {
+    display: none !important;
+  }
+}
