@@ -97,6 +97,7 @@ export default function Sidebar({ role, onLogout }: SidebarProps) {
           { labelKey: 'multiBranch',   path: 'multi-branch',      icon: <Building2       className="w-4.5 h-4.5" /> },
           { labelKey: 'reports',       path: 'reports',           icon: <PieChart        className="w-4.5 h-4.5" /> },
           { labelKey: 'systemAudit',   path: 'system-audit',      icon: <Shield          className="w-4.5 h-4.5" /> },
+          { labelKey: 'website',      path: 'website',           icon: <Globe          className="w-4.5 h-4.5" /> },
           { labelKey: 'settings',      path: 'settings',          icon: <Settings        className="w-4.5 h-4.5" /> },
         ],
       },

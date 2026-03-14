@@ -8,6 +8,7 @@
     "allowJs": true,
     "checkJs": false,
     "jsx": "react-jsx",
+    "jsxImportSource": "hono/jsx",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,

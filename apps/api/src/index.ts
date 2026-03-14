@@ -47,6 +47,8 @@ import invitationRoutes from './routes/tenant/invitations';
 import patientPortalRoutes from './routes/tenant/patientPortal';
 import branchRoutes from './routes/tenant/branches';
 import pushRoutes from './routes/tenant/pushNotifications';
+import hospitalSite from './routes/public/hospitalSite';
+import websiteRoutes from './routes/tenant/website';
 
 import type { Env } from './types';
 
@@ -107,6 +109,9 @@ app.use('/api/init/*', async (c, next) => {
 
 app.route('/api/seed', seedRoutes);
 app.route('/api/init', initRoutes);
+
+// ─── Public hospital website (no auth, served from KV cache) ─────────
+app.route('/site', hospitalSite);
 
 // ─── Admin routes ─────────────────────────────────────────────────────
 // Admin login is public (no auth needed)
@@ -182,6 +187,7 @@ app.route('/api/consultations', consultationRoutes);
 app.route('/api/invitations', invitationRoutes);
 app.route('/api/branches', branchRoutes);
 app.route('/api/push', pushRoutes);
+app.route('/api/website', websiteRoutes);
 
 
 // 404 handler

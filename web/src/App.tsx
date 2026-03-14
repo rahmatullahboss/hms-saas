@@ -17,6 +17,7 @@ import ReceptionDashboard from './pages/ReceptionDashboard';
 import MDDashboard from './pages/MDDashboard';
 import DirectorDashboard from './pages/DirectorDashboard';
 import SettingsPage from './pages/SettingsPage';
+import WebsiteSettings from './pages/WebsiteSettings';
 import HospitalAdminDashboard from './pages/HospitalAdminDashboard';
 import AccountingDashboard from './pages/accounting/AccountingDashboard';
 import IncomeList from './pages/accounting/IncomeList';
@@ -145,6 +146,7 @@ function App() {
             <Route path="reports" element={<ReportsDashboard role="hospital_admin" />} />
             <Route path="audit" element={<AuditLogs role="hospital_admin" />} />
             <Route path="settings" element={<SettingsPage role="hospital_admin" />} />
+            <Route path="website" element={<WebsiteSettings role="hospital_admin" />} />
             <Route path="invitations" element={<InviteStaff />} />
             <Route path="appointments" element={<AppointmentScheduler role="hospital_admin" />} />
             <Route path="prescriptions/new" element={<DigitalPrescription />} />

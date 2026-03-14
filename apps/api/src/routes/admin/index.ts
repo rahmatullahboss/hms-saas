@@ -133,6 +133,17 @@ adminRoutes.post('/hospitals', async (c) => {
     
     const tenantId = result.meta.last_row_id;
     
+    // Auto-create website config (hospital gets a public website by default)
+    try {
+      await c.env.DB.prepare(
+        `INSERT INTO website_config (tenant_id, is_enabled, theme, primary_color, secondary_color)
+         VALUES (?, 1, 'arogyaseva', '#0891b2', '#059669')`
+      ).bind(tenantId).run();
+    } catch (e) {
+      // Non-critical: website table may not exist yet if migration hasn't run
+      console.warn('[Admin] Auto-create website_config skipped:', e);
+    }
+
     // TODO: In production, create D1 database for this tenant
     // For now, we use the main database with tenant_id column
     
