@@ -29,7 +29,7 @@ export default function PatientList({ role = 'hospital_admin' }: { role?: string
 
   const { slug = '' } = useParams<{ slug: string }>();
   const basePath = `/h/${slug}`;
-  const searchTimer = useRef<ReturnType<typeof setTimeout>>();
+  const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const today = new Date().toDateString();
 
   const fetchPatients = useCallback(async () => {

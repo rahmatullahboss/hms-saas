@@ -101,7 +101,7 @@ export default function DigitalPrescription() {
   const [items,      setItems]       = useState<PrescriptionItem[]>([]);
   const [medSearch,  setMedSearch]   = useState('');
   const [medResults, setMedResults]  = useState<{ name: string }[]>([]);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   // UI state
   const [saving,        setSaving]        = useState(false);

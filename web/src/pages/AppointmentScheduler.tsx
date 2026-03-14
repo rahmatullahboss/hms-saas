@@ -100,7 +100,7 @@ function BookModal({ date, doctors, onClose, onBooked }: BookModalProps) {
   const [saving, setSaving]       = useState(false);
 
   // Search patients (debounced)
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => {
     if (patientQuery.length < 2) { setPatients([]); return; }
     clearTimeout(debounceRef.current);

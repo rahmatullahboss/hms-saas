@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type JSX } from 'react';
 import { Bot, Send, ThumbsUp, ThumbsDown, Stethoscope, Pill, FileText, Activity, Brain, BarChart3, X } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
