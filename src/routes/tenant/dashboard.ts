@@ -16,48 +16,65 @@ dashboardRoutes.get('/stats', async (c) => {
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
 
-    // Build concurrent queries
-    const [
-      totalPatientsResult,
-      todayPatientsResult,
-      testStatsResult,
-      billStatsResult,
-      staffCountResult,
-      lowStockResult,
-      incomeResult,
-      recentPatientsResult
-    ] = await Promise.all([
+    // ⚡ BOLT OPTIMIZATION:
+    // Replaced Promise.all() with c.env.DB.batch() for dashboard stats.
+    // Why: Promise.all() sends 8 separate HTTP network requests to Cloudflare D1.
+    //      DB.batch() sends a single network request containing all 8 statements.
+    // Impact: Eliminates 7 network round-trips, significantly reducing latency and
+    //         making the dashboard load much faster, especially for users far from
+    //         the database region.
+    const batchResults = await c.env.DB.batch([
       // Total patients
-      c.env.DB.prepare('SELECT COUNT(*) as count FROM patients WHERE tenant_id = ?').bind(tenantId).first<{count: number}>(),
+      c.env.DB.prepare('SELECT COUNT(*) as count FROM patients WHERE tenant_id = ?').bind(tenantId),
       // Today's patients
-      c.env.DB.prepare('SELECT COUNT(*) as count FROM patients WHERE tenant_id = ? AND date(created_at) = ?').bind(tenantId, today).first<{count: number}>(),
+      c.env.DB.prepare('SELECT COUNT(*) as count FROM patients WHERE tenant_id = ? AND date(created_at) = ?').bind(tenantId, today),
       // Test stats (pending and completed)
       c.env.DB.prepare(`
         SELECT
           SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
           SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed
         FROM tests WHERE tenant_id = ?
-      `).bind(tenantId).first<{pending: number, completed: number}>(),
+      `).bind(tenantId),
       // Bill stats (pending bills and total revenue)
       c.env.DB.prepare(`
         SELECT
           SUM(CASE WHEN due > 0 THEN 1 ELSE 0 END) as pending_bills,
           SUM(total) as total_revenue
         FROM bills WHERE tenant_id = ?
-      `).bind(tenantId).first<{pending_bills: number, total_revenue: number}>(),
+      `).bind(tenantId),
       // Staff count
-      c.env.DB.prepare('SELECT COUNT(*) as count FROM staff WHERE tenant_id = ?').bind(tenantId).first<{count: number}>(),
+      c.env.DB.prepare('SELECT COUNT(*) as count FROM staff WHERE tenant_id = ?').bind(tenantId),
       // Low stock medicines count
-      c.env.DB.prepare('SELECT COUNT(*) as count FROM medicines WHERE tenant_id = ? AND quantity < 10').bind(tenantId).first<{count: number}>(),
+      c.env.DB.prepare('SELECT COUNT(*) as count FROM medicines WHERE tenant_id = ? AND quantity < 10').bind(tenantId),
       // Income for the last 7 days
       c.env.DB.prepare(`
         SELECT date, SUM(amount) as total FROM income
         WHERE tenant_id = ? AND date >= ?
         GROUP BY date ORDER BY date
-      `).bind(tenantId, sevenDaysAgoStr).all<{date: string, total: number}>(),
+      `).bind(tenantId, sevenDaysAgoStr),
       // Recent 5 patients
-      c.env.DB.prepare('SELECT id, name, mobile, created_at FROM patients WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 5').bind(tenantId).all()
+      c.env.DB.prepare('SELECT id, name, mobile, created_at FROM patients WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 5').bind(tenantId)
     ]);
+
+    const [
+      totalPatientsBatch,
+      todayPatientsBatch,
+      testStatsBatch,
+      billStatsBatch,
+      staffCountBatch,
+      lowStockBatch,
+      incomeBatch,
+      recentPatientsBatch
+    ] = batchResults;
+
+    const totalPatientsResult = totalPatientsBatch.results[0] as {count: number} | undefined;
+    const todayPatientsResult = todayPatientsBatch.results[0] as {count: number} | undefined;
+    const testStatsResult = testStatsBatch.results[0] as {pending: number, completed: number} | undefined;
+    const billStatsResult = billStatsBatch.results[0] as {pending_bills: number, total_revenue: number} | undefined;
+    const staffCountResult = staffCountBatch.results[0] as {count: number} | undefined;
+    const lowStockResult = lowStockBatch.results[0] as {count: number} | undefined;
+    const incomeResult = incomeBatch;
+    const recentPatientsResult = recentPatientsBatch;
     
     // Format revenue data for chart
     const incomeList = incomeResult.results || [];

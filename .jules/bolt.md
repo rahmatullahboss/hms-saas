@@ -7,3 +7,7 @@
 ## 2024-03-13 - [Fix N+1 query in Nurse Station dashboard]
 **Learning:** Sequential queries in a loop (`for (const item of items) { await db.prepare(...) }`) over lists of entities (like `admissions`) lead to N+1 query problems and significantly increase response latency due to multiple network roundtrips to the D1 database.
 **Action:** Always batch related queries using `c.env.DB.batch(statements)` when fetching related data for a list of items. Group the statements into an array and execute them concurrently in a single round-trip, then map the `batchResults` back to the original items.
+
+## 2024-03-14 - Optimizing Promise.all in D1
+**Learning:** In Cloudflare D1, `Promise.all` with multiple queries sends multiple HTTP requests, causing significant overhead. Using `c.env.DB.batch(statements)` sends a single network request. When converting `Promise.all` to `batch`, the array of prepared statements should not include `.first()` or `.all()`. The results are returned as an array of `D1Result` objects where `.results` must be accessed manually.
+**Action:** Always prefer `c.env.DB.batch()` over `Promise.all()` for concurrent database queries in D1 to minimize network latency. When mapping the results, extract single rows via `batchResult.results[0]`.
