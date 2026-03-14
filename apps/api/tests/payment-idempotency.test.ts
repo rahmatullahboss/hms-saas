@@ -5,7 +5,7 @@ import * as jwt from 'jsonwebtoken';
 
 const TEST_JWT_SECRET = 'test-secret-for-vitest';
 
-function getAuthHeaders(tenantId: number, userId = 1, role = 'admin') {
+function getAuthHeaders(tenantId: number, userId = 1, role = 'admin', subdomain = 'test') {
   const token = jwt.sign(
     { userId: userId.toString(), tenantId: String(tenantId), role, permissions: [] },
     TEST_JWT_SECRET,
@@ -13,22 +13,22 @@ function getAuthHeaders(tenantId: number, userId = 1, role = 'admin') {
   );
   return {
     'Content-Type': 'application/json',
-    'X-Tenant-Subdomain': 'test',
+    'X-Tenant-Subdomain': subdomain,
     'Authorization': `Bearer ${token}`,
   };
 }
 
-async function api(method: string, path: string, body?: unknown, tenantId = 1) {
+async function api(method: string, path: string, body?: unknown, tenantId = 1, subdomain = 'test') {
   const req = new Request(`http://localhost${path}`, {
     method,
-    headers: getAuthHeaders(tenantId),
+    headers: getAuthHeaders(tenantId, 1, 'admin', subdomain),
     body: body ? JSON.stringify(body) : undefined,
   });
   return app.fetch(req, env as any, { waitUntil: () => {}, passThroughOnException: () => {} } as any);
 }
 
 /** Create patient + bill, return billId for payment tests */
-async function createBillFixture(tenantId = 1): Promise<number> {
+async function createBillFixture(tenantId = 1, subdomain = 'test'): Promise<number> {
   // Create patient
   const pRes = await api('POST', '/api/patients', {
     name: 'Idempotency Test Patient',
@@ -37,7 +37,7 @@ async function createBillFixture(tenantId = 1): Promise<number> {
     mobile: `0171${Date.now().toString().slice(-7)}`,
     gender: 'male',
     age: 25,
-  }, tenantId);
+  }, tenantId, subdomain);
   const { patientId } = await pRes.json() as any;
 
   // Create bill
@@ -45,7 +45,7 @@ async function createBillFixture(tenantId = 1): Promise<number> {
     patientId,
     items: [{ itemCategory: 'doctor_visit', description: 'OPD', quantity: 1, unitPrice: 1000 }],
     discount: 0,
-  }, tenantId);
+  }, tenantId, subdomain);
   const { billId } = await bRes.json() as any;
   return billId;
 }
@@ -160,14 +160,14 @@ describe('Payment Idempotency Tests', () => {
   });
 
   it('6. Tenant isolation — idempotency key from tenant A cannot affect tenant B', async () => {
-    const billId1 = await createBillFixture(1);
-    const billId2 = await createBillFixture(2);
+    const billId1 = await createBillFixture(1, 'test');
+    const billId2 = await createBillFixture(2, 'test-2');
     const idempotencyKey = crypto.randomUUID();
 
     // Tenant 1 pays with key
     const res1 = await api('POST', '/api/billing/pay', {
       billId: billId1, amount: 500, type: 'current', idempotencyKey,
-    }, 1);
+    }, 1, 'test');
     expect(res1.status).toBe(200);
     const data1 = await res1.json() as any;
     expect(data1.idempotent).toBeUndefined(); // First time for tenant 1
@@ -176,7 +176,7 @@ describe('Payment Idempotency Tests', () => {
     // tenant_id, so this should create a NEW payment for tenant 2
     const res2 = await api('POST', '/api/billing/pay', {
       billId: billId2, amount: 300, type: 'current', idempotencyKey,
-    }, 2);
+    }, 2, 'test-2');
     expect(res2.status).toBe(200);
     const data2 = await res2.json() as any;
     expect(data2.idempotent).toBeUndefined(); // Not treated as duplicate in tenant 2

@@ -48,7 +48,8 @@ billingRoutes.get('/', async (c) => {
     const total = countResult?.total ?? 0;
 
     const bills = await c.env.DB.prepare(
-      `SELECT b.*, p.name as patient_name, p.patient_code, p.mobile as patient_mobile
+      `SELECT b.*, b.total AS total_amount, b.paid AS paid_amount, (b.total - b.paid) AS outstanding,
+              p.name as patient_name, p.patient_code, p.mobile as patient_mobile
        FROM bills b JOIN patients p ON b.patient_id = p.id
        ${whereClause} ORDER BY b.created_at DESC LIMIT ? OFFSET ?`
     ).bind(...params, limit, offset).all();
@@ -75,12 +76,13 @@ billingRoutes.get('/due', async (c) => {
 
   try {
     const bills = await c.env.DB.prepare(`
-      SELECT b.*, p.name as patient_name, p.patient_code, p.mobile as patient_mobile,
-             (b.total_amount - b.paid_amount) as outstanding
+      SELECT b.*, b.total AS total_amount, b.paid AS paid_amount,
+             p.name as patient_name, p.patient_code, p.mobile as patient_mobile,
+             (b.total - b.paid) as outstanding
       FROM bills b
       JOIN patients p ON b.patient_id = p.id
       WHERE b.tenant_id = ? AND b.status IN ('open', 'partially_paid')
-        AND b.total_amount > b.paid_amount
+        AND b.total > b.paid
       ORDER BY b.created_at ASC
     `).bind(tenantId).all();
     return c.json({ bills: bills.results });
@@ -107,7 +109,7 @@ billingRoutes.get('/patient/:patientId', async (c) => {
 
   try {
     const bills = await c.env.DB.prepare(`
-      SELECT b.*, (b.total_amount - b.paid_amount) as outstanding
+      SELECT b.*, b.total AS total_amount, b.paid AS paid_amount, (b.total - b.paid) as outstanding
       FROM bills b
       WHERE b.patient_id = ? AND b.tenant_id = ?
       ORDER BY b.created_at DESC
@@ -138,7 +140,8 @@ billingRoutes.get('/:id', async (c) => {
 
   try {
     const bill = await c.env.DB.prepare(`
-      SELECT b.*, p.name as patient_name, p.patient_code, p.mobile, p.address
+      SELECT b.*, b.total AS total_amount, b.paid AS paid_amount, (b.total - b.paid) AS outstanding,
+             p.name as patient_name, p.patient_code, p.mobile, p.address
       FROM bills b JOIN patients p ON b.patient_id = p.id
       WHERE b.id = ? AND b.tenant_id = ?
     `).bind(id, tenantId).first();
@@ -194,11 +197,12 @@ billingRoutes.post('/', zValidator('json', createBillSchema), async (c) => {
     const today = new Date().toISOString().split('T')[0];
 
     // ─── Atomic batch: bill + items + income all succeed or all fail ──────
+    // Uses production column names: total, paid, due, discount
     const billStatement = c.env.DB.prepare(`
       INSERT INTO bills
-        (patient_id, visit_id, invoice_no, subtotal, discount, total_amount, paid_amount, status, tenant_id, created_by, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, 0, 'open', ?, ?, datetime('now'))
-    `).bind(data.patientId, data.visitId ?? null, invoiceNo, subtotal, discount, total, tenantId, userId);
+        (patient_id, visit_id, invoice_no, discount, total, paid, due, status, tenant_id, created_at)
+      VALUES (?, ?, ?, ?, ?, 0, ?, 'open', ?, datetime('now'))
+    `).bind(data.patientId, data.visitId ?? null, invoiceNo, discount, total, total, tenantId);
 
     const itemStatements = data.items.map((item) => {
       const lineTotal = item.quantity * item.unitPrice;
@@ -256,9 +260,9 @@ billingRoutes.post('/pay', zValidator('json', paymentSchema), async (c) => {
 
   try {
     const bill = await c.env.DB.prepare(
-      'SELECT * FROM bills WHERE id = ? AND tenant_id = ?',
+      'SELECT *, total AS total_amount, paid AS paid_amount FROM bills WHERE id = ? AND tenant_id = ?',
     ).bind(data.billId, tenantId).first<{
-      id: number; total_amount: number; paid_amount: number; status: string;
+      id: number; total: number; paid: number; total_amount: number; paid_amount: number; status: string;
     }>();
     if (!bill) throw new HTTPException(404, { message: 'Bill not found' });
     if (bill.status === 'paid') throw new HTTPException(400, { message: 'Bill is already fully paid' });
@@ -283,11 +287,11 @@ billingRoutes.post('/pay', zValidator('json', paymentSchema), async (c) => {
     `).bind(data.billId, data.amount, data.type, receiptNo, data.paymentMethod ?? null, userId, tenantId).run();
 
     await c.env.DB.prepare(
-      `UPDATE bills SET paid_amount = ?, status = ? WHERE id = ? AND tenant_id = ?`,
-    ).bind(newPaid, status, data.billId, tenantId).run();
+      `UPDATE bills SET paid = ?, due = ?, status = ? WHERE id = ? AND tenant_id = ?`,
+    ).bind(newPaid, Math.max(0, bill.total - newPaid), status, data.billId, tenantId).run();
 
     // Audit log
-    void createAuditLog(c.env, tenantId!, userId!, 'payment', 'bills', data.billId, { paidBefore: bill.paid_amount }, { newPaid, status, receiptNo });
+    void createAuditLog(c.env, tenantId!, userId!, 'payment', 'bills', data.billId, { paidBefore: bill.paid }, { newPaid, status, receiptNo });
 
     return c.json({
       message: 'Payment recorded',

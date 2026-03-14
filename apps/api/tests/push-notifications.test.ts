@@ -165,7 +165,7 @@ describe('Push Notifications API', () => {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
-          'X-Tenant-Subdomain': 'other-hospital',
+          'X-Tenant-Subdomain': 'test-2',
           'Authorization': `Bearer ${tenant2Token}`,
         },
         body: JSON.stringify({ endpoint: MOCK_SUBSCRIPTION.endpoint }),

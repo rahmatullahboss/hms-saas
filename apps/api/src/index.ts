@@ -46,6 +46,7 @@ import consultationRoutes from './routes/tenant/consultations';
 import invitationRoutes from './routes/tenant/invitations';
 import patientPortalRoutes from './routes/tenant/patientPortal';
 import branchRoutes from './routes/tenant/branches';
+import pushRoutes from './routes/tenant/pushNotifications';
 
 import type { Env } from './types';
 
@@ -180,6 +181,7 @@ app.route('/api/telemedicine', telemedicineRoutes);
 app.route('/api/consultations', consultationRoutes);
 app.route('/api/invitations', invitationRoutes);
 app.route('/api/branches', branchRoutes);
+app.route('/api/push', pushRoutes);
 
 
 // 404 handler

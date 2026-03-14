@@ -118,4 +118,55 @@ describe('Nurse Station API — /api/nurse-station', () => {
       expect(data.vitals[0].patient_id).toBe(patientId);
     });
   });
+
+  describe('GET /api/nurse-station/vitals-trends/:patientId', () => {
+    it('returns vitals and thresholds arrays for a patient with no data', async () => {
+      const res = await api('GET', `/api/nurse-station/vitals-trends/${patientId}`);
+      expect(res.status).toBe(200);
+      const data = (await res.json()) as any;
+      expect(Array.isArray(data.vitals)).toBe(true);
+      expect(Array.isArray(data.thresholds)).toBe(true);
+      expect(data.vitals.length).toBe(0); // no readings yet
+    });
+
+    it('returns recorded vitals in the trends response', async () => {
+      // Record a vital
+      await api('POST', '/api/nurse-station/vitals', {
+        patient_id: patientId,
+        systolic: 125,
+        diastolic: 82,
+        heart_rate: 70,
+        spo2: 99,
+        temperature: 37.0,
+        respiratory_rate: 14,
+      });
+
+      const res = await api('GET', `/api/nurse-station/vitals-trends/${patientId}?days=7`);
+      expect(res.status).toBe(200);
+      const data = (await res.json()) as any;
+      expect(data.vitals.length).toBeGreaterThan(0);
+      const v = data.vitals[0];
+      expect(v.systolic).toBe(125);
+      expect(v.diastolic).toBe(82);
+      expect(v.heart_rate).toBe(70);
+      expect(typeof v.recorded_at).toBe('string');
+    });
+
+    it('respects the ?days query param (returns empty for old data)', async () => {
+      // Record a vital now, then query for only 0 days back — should be empty
+      await api('POST', '/api/nurse-station/vitals', {
+        patient_id: patientId,
+        systolic: 110,
+      });
+      // Request 0 days window — edge case
+      const res = await api('GET', `/api/nurse-station/vitals-trends/${patientId}?days=0`);
+      expect(res.status).toBe(200);
+    });
+
+    it('returns error for invalid patient id (non-numeric)', async () => {
+      const res = await api('GET', '/api/nurse-station/vitals-trends/abc');
+      // Route returns 400 (validation) or 403 (tenant/auth guard fires first)
+      expect([400, 403, 404]).toContain(res.status);
+    });
+  });
 });

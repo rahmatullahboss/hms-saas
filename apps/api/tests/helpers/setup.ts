@@ -5,7 +5,13 @@ import { testSchema } from './db_schema';
 
 // Additional tables / columns missing from the base testSchema
 const EXTRA_SQL: string[] = [
-  // ── bills table: drop old schema (has total/paid/due) and recreate with correct columns ──
+  // ── tenants: add subscription columns missing from base schema ───────────────
+  `ALTER TABLE tenants ADD COLUMN trial_ends_at TEXT`,
+  `ALTER TABLE tenants ADD COLUMN plan_price REAL DEFAULT 0`,
+  `ALTER TABLE tenants ADD COLUMN billing_cycle TEXT DEFAULT 'monthly'`,
+  `ALTER TABLE tenants ADD COLUMN addons TEXT DEFAULT '[]'`,
+
+  // ── bills table: drop old schema and recreate with correct columns ──
   `DROP TABLE IF EXISTS invoice_items`,
   `DROP TABLE IF EXISTS payments`,
   `DROP TABLE IF EXISTS bills`,
@@ -14,14 +20,16 @@ const EXTRA_SQL: string[] = [
     patient_id INTEGER NOT NULL,
     visit_id INTEGER,
     invoice_no TEXT,
-    subtotal REAL NOT NULL DEFAULT 0,
+    subtotal REAL DEFAULT 0,
     discount REAL NOT NULL DEFAULT 0,
     total_amount REAL NOT NULL DEFAULT 0,
     paid_amount REAL NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'open',
+    branch_id INTEGER,
     tenant_id INTEGER NOT NULL,
     created_by INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (patient_id) REFERENCES patients(id)
   )`,
   `CREATE INDEX IF NOT EXISTS idx_bills_patient2 ON bills(patient_id)`,
@@ -281,7 +289,12 @@ const EXTRA_SQL: string[] = [
     status TEXT DEFAULT 'pending',
     priority TEXT DEFAULT 'routine',
     result TEXT,
+    result_numeric REAL,
+    abnormal_flag TEXT DEFAULT 'pending',
+    sample_status TEXT DEFAULT 'ordered',
     instructions TEXT,
+    collected_at DATETIME,
+    processed_by INTEGER,
     completed_at DATETIME,
     tenant_id INTEGER NOT NULL,
     FOREIGN KEY (lab_order_id) REFERENCES lab_orders(id),
@@ -289,6 +302,13 @@ const EXTRA_SQL: string[] = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_lab_items_order2 ON lab_order_items(lab_order_id)`,
   `CREATE INDEX IF NOT EXISTS idx_lab_items_tenant2 ON lab_order_items(tenant_id)`,
+
+  // ── lab_test_catalog: add columns missing from base schema ────────────────
+  `ALTER TABLE lab_test_catalog ADD COLUMN unit TEXT`,
+  `ALTER TABLE lab_test_catalog ADD COLUMN normal_range TEXT`,
+  `ALTER TABLE lab_test_catalog ADD COLUMN method TEXT`,
+  `ALTER TABLE lab_test_catalog ADD COLUMN critical_low REAL`,
+  `ALTER TABLE lab_test_catalog ADD COLUMN critical_high REAL`,
 
   // ── prescriptions (base schema missing rx_no, vitals, chief_complaint, diagnosis etc.) ──
   `DROP TABLE IF EXISTS prescription_items`,
@@ -341,6 +361,7 @@ const EXTRA_SQL: string[] = [
     address TEXT,
     mobile TEXT,
     guardian_mobile TEXT,
+    email TEXT,
     age INTEGER,
     gender TEXT CHECK(gender IN ('male', 'female', 'other')),
     blood_group TEXT,
@@ -462,6 +483,68 @@ const EXTRA_SQL: string[] = [
     recorded_by      TEXT,
     recorded_at      DATETIME DEFAULT CURRENT_TIMESTAMP
   )`,
+
+  // ── vital_alert_rules (migration 0018) ───────────────────────────────────
+  `CREATE TABLE IF NOT EXISTS vital_alert_rules (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id   INTEGER NOT NULL,
+    vital_type  TEXT    NOT NULL,
+    min_value   REAL,
+    max_value   REAL,
+    severity    TEXT    NOT NULL DEFAULT 'warning',
+    is_active   INTEGER NOT NULL DEFAULT 1,
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_vital_alert_rules_tenant ON vital_alert_rules(tenant_id)`,
+
+  // ── vital_alerts (written by nurse-station alert checker) ─────────────────
+  `CREATE TABLE IF NOT EXISTS vital_alerts (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id       INTEGER NOT NULL,
+    patient_id      INTEGER NOT NULL,
+    vital_id        INTEGER,
+    rule_id         INTEGER,
+    vital_type      TEXT    NOT NULL,
+    recorded_value  REAL,
+    threshold_min   REAL,
+    threshold_max   REAL,
+    severity        TEXT    NOT NULL DEFAULT 'warning',
+    is_read         INTEGER NOT NULL DEFAULT 0,
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_vital_alerts_tenant ON vital_alerts(tenant_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_vital_alerts_patient ON vital_alerts(patient_id)`,
+
+  // ── push_subscriptions (web push notification subscriptions) ─────────────
+  `CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id INTEGER NOT NULL,
+    user_id INTEGER,
+    endpoint TEXT NOT NULL,
+    p256dh TEXT NOT NULL,
+    auth TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(endpoint, tenant_id)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_push_subs_tenant ON push_subscriptions(tenant_id)`,
+
+  // ── medicine_batches (alias for medicine_stock_batches used in some routes) ──
+  `CREATE TABLE IF NOT EXISTS medicine_batches (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    medicine_id INTEGER NOT NULL,
+    batch_number TEXT,
+    quantity INTEGER NOT NULL DEFAULT 0,
+    unit_price REAL DEFAULT 0,
+    selling_price REAL DEFAULT 0,
+    expiry_date DATE,
+    tenant_id INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_med_batches_medicine ON medicine_batches(medicine_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_med_batches_tenant ON medicine_batches(tenant_id)`,
+
+  // ── stock_quantity column on medicines (used by pharmacy routes) ──────────
+  `ALTER TABLE medicines ADD COLUMN stock_quantity INTEGER DEFAULT 0`,
 ];
 
 export async function setupDb() {
@@ -554,6 +637,11 @@ const ALL_TABLES = [
   'shareholders',
   'journal_entries',
   'chart_of_accounts',
+  'vital_alerts',
+  'vital_alert_rules',
+  'push_subscriptions',
+  'medicine_batches',
+  'invitations',
   'patients',
   'doctors',
   'beds',
@@ -580,9 +668,15 @@ beforeEach(async () => {
     }
   }
 
-  // Restore default tenant
+  // Restore default tenant — include trial_ends_at so subscription guard passes
+  const trialEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
   await env.DB.prepare(
-    'INSERT INTO tenants (id, name, subdomain) VALUES (1, "Test Clinic", "test")',
+    `INSERT INTO tenants (id, name, subdomain, status, trial_ends_at) VALUES (1, 'Test Clinic', 'test', 'active', '${trialEnd}')`,
+  ).run();
+
+  // Seed tenant 2 for isolation tests
+  await env.DB.prepare(
+    `INSERT INTO tenants (id, name, subdomain, status, trial_ends_at) VALUES (2, 'Test Clinic 2', 'test-2', 'active', '${trialEnd}')`,
   ).run();
 
   // Seed default admin user (id=1) so created_by FK constraints are satisfied

@@ -166,7 +166,7 @@ export default function DigitalPrescription() {
     if (medSearch.length < 2) { setMedResults([]); return; }
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      axios.get(`/api/medicines?search=${encodeURIComponent(medSearch)}`, { headers: authHeaders() })
+      axios.get(`/api/pharmacy/medicines?search=${encodeURIComponent(medSearch)}`, { headers: authHeaders() })
         .then(r => setMedResults(r.data.medicines ?? []))
         .catch(() => setMedResults([]));
     }, 300);

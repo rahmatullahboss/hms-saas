@@ -57,9 +57,10 @@ export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
     c.set('userId', decoded.userId);
     c.set('role', decoded.role);
     if (decoded.tenantId) {
-      // Cross-validate: JWT tenantId must match subdomain-derived tenantId
+      // Cross-validate: JWT tenantId must match subdomain-derived tenantId.
+      // D1 returns integer IDs; JWTs carry strings — compare as strings.
       const subdomainTenantId = c.get('tenantId');
-      if (subdomainTenantId && decoded.tenantId !== subdomainTenantId) {
+      if (subdomainTenantId && String(decoded.tenantId) !== String(subdomainTenantId)) {
         return c.json({ error: 'Token does not belong to this tenant' }, 403);
       }
       c.set('tenantId', decoded.tenantId);

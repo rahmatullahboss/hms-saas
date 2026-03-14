@@ -228,13 +228,19 @@ app.get('/vitals-trends/:patientId', async (c) => {
     ORDER BY recorded_at ASC
   `).bind(tenantId, patientId, `-${days} days`).all();
 
-  // Also fetch alert thresholds for this tenant
-  const { results: rules } = await c.env.DB.prepare(`
-    SELECT vital_type, min_value, max_value, severity
-    FROM vital_alert_rules
-    WHERE (tenant_id = ? OR tenant_id = 0) AND is_active = 1
-    ORDER BY tenant_id DESC
-  `).bind(tenantId).all();
+  // Also fetch alert thresholds for this tenant (graceful fallback if table doesn't exist)
+  let rules: Record<string, unknown>[] = [];
+  try {
+    const rulesResult = await c.env.DB.prepare(`
+      SELECT vital_type, min_value, max_value, severity
+      FROM vital_alert_rules
+      WHERE (tenant_id = ? OR tenant_id = 0) AND is_active = 1
+      ORDER BY tenant_id DESC
+    `).bind(tenantId).all();
+    rules = rulesResult.results;
+  } catch {
+    // vital_alert_rules table may not exist if migration 0018 hasn't been applied
+  }
 
   return c.json({ vitals: results, thresholds: rules });
 });

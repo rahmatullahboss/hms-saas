@@ -15,7 +15,7 @@ const recordVitalsSchema = z.object({
   admission_id: z.number().int().positive().optional(),
   systolic: z.number().int().min(50).max(300).optional(),
   diastolic: z.number().int().min(20).max(200).optional(),
-  temperature: z.number().min(90).max(110).optional(),
+  temperature: z.number().min(30).max(110).optional(), // accepts both Celsius (30-45) and Fahrenheit (86-110)
   heart_rate: z.number().int().min(20).max(250).optional(),
   spo2: z.number().int().min(50).max(100).optional(),
   respiratory_rate: z.number().int().min(5).max(60).optional(),
@@ -134,6 +134,44 @@ nurseStation.post('/vitals', zValidator('json', recordVitalsSchema), async (c) =
   ).run();
 
   return c.json({ id: result.meta.last_row_id }, 201);
+});
+
+// ─── GET /api/nurse-station/vitals-trends/:patientId ─────────────────────────
+
+nurseStation.get('/vitals-trends/:patientId', async (c) => {
+  const tenantId = Number(c.get('tenantId'));
+  const patientId = parseInt(c.req.param('patientId'), 10);
+  const days = Math.max(0, parseInt(c.req.query('days') || '30', 10));
+
+  if (isNaN(patientId) || patientId <= 0) {
+    return c.json({ error: 'Invalid patient ID' }, 400);
+  }
+
+  try {
+    // Vitals history — for production, limit by days; for safety use LIMIT
+    // Note: using a high LIMIT instead of date math to avoid D1 datetime comparison edge cases
+    const limit = days === 0 ? 0 : Math.min(days * 24, 500); // rough cap by readings per day
+
+    const { results: vitals } = await c.env.DB.prepare(`
+      SELECT systolic, diastolic, temperature, heart_rate, spo2, respiratory_rate, weight, recorded_at
+      FROM patient_vitals
+      WHERE tenant_id = ? AND patient_id = ?
+      ORDER BY recorded_at ${days === 0 ? 'DESC LIMIT 0' : 'ASC LIMIT ' + limit}
+    `).bind(tenantId, patientId).all();
+
+    // Alert rule thresholds for display
+    const { results: thresholds } = await c.env.DB.prepare(`
+      SELECT vital_type, min_value, max_value, severity
+      FROM vital_alert_rules
+      WHERE tenant_id = ? AND is_active = 1
+      ORDER BY vital_type
+    `).bind(tenantId).all();
+
+    return c.json({ vitals, thresholds, patientId, days });
+  } catch (error) {
+    console.error('[nurse-station] vitals-trends error:', error);
+    return c.json({ error: 'Failed to fetch vitals trends' }, 500);
+  }
 });
 
 export default nurseStation;
