@@ -2,9 +2,9 @@
 // LanguageToggle — injected once by Layout.astro.
 // Exposes window.setLang(lang) and dispatches 'langchange' events.
 ---
-<script>
+<script is:inline>
   // ── i18n dictionary (inlined for zero-fetch) ─────────────────────────────
-  const dict: Record<string, Record<string, string>> = {
+  const dict = {
     en: {
       'nav.announce': '🎉 Founding Hospital Program: Free setup for the first 10 hospitals —',
       'nav.announce.link': 'Apply now →',
@@ -797,15 +797,13 @@
     },
   };
 
-  type Lang = 'en' | 'bn';
-
-  function applyLang(lang: Lang) {
+  function applyLang(lang) {
     // Update html lang attr
     document.documentElement.lang = lang === 'bn' ? 'bn' : 'en';
 
     // Update all data-i18n text nodes
-    document.querySelectorAll<HTMLElement>('[data-i18n]').forEach(el => {
-      const key = el.dataset.i18n!;
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const key = el.dataset.i18n;
       const val = dict[lang][key];
       if (val !== undefined) {
         if (val.includes('<')) {
@@ -817,8 +815,8 @@
     });
 
     // Update placeholders
-    document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('[data-i18n-ph]').forEach(el => {
-      const key = (el as HTMLElement).dataset.i18nPh!;
+    document.querySelectorAll('[data-i18n-ph]').forEach(el => {
+      const key = el.dataset.i18nPh;
       const val = dict[lang][key];
       if (val !== undefined) el.placeholder = val;
     });
@@ -841,7 +839,7 @@
 
   // ── Boot ────────────────────────────────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', () => {
-    const saved = (localStorage.getItem('hms-lang') as Lang | null) ?? 'bn';
+    const saved = localStorage.getItem('hms-lang') ?? 'bn';
     applyLang(saved);
 
     document.getElementById('lang-btn-en')?.addEventListener('click', () => applyLang('en'));
@@ -849,5 +847,5 @@
   });
 
   // Expose for programmatic use
-  (window as any).setLang = applyLang;
+  window.setLang = applyLang;
 </script>
