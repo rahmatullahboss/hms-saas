@@ -3,7 +3,6 @@ import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
   output: 'static',
-  prefetch: true,
   build: {
     // Inline ALL CSS into <style> tags — eliminates render-blocking CSS requests
     inlineStylesheets: 'always',
