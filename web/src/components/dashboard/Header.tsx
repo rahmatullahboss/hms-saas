@@ -253,6 +253,7 @@ export default function Header({
                             onClick={(e) => { e.stopPropagation(); markRead(notif.id); }}
                             className="p-1 rounded hover:bg-[var(--color-border-light)]"
                             title="Mark as read"
+                            aria-label="Mark as read"
                           >
                             <Check className="w-3.5 h-3.5 text-emerald-500" />
                           </button>
@@ -261,6 +262,7 @@ export default function Header({
                           onClick={(e) => { e.stopPropagation(); deleteNotif(notif.id); }}
                           className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20"
                           title="Delete"
+                          aria-label="Delete notification"
                         >
                           <Trash2 className="w-3.5 h-3.5 text-red-400" />
                         </button>
