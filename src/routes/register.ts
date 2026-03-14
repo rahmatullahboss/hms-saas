@@ -3,6 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { generateToken } from '../middleware/auth';
+import { TRIAL_DAYS } from '../schemas/pricing';
 import type { Env } from '../types';
 
 const registerRoutes = new Hono<{ Bindings: Env }>();
@@ -50,10 +51,11 @@ registerRoutes.post('/', zValidator('json', registerSchema), async (c) => {
 
     const passwordHash = await bcrypt.hash(adminPassword, 10);
 
-    // Create tenant first to get the ID
+    // Create tenant first to get the ID (with trial)
     const tenantResult = await c.env.DB.prepare(
-      'INSERT INTO tenants (name, subdomain, status, plan, created_at) VALUES (?, ?, ?, ?, datetime("now"))'
-    ).bind(hospitalName, slug, 'active', 'basic').run();
+      `INSERT INTO tenants (name, subdomain, status, plan, plan_price, billing_cycle, trial_ends_at, plan_started_at, created_at)
+       VALUES (?, ?, ?, ?, 0, 'monthly', datetime('now', '+' || ? || ' days'), datetime('now'), datetime('now'))`
+    ).bind(hospitalName, slug, 'active', 'starter', TRIAL_DAYS).run();
 
     const tenantId = tenantResult.meta.last_row_id;
 
@@ -63,6 +65,16 @@ registerRoutes.post('/', zValidator('json', registerSchema), async (c) => {
     ).bind(adminEmail, passwordHash, adminName, 'hospital_admin', tenantId).run();
 
     const userId = userResult.meta.last_row_id;
+
+    // Record trial start in subscription history
+    try {
+      await c.env.DB.prepare(
+        `INSERT INTO subscription_history (tenant_id, plan, plan_price, billing_cycle, action, notes, created_at)
+         VALUES (?, 'starter', 0, 'monthly', 'trial_start', ?, datetime('now'))`
+      ).bind(tenantId, `${TRIAL_DAYS}-day trial started`).run();
+    } catch {
+      // subscription_history table might not exist yet — don't block registration
+    }
 
     // Auto-login: generate JWT
     const token = await generateToken(

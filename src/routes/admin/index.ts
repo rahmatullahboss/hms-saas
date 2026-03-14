@@ -3,6 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { generateToken } from '../../middleware/auth';
+import { PLANS, ADDONS, TRIAL_DAYS, type PlanId } from '../../schemas/pricing';
 import type { Env, Variables } from '../../types';
 
 const adminRoutes = new Hono<{
@@ -63,6 +64,24 @@ adminRoutes.post('/login', async (c) => {
     console.error('Login error:', error);
     return c.json({ error: 'Login failed' }, 500);
   }
+});
+
+// ─── Public pricing endpoint ──────────────────────────────────────────────
+adminRoutes.get('/plans', (c) => {
+  return c.json({
+    plans: Object.values(PLANS).map((p) => ({
+      id: p.id,
+      name: p.name,
+      nameBn: p.nameBn,
+      priceMonthly: p.priceMonthly,
+      priceAnnual: p.priceAnnual,
+      maxUsers: p.maxUsers === Infinity ? 'unlimited' : p.maxUsers,
+      maxBeds: p.maxBeds === Infinity ? 'unlimited' : p.maxBeds,
+      availableAddons: p.availableAddons,
+    })),
+    addons: Object.values(ADDONS),
+    trialDays: TRIAL_DAYS,
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -341,7 +360,7 @@ const provisionSchema = z.object({
     .regex(/^[a-z0-9][a-z0-9-]*[a-z0-9]$/, 'Slug must be lowercase letters, numbers, or hyphens'),
   adminEmail: z.string().email('Valid email required'),
   adminName: z.string().min(1, 'Admin name required'),
-  plan: z.enum(['basic', 'professional', 'enterprise']).default('basic'),
+  plan: z.enum(['starter', 'professional', 'enterprise']).default('starter'),
 });
 
 adminRoutes.post('/onboarding/:id/provision', zValidator('json', provisionSchema), async (c) => {
@@ -392,8 +411,14 @@ adminRoutes.post('/onboarding/:id/provision', zValidator('json', provisionSchema
 
     // Use D1 batch for atomic tenant + user + onboarding update
     const tenantStmt = c.env.DB.prepare(
-      'INSERT INTO tenants (name, subdomain, status, plan, created_at, updated_at) VALUES (?, ?, ?, ?, datetime("now"), datetime("now"))'
-    ).bind((request as Record<string, unknown>).hospital_name as string, slug, 'active', plan);
+      `INSERT INTO tenants (name, subdomain, status, plan, plan_price, billing_cycle, trial_ends_at, plan_started_at, created_at, updated_at)
+       VALUES (?, ?, 'active', ?, 0, 'monthly', datetime('now', '+' || ? || ' days'), datetime('now'), datetime('now'), datetime('now'))`
+    ).bind(
+      (request as Record<string, unknown>).hospital_name as string,
+      slug,
+      plan,
+      TRIAL_DAYS,
+    );
 
     const tenantResult = await tenantStmt.run();
     const tenantId = tenantResult.meta.last_row_id;
