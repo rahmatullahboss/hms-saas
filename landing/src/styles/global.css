@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+/* ── Theme (replaces tailwind.config.mjs) ─────────────────────────── */
+@theme {
+  --color-primary-50: #eef2ff;
+  --color-primary-100: #e0e7ff;
+  --color-primary-200: #c7d2fe;
+  --color-primary-300: #a5b4fc;
+  --color-primary-400: #818cf8;
+  --color-primary-500: #6366f1;
+  --color-primary-600: #4f46e5;
+  --color-primary-700: #4338ca;
+  --color-primary-800: #3730a3;
+  --color-primary-900: #312e81;
+
+  --font-sans: 'Figtree', system-ui, sans-serif;
+  --font-bengali: 'Noto Sans Bengali', sans-serif;
+}
+
+/* ── Self-hosted fonts ────────────────────────────────────────────── */
+@font-face {
+  font-family: 'Figtree';
+  src: url('/fonts/figtree-var.woff2') format('woff2');
+  font-weight: 400 800;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Noto Sans Bengali';
+  src: url('/fonts/noto-sans-bengali-var.woff2') format('woff2');
+  font-weight: 400 700;
+  font-display: swap;
+}

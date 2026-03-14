@@ -116,16 +116,16 @@
             <!-- Patient list -->
             <div class="space-y-1.5">
               {[
-                { name: 'Rahim Ahmed', type: 'OPD', color: 'emerald' },
-                { name: 'Fatima Begum', type: 'Lab', color: 'yellow' },
-                { name: 'Kamal Hossain', type: 'IPD', color: 'blue' },
+                { name: 'Rahim Ahmed', type: 'OPD', bgClass: 'bg-emerald-500/20', textClass: 'text-emerald-300' },
+                { name: 'Fatima Begum', type: 'Lab', bgClass: 'bg-yellow-500/20', textClass: 'text-yellow-300' },
+                { name: 'Kamal Hossain', type: 'IPD', bgClass: 'bg-blue-500/20', textClass: 'text-blue-300' },
               ].map(p => (
                 <div class="flex items-center justify-between bg-gray-800/40 rounded-lg px-3 py-2 border border-gray-700/50">
                   <div class="flex items-center gap-2">
                     <div class="w-7 h-7 rounded-full bg-primary-500/30 flex items-center justify-center text-xs text-primary-300 font-semibold">{p.name[0]}</div>
                     <span class="text-sm text-gray-300">{p.name}</span>
                   </div>
-                  <span class={`text-xs px-2 py-0.5 rounded-full bg-${p.color}-500/20 text-${p.color}-300`}>{p.type}</span>
+                  <span class={`text-xs px-2 py-0.5 rounded-full ${p.bgClass} ${p.textClass}`}>{p.type}</span>
                 </div>
               ))}
             </div>
