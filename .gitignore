@@ -16,3 +16,8 @@ web/android/build/
 *.ipa
 *.apk
 docs/android-signing-secrets.md
+
+# Landing page build artifacts
+landing/node_modules/
+landing/dist/
+landing/.astro/
