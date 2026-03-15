@@ -160,20 +160,23 @@ billingRoutes.post('/pay', zValidator('json', paymentSchema), async (c) => {
     // ── Idempotency check ─────────────────────────────────────────────────────
     if (data.idempotencyKey) {
       const existing = await c.env.DB.prepare(
-        `SELECT p.receipt_no, p.amount, b.total_amount, b.paid_amount as bill_paid, b.status as bill_status
+        `SELECT p.receipt_no, p.amount,
+                COALESCE(NULLIF(b.total_amount, 0), b.total, 0) as bill_total,
+                COALESCE(NULLIF(b.paid_amount, 0), b.paid, 0) as bill_paid,
+                b.status as bill_status
          FROM payments p
          JOIN bills b ON p.bill_id = b.id
          WHERE p.idempotency_key = ? AND p.tenant_id = ?`,
       ).bind(data.idempotencyKey, tenantId).first<{
         receipt_no: string; amount: number; bill_paid: number;
-        total_amount: number; bill_status: string;
+        bill_total: number; bill_status: string;
       }>();
       if (existing) {
         return c.json({
           message: 'Payment already recorded (idempotent)',
           receiptNo: existing.receipt_no,
           paidAmount: existing.bill_paid,
-          outstanding: Math.max(0, existing.total_amount - existing.bill_paid),
+          outstanding: Math.max(0, existing.bill_total - existing.bill_paid),
           status: existing.bill_status,
           idempotent: true,
         }, 200);
@@ -182,22 +185,25 @@ billingRoutes.post('/pay', zValidator('json', paymentSchema), async (c) => {
     // ─────────────────────────────────────────────────────────────────────────
 
     const bill = await c.env.DB.prepare(
-      'SELECT * FROM bills WHERE id = ? AND tenant_id = ?',
+      `SELECT id, status,
+              COALESCE(NULLIF(total_amount, 0), total, 0) as bill_total,
+              COALESCE(NULLIF(paid_amount, 0), paid, 0) as bill_paid
+       FROM bills WHERE id = ? AND tenant_id = ?`,
     ).bind(data.billId, tenantId).first<{
-      id: number; total_amount: number; paid_amount: number; status: string;
+      id: number; bill_total: number; bill_paid: number; status: string;
     }>();
     if (!bill) throw new HTTPException(404, { message: 'Bill not found' });
     if (bill.status === 'paid') throw new HTTPException(400, { message: 'Bill is already fully paid' });
 
-    const outstanding = bill.total_amount - bill.paid_amount;
+    const outstanding = bill.bill_total - bill.bill_paid;
     if (data.amount > outstanding) {
       throw new HTTPException(400, {
         message: `Payment amount (${data.amount}) exceeds outstanding balance (${outstanding})`,
       });
     }
 
-    const newPaid = bill.paid_amount + data.amount;
-    const status = newPaid >= bill.total_amount ? 'paid' : 'partially_paid';
+    const newPaid = bill.bill_paid + data.amount;
+    const status = newPaid >= bill.bill_total ? 'paid' : 'partially_paid';
 
     const receiptNo = await getNextSequence(c.env.DB, tenantId!, 'receipt', 'RCP');
 
@@ -208,17 +214,17 @@ billingRoutes.post('/pay', zValidator('json', paymentSchema), async (c) => {
     `).bind(data.billId, data.amount, data.type, receiptNo, data.paymentMethod ?? null, userId, data.idempotencyKey ?? null, tenantId).run();
 
     await c.env.DB.prepare(
-      `UPDATE bills SET paid_amount = ?, status = ? WHERE id = ? AND tenant_id = ?`,
-    ).bind(newPaid, status, data.billId, tenantId).run();
+      `UPDATE bills SET paid_amount = ?, paid = ?, status = ? WHERE id = ? AND tenant_id = ?`,
+    ).bind(newPaid, newPaid, status, data.billId, tenantId).run();
 
     // Audit log
-    void createAuditLog(c.env, tenantId!, userId!, 'payment', 'bills', data.billId, { paidBefore: bill.paid_amount }, { newPaid, status, receiptNo });
+    void createAuditLog(c.env, tenantId!, userId!, 'payment', 'bills', data.billId, { paidBefore: bill.bill_paid }, { newPaid, status, receiptNo });
 
     return c.json({
       message: 'Payment recorded',
       receiptNo,
       paidAmount: newPaid,
-      outstanding: Math.max(0, bill.total_amount - newPaid),
+      outstanding: Math.max(0, bill.bill_total - newPaid),
       status,
     });
   } catch (error) {

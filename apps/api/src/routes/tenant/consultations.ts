@@ -31,7 +31,7 @@ consultationRoutes.post('/', async (c) => {
 
   try {
     const result = await c.env.DB.prepare(`
-      INSERT INTO telemedicine_sessions
+      INSERT INTO consultations
         (patient_id, doctor_id, scheduled_at, notes, status, tenant_id, created_by)
       VALUES (?, ?, ?, ?, 'scheduled', ?, ?)
     `).bind(
@@ -57,7 +57,7 @@ consultationRoutes.get('/', async (c) => {
 
   let query = `
     SELECT ts.*, p.name as patient_name, d.name as doctor_name
-    FROM telemedicine_sessions ts
+    FROM consultations ts
     JOIN patients p ON ts.patient_id = p.id AND p.tenant_id = ts.tenant_id
     LEFT JOIN doctors d ON ts.doctor_id = d.id AND d.tenant_id = ts.tenant_id
     WHERE ts.tenant_id = ?
@@ -87,7 +87,7 @@ consultationRoutes.get('/:id', async (c) => {
   try {
     const consultation = await c.env.DB.prepare(`
       SELECT ts.*, p.name as patient_name, d.name as doctor_name
-      FROM telemedicine_sessions ts
+      FROM consultations ts
       JOIN patients p ON ts.patient_id = p.id AND p.tenant_id = ts.tenant_id
       LEFT JOIN doctors d ON ts.doctor_id = d.id AND d.tenant_id = ts.tenant_id
       WHERE ts.id = ? AND ts.tenant_id = ?
@@ -110,7 +110,7 @@ consultationRoutes.put('/:id', async (c) => {
 
   try {
     const existing = await c.env.DB.prepare(
-      'SELECT id FROM telemedicine_sessions WHERE id = ? AND tenant_id = ?',
+      'SELECT id FROM consultations WHERE id = ? AND tenant_id = ?',
     ).bind(id, tenantId).first();
     if (!existing) throw new HTTPException(404, { message: 'Consultation not found' });
 
@@ -125,7 +125,7 @@ consultationRoutes.put('/:id', async (c) => {
 
     vals.push(id, tenantId!);
     await c.env.DB.prepare(
-      `UPDATE telemedicine_sessions SET ${updates.join(', ')}, updated_at = datetime('now') WHERE id = ? AND tenant_id = ?`,
+      `UPDATE consultations SET ${updates.join(', ')}, updated_at = datetime('now') WHERE id = ? AND tenant_id = ?`,
     ).bind(...vals).run();
 
     return c.json({ message: 'Consultation updated' });
@@ -144,12 +144,12 @@ consultationRoutes.put('/:id/end', async (c) => {
 
   try {
     const existing = await c.env.DB.prepare(
-      'SELECT id FROM telemedicine_sessions WHERE id = ? AND tenant_id = ?',
+      'SELECT id FROM consultations WHERE id = ? AND tenant_id = ?',
     ).bind(id, tenantId).first();
     if (!existing) throw new HTTPException(404, { message: 'Consultation not found' });
 
     await c.env.DB.prepare(`
-      UPDATE telemedicine_sessions
+      UPDATE consultations
       SET status = 'completed', ended_at = datetime('now'), updated_at = datetime('now')
       WHERE id = ? AND tenant_id = ?
     `).bind(id, tenantId).run();
@@ -168,12 +168,12 @@ consultationRoutes.delete('/:id', async (c) => {
 
   try {
     const existing = await c.env.DB.prepare(
-      'SELECT id FROM telemedicine_sessions WHERE id = ? AND tenant_id = ?',
+      'SELECT id FROM consultations WHERE id = ? AND tenant_id = ?',
     ).bind(id, tenantId).first();
     if (!existing) throw new HTTPException(404, { message: 'Consultation not found' });
 
     await c.env.DB.prepare(
-      `UPDATE telemedicine_sessions SET status = 'cancelled', updated_at = datetime('now') WHERE id = ? AND tenant_id = ?`,
+      `UPDATE consultations SET status = 'cancelled', updated_at = datetime('now') WHERE id = ? AND tenant_id = ?`,
     ).bind(id, tenantId).run();
 
     return c.json({ message: 'Consultation cancelled' });

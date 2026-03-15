@@ -17,8 +17,8 @@ export const tenantMiddleware: MiddlewareHandler<{
   // Check if it's the main domain (no subdomain)
   const parts = hostname.split('.');
   
-  // For development (localhost)
-  if (hostname === 'localhost' || hostname.includes('localhost')) {
+  // For development (localhost) or workers.dev (no custom domain yet)
+  if (hostname === 'localhost' || hostname.includes('localhost') || hostname.endsWith('.workers.dev')) {
     // Check for tenant query param, header, or subdomain header
     const tenantId = c.req.query('tenant') || c.req.header('X-Tenant-ID');
     const tenantSubdomain = c.req.header('X-Tenant-Subdomain');

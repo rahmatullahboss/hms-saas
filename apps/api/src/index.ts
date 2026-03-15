@@ -49,6 +49,17 @@ import branchRoutes from './routes/tenant/branches';
 import pushRoutes from './routes/tenant/pushNotifications';
 import hospitalSite from './routes/public/hospitalSite';
 import websiteRoutes from './routes/tenant/website';
+import emergencyRoutes from './routes/tenant/emergency';
+import otRoutes from './routes/tenant/ot';
+import depositsRoutes from './routes/tenant/deposits';
+import vitalsRoutes from './routes/tenant/vitals';
+import allergiesRoutes from './routes/tenant/allergies';
+import creditNotesRoutes from './routes/tenant/creditNotes';
+import billingCancellationRoutes from './routes/tenant/billingCancellation';
+import ipBillingRoutes from './routes/tenant/ipBilling';
+import insuranceRoutes from './routes/tenant/insurance';
+import settlementsRoutes from './routes/tenant/settlements';
+import billingHandoverRoutes from './routes/tenant/billingHandover';
 
 import type { Env } from './types';
 
@@ -165,6 +176,8 @@ app.use('/api/*', authMiddleware);
 
 app.route('/api/patients', patientRoutes);
 app.route('/api/tests', testRoutes);
+app.route('/api/billing/cancellation', billingCancellationRoutes);
+app.route('/api/billing/handover', billingHandoverRoutes);
 app.route('/api/billing', billingRoutes);
 app.route('/api/pharmacy', pharmacyRoutes);
 app.route('/api/staff', staffRoutes);
@@ -199,6 +212,16 @@ app.route('/api/invitations', invitationRoutes);
 app.route('/api/branches', branchRoutes);
 app.route('/api/push', pushRoutes);
 app.route('/api/website', websiteRoutes);
+app.route('/api/emergency', emergencyRoutes);
+app.route('/api/ot', otRoutes);
+app.route('/api/deposits', depositsRoutes);
+app.route('/api/vitals', vitalsRoutes);
+app.route('/api/allergies', allergiesRoutes);
+app.route('/api/credit-notes', creditNotesRoutes);
+app.route('/api/ip-billing', ipBillingRoutes);
+app.route('/api/insurance', insuranceRoutes);
+app.route('/api/settlements', settlementsRoutes);
+
 
 
 // 404 handler

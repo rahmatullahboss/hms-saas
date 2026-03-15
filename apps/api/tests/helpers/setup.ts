@@ -5,6 +5,33 @@ import { testSchema } from './db_schema';
 
 // Additional tables / columns missing from the base testSchema
 const EXTRA_SQL: string[] = [
+
+  // ── visits: recreate without strict CHECK so visit_type='emergency' works ──
+  `DROP TABLE IF EXISTS lab_orders`,
+  `DROP TABLE IF EXISTS lab_order_items`,
+  `DROP TABLE IF EXISTS visits`,
+  `CREATE TABLE IF NOT EXISTS visits (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    patient_id INTEGER NOT NULL,
+    visit_no TEXT,
+    visit_date TEXT,
+    doctor_id INTEGER,
+    visit_type TEXT NOT NULL DEFAULT 'opd',
+    admission_flag INTEGER NOT NULL DEFAULT 0,
+    admission_no TEXT,
+    admission_date DATETIME,
+    discharge_date DATETIME,
+    status TEXT DEFAULT 'initiated',
+    notes TEXT,
+    tenant_id INTEGER NOT NULL,
+    created_by INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (patient_id) REFERENCES patients(id)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_visits_patient ON visits(patient_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_visits_tenant ON visits(tenant_id)`,
+
   // ── tenants: add subscription columns missing from base schema ───────────────
   `ALTER TABLE tenants ADD COLUMN trial_ends_at TEXT`,
   `ALTER TABLE tenants ADD COLUMN plan_price REAL DEFAULT 0`,
@@ -24,8 +51,14 @@ const EXTRA_SQL: string[] = [
     discount REAL NOT NULL DEFAULT 0,
     total_amount REAL NOT NULL DEFAULT 0,
     paid_amount REAL NOT NULL DEFAULT 0,
+    total REAL DEFAULT 0,
+    paid REAL DEFAULT 0,
+    due REAL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'open',
     branch_id INTEGER,
+    cancelled_by INTEGER,
+    cancelled_at TEXT,
+    cancel_reason TEXT,
     tenant_id INTEGER NOT NULL,
     created_by INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -44,6 +77,10 @@ const EXTRA_SQL: string[] = [
     unit_price REAL NOT NULL DEFAULT 0,
     line_total REAL NOT NULL DEFAULT 0,
     reference_id INTEGER,
+    status TEXT DEFAULT 'active',
+    cancelled_by INTEGER,
+    cancelled_at TEXT,
+    cancel_reason TEXT,
     tenant_id INTEGER NOT NULL,
     FOREIGN KEY (bill_id) REFERENCES bills(id)
   )`,
@@ -444,6 +481,12 @@ const EXTRA_SQL: string[] = [
   `ALTER TABLE doctors ADD COLUMN user_id INTEGER`,
   // ── staff: add user_id column (referenced by nurse-station route) ──
   `ALTER TABLE staff ADD COLUMN user_id INTEGER`,
+  // ── admissions: add columns used by ipBilling routes ──
+  `ALTER TABLE admissions ADD COLUMN admitted_at DATETIME DEFAULT CURRENT_TIMESTAMP`,
+  `ALTER TABLE admissions ADD COLUMN discharged_at DATETIME`,
+  // ── beds: add rate and is_occupied for ip-billing bed charge calculation ──
+  `ALTER TABLE beds ADD COLUMN rate REAL DEFAULT 0`,
+  `ALTER TABLE beds ADD COLUMN is_occupied INTEGER DEFAULT 0`,
 
   // ── discharge_summaries ───────────────────────────────────────────────────
   `CREATE TABLE IF NOT EXISTS discharge_summaries (
@@ -609,6 +652,408 @@ const EXTRA_SQL: string[] = [
     tenant_id TEXT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`,
+
+  // ── Advanced Billing: deposits ─────────────────────────────────────────────
+  `CREATE TABLE IF NOT EXISTS billing_deposits (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id        INTEGER NOT NULL,
+    patient_id       INTEGER NOT NULL,
+    deposit_receipt_no TEXT,
+    amount           REAL    NOT NULL DEFAULT 0,
+    transaction_type TEXT    NOT NULL DEFAULT 'deposit',
+    payment_method   TEXT,
+    reference_bill_id INTEGER,
+    remarks          TEXT,
+    is_active        INTEGER NOT NULL DEFAULT 1,
+    created_by       INTEGER,
+    created_at       TEXT    NOT NULL DEFAULT (datetime('now'))
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_billing_deposits_tp ON billing_deposits (tenant_id, patient_id)`,
+
+  // ── Advanced Billing: settlements ─────────────────────────────────────────
+  `CREATE TABLE IF NOT EXISTS billing_settlements (
+    id                     INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id              INTEGER NOT NULL,
+    patient_id             INTEGER NOT NULL,
+    settlement_receipt_no  TEXT,
+    payable_amount         REAL    NOT NULL DEFAULT 0,
+    paid_amount            REAL    NOT NULL DEFAULT 0,
+    deposit_deducted       REAL    NOT NULL DEFAULT 0,
+    discount_amount        REAL    NOT NULL DEFAULT 0,
+    payment_mode           TEXT    NOT NULL DEFAULT 'cash',
+    remarks                TEXT,
+    is_active              INTEGER NOT NULL DEFAULT 1,
+    created_by             INTEGER,
+    created_at             TEXT    NOT NULL DEFAULT (datetime('now'))
+  )`,
+  `ALTER TABLE bills ADD COLUMN settlement_id INTEGER`,
+
+  // ── Advanced Billing: credit notes ────────────────────────────────────────
+  `CREATE TABLE IF NOT EXISTS billing_credit_notes (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id      INTEGER NOT NULL,
+    credit_note_no TEXT,
+    bill_id        INTEGER NOT NULL,
+    patient_id     INTEGER NOT NULL,
+    reason         TEXT    NOT NULL,
+    total_amount   REAL    NOT NULL DEFAULT 0,
+    refund_amount  REAL    NOT NULL DEFAULT 0,
+    payment_mode   TEXT    NOT NULL DEFAULT 'cash',
+    remarks        TEXT,
+    is_active      INTEGER NOT NULL DEFAULT 1,
+    created_by     INTEGER,
+    created_at     TEXT    NOT NULL DEFAULT (datetime('now'))
+  )`,
+  `CREATE TABLE IF NOT EXISTS billing_credit_note_items (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id       INTEGER NOT NULL,
+    credit_note_id  INTEGER NOT NULL,
+    invoice_item_id INTEGER NOT NULL,
+    item_name       TEXT,
+    unit_price      REAL    NOT NULL DEFAULT 0,
+    return_quantity INTEGER NOT NULL DEFAULT 1,
+    total_amount    REAL    NOT NULL DEFAULT 0,
+    remarks         TEXT
+  )`,
+
+  // ── Advanced Billing: provisional IPD items ───────────────────────────────
+  `CREATE TABLE IF NOT EXISTS billing_provisional_items (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id        INTEGER NOT NULL,
+    patient_id       INTEGER NOT NULL,
+    admission_id     INTEGER,
+    visit_id         INTEGER,
+    item_category    TEXT    NOT NULL,
+    item_name        TEXT    NOT NULL,
+    department       TEXT,
+    unit_price       REAL    NOT NULL DEFAULT 0,
+    quantity         INTEGER NOT NULL DEFAULT 1,
+    discount_percent REAL    NOT NULL DEFAULT 0,
+    discount_amount  REAL    NOT NULL DEFAULT 0,
+    total_amount     REAL    NOT NULL DEFAULT 0,
+    doctor_id        INTEGER,
+    doctor_name      TEXT,
+    reference_id     INTEGER,
+    bill_status      TEXT    NOT NULL DEFAULT 'provisional',
+    billed_bill_id   INTEGER,
+    cancel_reason    TEXT,
+    cancelled_by     INTEGER,
+    cancelled_at     TEXT,
+    is_active        INTEGER NOT NULL DEFAULT 1,
+    created_by       INTEGER,
+    created_at       TEXT    NOT NULL DEFAULT (datetime('now'))
+  )`,
+
+  // ── Advanced Billing: cash handovers ──────────────────────────────────────
+  `CREATE TABLE IF NOT EXISTS billing_handovers (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id        INTEGER NOT NULL,
+    handover_type    TEXT    NOT NULL DEFAULT 'cashier',
+    handover_by      INTEGER,
+    handover_to      INTEGER,
+    handover_amount  REAL    NOT NULL DEFAULT 0,
+    due_amount       REAL    NOT NULL DEFAULT 0,
+    status           TEXT    NOT NULL DEFAULT 'pending',
+    received_by      INTEGER,
+    received_at      TEXT,
+    received_remarks TEXT,
+    remarks          TEXT,
+    is_active        INTEGER NOT NULL DEFAULT 1,
+    created_at       TEXT    NOT NULL DEFAULT (datetime('now'))
+  )`,
+
+  // ── Bill cancellation columns on existing tables ───────────────────────────
+  `ALTER TABLE bills ADD COLUMN cancelled_by  INTEGER`,
+  `ALTER TABLE bills ADD COLUMN cancelled_at  TEXT`,
+  `ALTER TABLE bills ADD COLUMN cancel_reason TEXT`,
+  `ALTER TABLE invoice_items ADD COLUMN status        TEXT NOT NULL DEFAULT 'active'`,
+  `ALTER TABLE invoice_items ADD COLUMN cancelled_by  INTEGER`,
+  `ALTER TABLE invoice_items ADD COLUMN cancelled_at  TEXT`,
+  `ALTER TABLE invoice_items ADD COLUMN cancel_reason TEXT`,
+
+  // ── Clinical: vitals ──────────────────────────────────────────────────────
+  `CREATE TABLE IF NOT EXISTS clinical_vitals (
+    id                        INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id                 INTEGER NOT NULL,
+    patient_id                INTEGER NOT NULL,
+    visit_id                  INTEGER,
+    temperature               REAL,
+    pulse                     INTEGER,
+    blood_pressure_systolic   INTEGER,
+    blood_pressure_diastolic  INTEGER,
+    respiratory_rate          INTEGER,
+    spo2                      REAL,
+    weight                    REAL,
+    height                    REAL,
+    bmi                       REAL,
+    pain_scale                INTEGER,
+    blood_sugar               REAL,
+    notes                     TEXT,
+    taken_by                  INTEGER,
+    taken_at                  TEXT    NOT NULL DEFAULT (datetime('now')),
+    is_active                 INTEGER NOT NULL DEFAULT 1,
+    created_at                TEXT    NOT NULL DEFAULT (datetime('now')),
+    updated_at                TEXT    NOT NULL DEFAULT (datetime('now'))
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_clinical_vitals_patient ON clinical_vitals (tenant_id, patient_id)`,
+
+  // ── Clinical: allergies ───────────────────────────────────────────────────
+  `CREATE TABLE IF NOT EXISTS patient_allergies (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id    INTEGER NOT NULL,
+    patient_id   INTEGER NOT NULL,
+    allergy_type TEXT    NOT NULL,
+    allergen     TEXT    NOT NULL,
+    severity     TEXT    NOT NULL DEFAULT 'mild',
+    reaction     TEXT,
+    onset_date   TEXT,
+    notes        TEXT,
+    verified_by  INTEGER,
+    verified_at  TEXT,
+    is_active    INTEGER NOT NULL DEFAULT 1,
+    created_by   INTEGER,
+    created_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+    updated_at   TEXT    NOT NULL DEFAULT (datetime('now'))
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_patient_allergies_patient ON patient_allergies (tenant_id, patient_id)`,
+
+  // ── Emergency Room: er_patients ────────────────────────────────────────────
+  `CREATE TABLE IF NOT EXISTS er_patients (
+    id                        INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id                 INTEGER NOT NULL,
+    er_patient_number         TEXT,
+    patient_id                INTEGER,
+    visit_id                  INTEGER,
+    visit_datetime            TEXT,
+    first_name                TEXT NOT NULL,
+    middle_name               TEXT,
+    last_name                 TEXT NOT NULL,
+    gender                    TEXT,
+    age                       INTEGER,
+    date_of_birth             TEXT,
+    contact_no                TEXT,
+    care_of_person_contact    TEXT,
+    address                   TEXT,
+    referred_by               TEXT,
+    referred_to               TEXT,
+    case_type                 TEXT,
+    condition_on_arrival      TEXT,
+    brought_by                TEXT,
+    relation_with_patient     TEXT,
+    mode_of_arrival_id        INTEGER,
+    care_of_person            TEXT,
+    er_status                 TEXT NOT NULL DEFAULT 'new',
+    triage_code               TEXT,
+    triaged_by                INTEGER,
+    triaged_on                TEXT,
+    finalized_status          TEXT,
+    finalized_remarks         TEXT,
+    finalized_by              INTEGER,
+    finalized_on              TEXT,
+    discharge_summary_id      INTEGER,
+    performer_id              INTEGER,
+    performer_name            TEXT,
+    is_police_case            INTEGER DEFAULT 0,
+    is_existing_patient       INTEGER DEFAULT 0,
+    ward_no                   TEXT,
+    is_active                 INTEGER NOT NULL DEFAULT 1,
+    created_by                INTEGER,
+    created_at                TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at                TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_er_patients_tenant ON er_patients (tenant_id)`,
+
+  // ── Emergency Room: er_patient_cases ───────────────────────────────────────
+  `CREATE TABLE IF NOT EXISTS er_patient_cases (
+    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id             INTEGER NOT NULL,
+    er_patient_id         INTEGER NOT NULL,
+    main_case             TEXT,
+    sub_case              TEXT,
+    other_case_details    TEXT,
+    biting_site           TEXT,
+    datetime_of_bite      TEXT,
+    biting_animal         TEXT,
+    first_aid             TEXT,
+    first_aid_others      TEXT,
+    biting_animal_others  TEXT,
+    biting_site_others    TEXT,
+    biting_address        TEXT,
+    biting_animal_name    TEXT,
+    is_active             INTEGER NOT NULL DEFAULT 1,
+    created_by            INTEGER,
+    created_at            TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+
+  // ── Emergency Room: er_discharge_summaries ─────────────────────────────────
+  `CREATE TABLE IF NOT EXISTS er_discharge_summaries (
+    id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id               INTEGER NOT NULL,
+    patient_id              INTEGER NOT NULL,
+    visit_id                INTEGER NOT NULL,
+    discharge_type          TEXT,
+    chief_complaints        TEXT,
+    treatment_in_er         TEXT,
+    investigations          TEXT,
+    advice_on_discharge     TEXT,
+    on_examination          TEXT,
+    provisional_diagnosis   TEXT,
+    doctor_name             TEXT,
+    medical_officer         TEXT,
+    created_by              INTEGER,
+    created_at              TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+
+  // ── Emergency Room: er_mode_of_arrival ─────────────────────────────────────
+  `CREATE TABLE IF NOT EXISTS er_mode_of_arrival (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id   INTEGER NOT NULL,
+    name        TEXT NOT NULL,
+    is_active   INTEGER NOT NULL DEFAULT 1,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+
+  // ── OT: ot_bookings ───────────────────────────────────────────────────────
+  `CREATE TABLE IF NOT EXISTS ot_bookings (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id           INTEGER NOT NULL,
+    patient_id          INTEGER NOT NULL,
+    visit_id            INTEGER,
+    booked_for_date     TEXT NOT NULL,
+    surgery_type        TEXT,
+    diagnosis           TEXT,
+    procedure_type      TEXT,
+    anesthesia_type     TEXT,
+    remarks             TEXT,
+    consent_form_path   TEXT,
+    pac_form_path       TEXT,
+    cancel_reason       TEXT,
+    cancelled_by        INTEGER,
+    cancelled_at        TEXT,
+    cancelled_on        TEXT,
+    cancellation_remarks TEXT,
+    is_active           INTEGER NOT NULL DEFAULT 1,
+    created_by          INTEGER,
+    created_at          TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at          TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_ot_bookings_tenant ON ot_bookings (tenant_id)`,
+
+  // ── OT: ot_team_members ───────────────────────────────────────────────────
+  `CREATE TABLE IF NOT EXISTS ot_team_members (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id   INTEGER NOT NULL,
+    booking_id  INTEGER NOT NULL,
+    patient_id  INTEGER NOT NULL,
+    visit_id    INTEGER,
+    staff_id    INTEGER NOT NULL,
+    role_type   TEXT NOT NULL,
+    created_by  INTEGER,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+
+  // ── OT: ot_checklist_items ────────────────────────────────────────────────
+  `CREATE TABLE IF NOT EXISTS ot_checklist_items (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id     INTEGER NOT NULL,
+    booking_id    INTEGER NOT NULL,
+    item_name     TEXT NOT NULL,
+    item_value    INTEGER DEFAULT 0,
+    item_details  TEXT,
+    created_by    INTEGER,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+
+  // ── OT: ot_summaries ──────────────────────────────────────────────────────
+  `CREATE TABLE IF NOT EXISTS ot_summaries (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id           INTEGER NOT NULL,
+    booking_id          INTEGER NOT NULL,
+    team_member_id      INTEGER,
+    pre_op_diagnosis    TEXT,
+    post_op_diagnosis   TEXT,
+    anesthesia          TEXT,
+    ot_charge           REAL NOT NULL DEFAULT 0,
+    ot_description      TEXT,
+    category            TEXT,
+    nurse_signature     TEXT,
+    created_by          INTEGER,
+    created_at          TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at          TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+
+  // ── Insurance: insurance_schemes ──────────────────────────────────────────
+  `CREATE TABLE IF NOT EXISTS insurance_schemes (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id     INTEGER NOT NULL,
+    scheme_name   TEXT NOT NULL,
+    scheme_code   TEXT,
+    scheme_type   TEXT NOT NULL DEFAULT 'insurance',
+    contact       TEXT,
+    is_active     INTEGER NOT NULL DEFAULT 1,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+
+  // ── Insurance: patient_insurance ──────────────────────────────────────────
+  `CREATE TABLE IF NOT EXISTS patient_insurance (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id     INTEGER NOT NULL,
+    patient_id    INTEGER NOT NULL,
+    scheme_id     INTEGER NOT NULL,
+    policy_no     TEXT,
+    member_id     TEXT,
+    valid_from    TEXT,
+    valid_to      TEXT,
+    credit_limit  REAL DEFAULT 0,
+    is_active     INTEGER NOT NULL DEFAULT 1,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+
+  // ── Insurance: insurance_claims ───────────────────────────────────────────
+  `CREATE TABLE IF NOT EXISTS insurance_claims (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id         INTEGER NOT NULL,
+    claim_no          TEXT NOT NULL,
+    patient_id        INTEGER NOT NULL,
+    policy_id         INTEGER,
+    bill_id           INTEGER,
+    diagnosis         TEXT,
+    icd10_code        TEXT,
+    bill_amount       REAL NOT NULL DEFAULT 0,
+    claimed_amount    REAL NOT NULL DEFAULT 0,
+    approved_amount   REAL,
+    rejection_reason  TEXT,
+    reviewer_notes    TEXT,
+    status            TEXT NOT NULL DEFAULT 'submitted',
+    submitted_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    reviewed_at       TEXT,
+    settled_at        TEXT,
+    updated_at        TEXT,
+    created_by        INTEGER,
+    created_at        TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+
+  // ── Consultations (renamed from telemedicine_sessions) ────────────────────
+  `CREATE TABLE IF NOT EXISTS consultations (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    consultation_no   TEXT,
+    patient_id        INTEGER NOT NULL,
+    doctor_id         INTEGER,
+    appointment_id    INTEGER,
+    scheduled_at      DATETIME,
+    session_token     TEXT,
+    meeting_link      TEXT,
+    platform          TEXT DEFAULT 'video',
+    status            TEXT DEFAULT 'scheduled',
+    started_at        DATETIME,
+    ended_at          DATETIME,
+    notes             TEXT,
+    tenant_id         INTEGER NOT NULL,
+    created_by        INTEGER,
+    created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (patient_id) REFERENCES patients(id)
+  )`,
 ];
 
 export async function setupDb() {
@@ -722,6 +1167,31 @@ const ALL_TABLES = [
   'users',
   'roles',
   'tenants',
+  // Advanced billing & clinical
+  'billing_deposits',
+  'billing_settlements',
+  'billing_credit_notes',
+  'billing_credit_note_items',
+  'billing_provisional_items',
+  'billing_handovers',
+  'clinical_vitals',
+  'patient_allergies',
+  // ER tables
+  'er_discharge_summaries',
+  'er_patient_cases',
+  'er_patients',
+  'er_mode_of_arrival',
+  // OT tables
+  'ot_summaries',
+  'ot_checklist_items',
+  'ot_team_members',
+  'ot_bookings',
+  // Insurance tables
+  'insurance_claims',
+  'patient_insurance',
+  'insurance_schemes',
+  // Consultations
+  'consultations',
 ];
 
 beforeAll(async () => {

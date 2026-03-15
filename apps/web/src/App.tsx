@@ -31,6 +31,16 @@ import PatientMessages from './pages/patient/PatientMessages';
 import PatientTimeline from './pages/patient/PatientTimeline';
 import PatientFamily from './pages/patient/PatientFamily';
 import PatientPortalLayout from './components/PatientPortalLayout';
+// ─── Advanced Billing & Clinical Pages ───────────────────────────────────────
+import IPBillingPage from './pages/billing/IPBillingPage';
+import SettlementsPage from './pages/billing/SettlementsPage';
+import CreditNotesPage from './pages/billing/CreditNotesPage';
+import InsurancePage from './pages/billing/InsurancePage';
+import HandoverPage from './pages/billing/HandoverPage';
+import BillCancellationPage from './pages/billing/BillCancellationPage';
+import DepositsPage from './pages/billing/DepositsPage';
+import VitalsPage from './pages/clinical/VitalsPage';
+import AllergiesPage from './pages/clinical/AllergiesPage';
 
 function Unauthorized() {
   return (
@@ -69,6 +79,17 @@ function App() {
           <Route path="/hospital_admin/reports" element={<Reports role="hospital_admin" />} />
           <Route path="/hospital_admin/audit" element={<AuditLogs role="hospital_admin" />} />
           <Route path="/hospital_admin/settings" element={<SettingsPage role="hospital_admin" />} />
+          {/* Advanced Billing */}
+          <Route path="/hospital_admin/billing/ip" element={<IPBillingPage role="hospital_admin" />} />
+          <Route path="/hospital_admin/billing/settlements" element={<SettlementsPage role="hospital_admin" />} />
+          <Route path="/hospital_admin/billing/credit-notes" element={<CreditNotesPage role="hospital_admin" />} />
+          <Route path="/hospital_admin/billing/insurance" element={<InsurancePage role="hospital_admin" />} />
+          <Route path="/hospital_admin/billing/handover" element={<HandoverPage role="hospital_admin" />} />
+          <Route path="/hospital_admin/billing/cancellation" element={<BillCancellationPage role="hospital_admin" />} />
+          <Route path="/hospital_admin/billing/deposits" element={<DepositsPage role="hospital_admin" />} />
+          {/* Clinical */}
+          <Route path="/hospital_admin/clinical/vitals" element={<VitalsPage role="hospital_admin" />} />
+          <Route path="/hospital_admin/clinical/allergies" element={<AllergiesPage role="hospital_admin" />} />
         </Route>
 
         {/* ─── Laboratory Routes ──────────────────────────── */}
@@ -83,6 +104,17 @@ function App() {
           <Route path="/reception/patients" element={<PatientList />} />
           <Route path="/reception/patients/new" element={<PatientForm />} />
           <Route path="/reception/billing" element={<ReceptionDashboard />} />
+          {/* Advanced Billing */}
+          <Route path="/reception/billing/ip" element={<IPBillingPage role="reception" />} />
+          <Route path="/reception/billing/settlements" element={<SettlementsPage role="reception" />} />
+          <Route path="/reception/billing/credit-notes" element={<CreditNotesPage role="reception" />} />
+          <Route path="/reception/billing/insurance" element={<InsurancePage role="reception" />} />
+          <Route path="/reception/billing/handover" element={<HandoverPage role="reception" />} />
+          <Route path="/reception/billing/cancellation" element={<BillCancellationPage role="reception" />} />
+          <Route path="/reception/billing/deposits" element={<DepositsPage role="reception" />} />
+          {/* Clinical */}
+          <Route path="/reception/clinical/vitals" element={<VitalsPage role="reception" />} />
+          <Route path="/reception/clinical/allergies" element={<AllergiesPage role="reception" />} />
         </Route>
 
         {/* ─── Managing Director Routes ───────────────────── */}
@@ -97,6 +129,11 @@ function App() {
           <Route path="/md/accounts" element={<ChartOfAccounts role="md" />} />
           <Route path="/md/reports" element={<Reports role="md" />} />
           <Route path="/md/audit" element={<AuditLogs role="md" />} />
+          {/* Advanced Billing (view-only intent) */}
+          <Route path="/md/billing/ip" element={<IPBillingPage role="md" />} />
+          <Route path="/md/billing/settlements" element={<SettlementsPage role="md" />} />
+          <Route path="/md/billing/insurance" element={<InsurancePage role="md" />} />
+          <Route path="/md/billing/handover" element={<HandoverPage role="md" />} />
         </Route>
 
         {/* ─── Director Routes ────────────────────────────── */}
