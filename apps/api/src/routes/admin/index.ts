@@ -14,6 +14,22 @@ const adminRoutes = new Hono<{
   };
 }>();
 
+// Middleware to enforce super_admin role for all routes except login
+adminRoutes.use('*', async (c, next) => {
+  const path = c.req.path;
+  // Allow login route to bypass role check
+  if (path.endsWith('/login')) {
+    return next();
+  }
+
+  const role = c.get('role');
+  if (role !== 'super_admin') {
+    return c.json({ error: 'Unauthorized: Super Admin access required' }, 403);
+  }
+
+  return next();
+});
+
 // Super admin login (no tenant required)
 adminRoutes.post('/login', async (c) => {
   const { email, password } = await c.req.json();
