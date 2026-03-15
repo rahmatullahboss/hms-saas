@@ -160,7 +160,7 @@ export default function IncomeList({ role = 'md' }: { role?: string }) {
             <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-modal w-full max-w-md">
               <div className="flex items-center justify-between p-5 border-b border-[var(--color-border)]">
                 <h3 className="font-semibold">{editingIncome ? 'Edit Income' : 'Add Income'}</h3>
-                <button onClick={() => setShowModal(false)} className="btn-ghost p-1.5"><X className="w-5 h-5"/></button>
+                <button onClick={() => setShowModal(false)} className="btn-ghost p-1.5" aria-label="Close modal"><X className="w-5 h-5"/></button>
               </div>
               <form onSubmit={handleSubmit} className="p-5 space-y-4">
                 <div><label className="label">Date</label><input type="date" required className="input" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} /></div>
