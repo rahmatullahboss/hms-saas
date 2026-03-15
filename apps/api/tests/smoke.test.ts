@@ -115,6 +115,7 @@ describe.skipIf(!BASE_URL)('Production Smoke Tests', () => {
       { method: 'GET', path: '/api/deposits', name: 'Deposits' },
       { method: 'GET', path: '/api/credit-notes', name: 'Credit notes' },
       { method: 'GET', path: '/api/settlements', name: 'Settlements' },
+      { method: 'GET', path: '/api/commissions', name: 'Commissions' },
 
       // Clinical
       { method: 'GET', path: '/api/pharmacy/medicines', name: 'Pharmacy' },
@@ -122,11 +123,19 @@ describe.skipIf(!BASE_URL)('Production Smoke Tests', () => {
       { method: 'GET', path: '/api/prescriptions', name: 'Prescriptions' },
       { method: 'GET', path: '/api/admissions', name: 'Admissions' },
       { method: 'GET', path: '/api/nurse-station', name: 'Nurse station' },
+      { method: 'GET', path: '/api/consultations', name: 'Consultations' },
+      { method: 'GET', path: '/api/vitals', name: 'Vitals' },
+      { method: 'GET', path: '/api/allergies', name: 'Allergies' },
+      { method: 'GET', path: '/api/discharge', name: 'Discharge list' },
+      { method: 'GET', path: '/api/ipd-charges', name: 'IPD charges' },
 
       // Emergency & OT
       { method: 'GET', path: '/api/emergency/dashboard', name: 'ER dashboard' },
       { method: 'GET', path: '/api/ot/bookings', name: 'OT bookings' },
       { method: 'GET', path: '/api/ot/schedule', name: 'OT schedule' },
+
+      // Doctor features
+      { method: 'GET', path: '/api/doctor-schedules', name: 'Doctor schedules' },
 
       // Dashboard & Reports
       { method: 'GET', path: '/api/dashboard', name: 'Dashboard' },
@@ -134,12 +143,19 @@ describe.skipIf(!BASE_URL)('Production Smoke Tests', () => {
       { method: 'GET', path: '/api/income', name: 'Income list' },
       { method: 'GET', path: '/api/expenses', name: 'Expenses list' },
       { method: 'GET', path: '/api/accounting', name: 'Accounting' },
+      { method: 'GET', path: '/api/profit', name: 'Profit distributions' },
+      { method: 'GET', path: '/api/journal', name: 'Journal entries' },
+      { method: 'GET', path: '/api/recurring', name: 'Recurring expenses' },
+      { method: 'GET', path: '/api/shareholders', name: 'Shareholders' },
 
       // Admin features
       { method: 'GET', path: '/api/settings', name: 'Settings' },
       { method: 'GET', path: '/api/notifications', name: 'Notifications' },
       { method: 'GET', path: '/api/audit', name: 'Audit logs' },
       { method: 'GET', path: '/api/branches', name: 'Branches' },
+
+      // Website & Portal
+      { method: 'GET', path: '/api/website', name: 'Website config' },
     ];
 
     for (const route of coreRoutes) {
