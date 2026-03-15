@@ -171,14 +171,16 @@ export default function Header({
         <div className="relative" ref={notifRef}>
           <button
             onClick={toggleNotifs}
-            aria-label="Notifications"
-            className={`relative p-2 rounded-lg hover:bg-[var(--color-border-light)] transition-colors cursor-pointer ${
+            aria-label={showNotifs ? "Close notifications" : (unreadCount > 0 ? `${unreadCount} unread notifications. Open notifications` : "Open notifications")}
+            aria-expanded={showNotifs}
+            aria-controls="notifications-panel"
+            className={`relative p-2 rounded-lg hover:bg-[var(--color-border-light)] transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] ${
               unreadCount > 0 && !showNotifs ? 'animate-ring-pulse' : ''
             }`}
           >
-            <Bell className={`w-5 h-5 ${showNotifs ? 'text-[var(--color-primary)]' : 'text-[var(--color-text-secondary)]'}`} />
+            <Bell className={`w-5 h-5 ${showNotifs ? 'text-[var(--color-primary)]' : 'text-[var(--color-text-secondary)]'}`} aria-hidden="true" />
             {unreadCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-1 ring-2 ring-white dark:ring-slate-900">
+              <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-1 ring-2 ring-white dark:ring-slate-900" aria-hidden="true">
                 {unreadCount > 99 ? '99+' : unreadCount}
               </span>
             )}
@@ -186,7 +188,7 @@ export default function Header({
 
           {/* ─── Notification Dropdown ─── */}
           {showNotifs && (
-            <div className="absolute right-0 top-full mt-2 w-[360px] max-w-[90vw] bg-white dark:bg-slate-800 border border-[var(--color-border)] rounded-xl shadow-modal z-50 overflow-hidden">
+            <div id="notifications-panel" className="absolute right-0 top-full mt-2 w-[360px] max-w-[90vw] bg-white dark:bg-slate-800 border border-[var(--color-border)] rounded-xl shadow-modal z-50 overflow-hidden">
               {/* Header */}
               <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border)]">
                 <h3 className="font-semibold text-sm text-[var(--color-text)]">Notifications</h3>
@@ -284,11 +286,12 @@ export default function Header({
             onClick={() => { setShowDropdown(v => !v); setShowNotifs(false); }}
             aria-haspopup="menu"
             aria-expanded={showDropdown}
-            className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-[var(--color-border-light)] transition-colors cursor-pointer"
+            aria-controls="user-dropdown-menu"
+            className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-[var(--color-border-light)] transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
           >
             {/* Avatar — shows initials with gradient */}
             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[var(--color-primary)] to-cyan-400 flex items-center justify-center shrink-0 shadow-sm shadow-cyan-500/20">
-              <span className="text-white text-xs font-bold leading-none">{avatarInitial}</span>
+              <span className="text-white text-xs font-bold leading-none" aria-hidden="true">{avatarInitial}</span>
             </div>
             <div className="hidden sm:block text-left">
               <p className="text-sm font-medium text-[var(--color-text-primary)] leading-none">{userName}</p>
@@ -296,14 +299,18 @@ export default function Header({
                 <p className="text-xs text-[var(--color-text-muted)] leading-none mt-0.5">{userEmail}</p>
               )}
             </div>
-            <ChevronDown className={`w-4 h-4 text-[var(--color-text-muted)] transition-transform duration-150 ${showDropdown ? 'rotate-180' : ''}`} />
+            {/* Visually hidden text for screen readers so they know the button state/action */}
+            <span className="sr-only">
+              {showDropdown ? "Close user menu" : "Open user menu"}
+            </span>
+            <ChevronDown className={`w-4 h-4 text-[var(--color-text-muted)] transition-transform duration-150 ${showDropdown ? 'rotate-180' : ''}`} aria-hidden="true" />
           </button>
 
           {/* Dropdown menu */}
           {showDropdown && (
             <>
-              <div className="fixed inset-0 z-10" onClick={() => setShowDropdown(false)} />
-              <div className="absolute right-0 top-full mt-1.5 w-52 bg-white dark:bg-slate-800 border border-[var(--color-border)] rounded-xl shadow-modal z-20 overflow-hidden">
+              <div className="fixed inset-0 z-10" onClick={() => setShowDropdown(false)} aria-hidden="true" />
+              <div id="user-dropdown-menu" className="absolute right-0 top-full mt-1.5 w-52 bg-white dark:bg-slate-800 border border-[var(--color-border)] rounded-xl shadow-modal z-20 overflow-hidden">
                 <div className="px-4 py-3 border-b border-[var(--color-border)]">
                   <p className="text-sm font-semibold text-[var(--color-text-primary)]">{userName}</p>
                   {userEmail && <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{userEmail}</p>}
