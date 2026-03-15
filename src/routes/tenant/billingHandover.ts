@@ -60,7 +60,7 @@ handover.post('/', zValidator('json', z.object({
   const data = c.req.valid('json');
 
   // P3#13: Prevent self-handover
-  if (data.handover_to === userId) {
+  if (data.handover_to === Number(userId)) {
     throw new HTTPException(400, { message: 'Cannot create handover to yourself' });
   }
 

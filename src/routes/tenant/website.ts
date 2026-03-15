@@ -174,7 +174,7 @@ websiteRoutes.post('/trigger-render', async (c) => {
   try {
     // Dynamic import to avoid bundling issues if prerender is not present
     const { preRenderTenantSite } = await import('../public/prerender');
-    c.executionCtx.waitUntil(preRenderTenantSite(c.env.DB, c.env.KV, String(tenantId), subdomain));
+    c.executionCtx.waitUntil(preRenderTenantSite(c.env.DB, c.env.KV, Number(tenantId), subdomain));
     return c.json({ success: true, message: 'Re-render triggered' });
   } catch {
     return c.json({ success: true, message: 'Re-render skipped (prerender not available)' });

@@ -280,7 +280,7 @@ emergency.post('/', zValidator('json', createERPatientSchema), async (c) => {
   const userId = requireUserId(c);
   const data = c.req.valid('json');
   const now = new Date().toISOString();
-  const erNumber = await nextERNumber(c.env.DB, tenantId);
+  const erNumber = await nextERNumber(c.env.DB, Number(tenantId));
 
   let patientId = data.patient_id || null;
   let visitId = data.visit_id || null;

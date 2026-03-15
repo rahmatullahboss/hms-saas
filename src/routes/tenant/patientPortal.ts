@@ -277,7 +277,7 @@ patientPortalRoutes.post(
         permissions: ['portal:read'],
       },
       c.env.JWT_SECRET,
-      '2h'
+      2
     );
 
     return c.json({
@@ -320,7 +320,7 @@ patientPortalRoutes.post('/refresh-token', async (c) => {
       permissions: ['portal:read'],
     },
     c.env.JWT_SECRET,
-    '2h'
+    2
   );
 
   return c.json({ token });
