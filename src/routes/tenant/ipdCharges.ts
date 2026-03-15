@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { HTTPException } from 'hono/http-exception';
 import type { Env, Variables } from '../../types';
-import { requireTenantId } from '../../lib/context-helpers';
+import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 
 const ipdChargeRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -43,7 +43,7 @@ ipdChargeRoutes.get('/', async (c) => {
 
 ipdChargeRoutes.post('/', zValidator('json', postChargeSchema), async (c) => {
   const tenantId = requireTenantId(c);
-  const userId = c.get('userId');
+  const userId = requireUserId(c);
   const data = c.req.valid('json');
 
   // Verify admission belongs to tenant
@@ -65,7 +65,7 @@ ipdChargeRoutes.post('/', zValidator('json', postChargeSchema), async (c) => {
     throw new HTTPException(409, { message: `${data.charge_type} charge already posted for ${data.charge_date}` });
   }
 
-  const safeUserId = userId ? Number(userId) : null;
+  const safeUserId = Number(userId);
 
   await c.env.DB.prepare(`
     INSERT INTO ipd_charges (tenant_id, admission_id, patient_id, charge_date, charge_type, description, amount, posted_by)

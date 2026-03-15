@@ -25,6 +25,12 @@ export const updateLabItemResultSchema = z.object({
   result: z.string().min(1, 'Result required'),
 });
 
+export const updateSampleStatusSchema = z.object({
+  status: z.enum(['collected', 'received', 'processing', 'completed', 'rejected']),
+  notes: z.string().optional(),
+});
+
 export type CreateLabTestInput        = z.infer<typeof createLabTestSchema>;
 export type CreateLabOrderInput       = z.infer<typeof createLabOrderSchema>;
 export type UpdateLabItemResultInput  = z.infer<typeof updateLabItemResultSchema>;
+export type UpdateSampleStatusInput   = z.infer<typeof updateSampleStatusSchema>;

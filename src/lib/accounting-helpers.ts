@@ -1,4 +1,31 @@
-// accounting-helpers.ts — shared audit utilities
+// accounting-helpers.ts — shared audit + dashboard notification utilities
+
+export async function notifyDashboard(
+  env: { DASHBOARD_DO?: DurableObjectNamespace },
+  tenantId: string,
+  type: 'income' | 'expense',
+  amount: number,
+  isToday: boolean = true,
+  isMTD: boolean = true
+): Promise<void> {
+  // Fire-and-forget: dashboard notification failures must never break the main flow
+  try {
+    if (!env.DASHBOARD_DO) return;
+    const doId = env.DASHBOARD_DO.idFromName(tenantId);
+    const doStub = env.DASHBOARD_DO.get(doId) as DurableObjectStub & {
+      updateIncome?: (amount: number, isToday: boolean, isMTD: boolean) => Promise<void>;
+      updateExpense?: (amount: number, isToday: boolean, isMTD: boolean) => Promise<void>;
+    };
+
+    if (type === 'income' && doStub.updateIncome) {
+      await doStub.updateIncome(amount, isToday, isMTD);
+    } else if (type === 'expense' && doStub.updateExpense) {
+      await doStub.updateExpense(amount, isToday, isMTD);
+    }
+  } catch (error) {
+    console.error('Error notifying dashboard:', error);
+  }
+}
 
 export async function createAuditLog(
   env: { DB: D1Database },

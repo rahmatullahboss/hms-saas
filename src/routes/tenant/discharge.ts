@@ -1,121 +1,169 @@
 import { Hono } from 'hono';
+import { z } from 'zod';
+import { zValidator } from '@hono/zod-validator';
 import { HTTPException } from 'hono/http-exception';
 import type { Env, Variables } from '../../types';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 
-const app = new Hono<{ Bindings: Env; Variables: Variables }>();
+const discharge = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-// ─── GET /api/discharge/:admissionId — admission + existing summary ──────────
-app.get('/:admissionId', async (c) => {
-  const tenantId = requireTenantId(c);
-  if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
+// ─── Schemas ──────────────────────────────────────────────────────────────────
 
-  const admId = c.req.param('admissionId');
-
-  // Get admission with patient, bed, doctor info
-  const admission = await c.env.DB.prepare(`
-    SELECT a.*, p.name AS patient_name, p.patient_code,
-           b.ward_name, b.bed_number,
-           d.name AS doctor_name
-    FROM admissions a
-    LEFT JOIN patients p ON a.patient_id = p.id
-    LEFT JOIN beds b ON a.bed_id = b.id
-    LEFT JOIN doctors d ON a.doctor_id = d.id
-    WHERE a.id = ? AND a.tenant_id = ?
-  `).bind(admId, tenantId).first();
-
-  if (!admission) throw new HTTPException(404, { message: 'Admission not found' });
-
-  // Get existing summary if any
-  const summary = await c.env.DB.prepare(
-    `SELECT * FROM discharge_summaries WHERE admission_id = ? AND tenant_id = ?`
-  ).bind(admId, tenantId).first();
-
-  // Parse JSON fields safely
-  let parsed = null;
-  if (summary) {
-    const raw = summary as Record<string, unknown>;
-    let procedures: string[] = [];
-    let medicines: unknown[] = [];
-    try { procedures = JSON.parse(raw.procedures_performed as string || '[]'); } catch { /* empty */ }
-    try { medicines = JSON.parse(raw.medicines_on_discharge as string || '[]'); } catch { /* empty */ }
-    parsed = { ...raw, procedures_performed: procedures, medicines_on_discharge: medicines };
-  }
-
-  return c.json({ admission, summary: parsed });
+const upsertSummarySchema = z.object({
+  admission_diagnosis:    z.string().optional(),
+  final_diagnosis:        z.string().optional(),
+  treatment_summary:      z.string().optional(),
+  procedures_performed:   z.array(z.string()).optional(),
+  medicines_on_discharge: z.array(z.object({
+    name:      z.string(),
+    dose:      z.string().optional(),
+    frequency: z.string().optional(),
+    duration:  z.string().optional(),
+  })).optional(),
+  follow_up_date:         z.string().optional(),
+  follow_up_instructions: z.string().optional(),
+  doctor_notes:           z.string().optional(),
+  status:                 z.enum(['draft', 'final']).optional(),
 });
 
-// ─── PUT /api/discharge/:admissionId — upsert discharge summary ──────────────
-app.put('/:admissionId', async (c) => {
+// ─── GET /api/discharge/:admissionId — get or init summary ────────────────────
+
+discharge.get('/:admissionId', async (c) => {
   const tenantId = requireTenantId(c);
-  if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
+  const admissionId = parseInt(c.req.param('admissionId'));
 
-  const admId = c.req.param('admissionId');
-  const userId = requireUserId(c);
-  const body = await c.req.json<{
-    admission_diagnosis?: string;
-    final_diagnosis?: string;
-    treatment_summary?: string;
-    procedures_performed?: string[];
-    medicines_on_discharge?: { name: string; dose?: string; frequency?: string; duration?: string }[];
-    follow_up_date?: string;
-    follow_up_instructions?: string;
-    doctor_notes?: string;
-    status?: 'draft' | 'final';
-  }>();
+  // Get admission details for context
+  const admission = await c.env.DB.prepare(`
+    SELECT a.*, p.name as patient_name, p.patient_code, p.date_of_birth, p.gender,
+           b.ward_name, b.bed_number,
+           s.name as doctor_name,
+           s.id as staff_id
+    FROM admissions a
+    LEFT JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id
+    LEFT JOIN beds b ON b.id = a.bed_id AND b.tenant_id = a.tenant_id
+    LEFT JOIN staff s ON s.id = a.doctor_id AND s.tenant_id = a.tenant_id
+    WHERE a.id = ? AND a.tenant_id = ?
+  `).bind(admissionId, tenantId).first<Record<string, unknown>>();
 
-  // Get patient_id from admission
-  const adm = await c.env.DB.prepare(
-    'SELECT patient_id FROM admissions WHERE id = ? AND tenant_id = ?'
-  ).bind(admId, tenantId).first<{ patient_id: number }>();
-  if (!adm) throw new HTTPException(404, { message: 'Admission not found' });
+  if (!admission) {
+    throw new HTTPException(404, { message: 'Admission not found' });
+  }
 
-  const isFinal = body.status === 'final';
-  const procedures = JSON.stringify(body.procedures_performed ?? []);
-  const medicines = JSON.stringify(body.medicines_on_discharge ?? []);
+  // Get discharge summary (may not exist yet)
+  const summary = await c.env.DB.prepare(
+    `SELECT * FROM discharge_summaries WHERE admission_id = ? AND tenant_id = ?`
+  ).bind(admissionId, tenantId).first<Record<string, unknown>>();
 
-  // Upsert
+  // Parse JSON fields if summary exists
+  let parsedSummary = summary;
+  if (summary) {
+    try {
+      parsedSummary = {
+        ...summary,
+        procedures_performed:   summary.procedures_performed
+          ? JSON.parse(summary.procedures_performed as string)
+          : [],
+        medicines_on_discharge: summary.medicines_on_discharge
+          ? JSON.parse(summary.medicines_on_discharge as string)
+          : [],
+      };
+    } catch {
+      // JSON parse failed — return raw
+    }
+  }
+
+  return c.json({ admission, summary: parsedSummary ?? null });
+});
+
+// ─── PUT /api/discharge/:admissionId — create or update ──────────────────────
+
+discharge.put('/:admissionId', zValidator('json', upsertSummarySchema), async (c) => {
+  const tenantId = requireTenantId(c);
+  const safeUserId = requireUserId(c);
+  const admissionId = parseInt(c.req.param('admissionId'));
+  const data = c.req.valid('json');
+
+  // Verify admission belongs to tenant
+  const admission = await c.env.DB.prepare(
+    `SELECT id, patient_id FROM admissions WHERE id = ? AND tenant_id = ?`
+  ).bind(admissionId, tenantId).first<{ id: number; patient_id: number }>();
+
+  if (!admission) {
+    throw new HTTPException(404, { message: 'Admission not found' });
+  }
+
   const existing = await c.env.DB.prepare(
-    'SELECT id FROM discharge_summaries WHERE admission_id = ? AND tenant_id = ?'
-  ).bind(admId, tenantId).first();
+    `SELECT id FROM discharge_summaries WHERE admission_id = ? AND tenant_id = ?`
+  ).bind(admissionId, tenantId).first<{ id: number }>();
 
-  if (existing) {
-    await c.env.DB.prepare(`
-      UPDATE discharge_summaries SET
-        admission_diagnosis = ?, final_diagnosis = ?, treatment_summary = ?,
-        procedures_performed = ?, medicines_on_discharge = ?,
-        follow_up_date = ?, follow_up_instructions = ?, doctor_notes = ?,
-        status = ?, updated_at = datetime('now'),
-        finalized_at = CASE WHEN ? THEN datetime('now') ELSE finalized_at END,
-        finalized_by = CASE WHEN ? THEN ? ELSE finalized_by END
-      WHERE admission_id = ? AND tenant_id = ?
-    `).bind(
-      body.admission_diagnosis ?? null, body.final_diagnosis ?? null,
-      body.treatment_summary ?? null, procedures, medicines,
-      body.follow_up_date ?? null, body.follow_up_instructions ?? null,
-      body.doctor_notes ?? null, body.status ?? 'draft',
-      isFinal ? 1 : 0, isFinal ? 1 : 0, userId ?? null,
-      admId, tenantId
-    ).run();
-  } else {
+  const proceduresJson = data.procedures_performed !== undefined
+    ? JSON.stringify(data.procedures_performed)
+    : undefined;
+
+  const medicinesJson = data.medicines_on_discharge !== undefined
+    ? JSON.stringify(data.medicines_on_discharge)
+    : undefined;
+
+  const finalizedAt = data.status === 'final' ? new Date().toISOString() : null;
+
+  if (!existing) {
+    // INSERT
     await c.env.DB.prepare(`
       INSERT INTO discharge_summaries
-        (tenant_id, admission_id, patient_id, admission_diagnosis, final_diagnosis,
-         treatment_summary, procedures_performed, medicines_on_discharge,
-         follow_up_date, follow_up_instructions, doctor_notes, status,
-         finalized_at, finalized_by)
+        (tenant_id, admission_id, patient_id,
+         admission_diagnosis, final_diagnosis, treatment_summary,
+         procedures_performed, medicines_on_discharge,
+         follow_up_date, follow_up_instructions, doctor_notes,
+         status, finalized_at, finalized_by)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
-      tenantId, admId, adm.patient_id,
-      body.admission_diagnosis ?? null, body.final_diagnosis ?? null,
-      body.treatment_summary ?? null, procedures, medicines,
-      body.follow_up_date ?? null, body.follow_up_instructions ?? null,
-      body.doctor_notes ?? null, body.status ?? 'draft',
-      isFinal ? new Date().toISOString() : null, isFinal ? (userId ?? null) : null
+      tenantId, admissionId, admission.patient_id,
+      data.admission_diagnosis ?? null,
+      data.final_diagnosis ?? null,
+      data.treatment_summary ?? null,
+      proceduresJson ?? null,
+      medicinesJson ?? null,
+      data.follow_up_date ?? null,
+      data.follow_up_instructions ?? null,
+      data.doctor_notes ?? null,
+      data.status ?? 'draft',
+      finalizedAt,
+      finalizedAt ? safeUserId : null,
     ).run();
+  } else {
+    // UPDATE — only set fields that were provided
+    const sets: string[] = ["updated_at = datetime('now')"];
+    const vals: (string | number | null)[] = [];
+
+    if (data.admission_diagnosis !== undefined)    { sets.push('admission_diagnosis = ?');    vals.push(data.admission_diagnosis); }
+    if (data.final_diagnosis !== undefined)        { sets.push('final_diagnosis = ?');        vals.push(data.final_diagnosis); }
+    if (data.treatment_summary !== undefined)      { sets.push('treatment_summary = ?');      vals.push(data.treatment_summary); }
+    if (proceduresJson !== undefined)              { sets.push('procedures_performed = ?');   vals.push(proceduresJson); }
+    if (medicinesJson !== undefined)               { sets.push('medicines_on_discharge = ?'); vals.push(medicinesJson); }
+    if (data.follow_up_date !== undefined)         { sets.push('follow_up_date = ?');         vals.push(data.follow_up_date); }
+    if (data.follow_up_instructions !== undefined) { sets.push('follow_up_instructions = ?'); vals.push(data.follow_up_instructions); }
+    if (data.doctor_notes !== undefined)           { sets.push('doctor_notes = ?');           vals.push(data.doctor_notes); }
+    if (data.status !== undefined) {
+      sets.push('status = ?');
+      vals.push(data.status);
+      if (data.status === 'final') {
+        sets.push('finalized_at = ?', 'finalized_by = ?');
+        vals.push(new Date().toISOString(), safeUserId);
+      }
+    }
+
+    await c.env.DB.prepare(
+      `UPDATE discharge_summaries SET ${sets.join(', ')} WHERE admission_id = ? AND tenant_id = ?`
+    ).bind(...vals, admissionId, tenantId).run();
   }
+
+  // Audit log
+  await c.env.DB.prepare(`
+    INSERT INTO audit_log (tenant_id, user_id, action, entity, entity_id, details)
+    VALUES (?, ?, 'upsert', 'discharge_summary', ?, ?)
+  `).bind(tenantId, safeUserId, admissionId, `status=${data.status ?? 'draft'}`).run();
 
   return c.json({ success: true });
 });
 
-export default app;
+export default discharge;

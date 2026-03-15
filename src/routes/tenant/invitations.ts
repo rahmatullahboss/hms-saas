@@ -8,7 +8,7 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import type { Env, Variables } from '../../types';
-import { requireTenantId } from '../../lib/context-helpers';
+import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 
 const invitationRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -39,10 +39,9 @@ const createInviteSchema = z.object({
 // ─── POST /api/invitations — Create invitation (hospital_admin only) ──
 invitationRoutes.post('/', zValidator('json', createInviteSchema), async (c) => {
   const tenantId = requireTenantId(c);
-  const callerId = c.get('userId');
+  const callerId = requireUserId(c);
   const callerRole = c.get('role');
 
-  if (!tenantId) return c.json({ error: 'Tenant not identified' }, 400);
   if (callerRole !== 'hospital_admin') {
     return c.json({ error: 'Only hospital admins can send invitations' }, 403);
   }

@@ -1,13 +1,54 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { HTTPException } from 'hono/http-exception';
-import { createLabTestSchema, updateLabTestSchema, createLabOrderSchema, updateLabItemResultSchema } from '../../schemas/lab';
+import {
+  createLabTestSchema,
+  updateLabTestSchema,
+  createLabOrderSchema,
+  updateLabItemResultSchema,
+  updateSampleStatusSchema,
+} from '../../schemas/lab';
 import { getNextSequence } from '../../lib/sequence';
 import type { Env, Variables } from '../../types';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 import { getPagination, paginationMeta } from '../../lib/pagination';
 
 const labCatalogRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
+
+// ─── Helper: Auto-detect abnormal flag ────────────────────────────────────────
+
+function detectAbnormalFlag(
+  numericValue: number | undefined,
+  normalRange: string | null | undefined,
+  criticalLow?: number | null,
+  criticalHigh?: number | null
+): 'normal' | 'high' | 'low' | 'critical' | 'pending' {
+  if (numericValue === undefined || numericValue === null || !normalRange) {
+    return 'pending';
+  }
+
+  // Parse range: "70-100" or "M:4.5-5.5|F:4.0-5.0" → use first range
+  const rangeStr = normalRange.includes('|')
+    ? normalRange.split('|')[0].replace(/^[MF]:/, '')
+    : normalRange;
+
+  const match = rangeStr.match(/^([\d.]+)-([\d.]+)$/);
+  if (!match) return 'pending';
+
+  const low = parseFloat(match[1]);
+  const high = parseFloat(match[2]);
+
+  if (isNaN(low) || isNaN(high)) return 'pending';
+
+  // Use per-test critical thresholds if available, otherwise fall back to 2x-range heuristic
+  const cLow = (criticalLow != null && !isNaN(criticalLow)) ? criticalLow : low - (high - low);
+  const cHigh = (criticalHigh != null && !isNaN(criticalHigh)) ? criticalHigh : high + (high - low);
+
+  if (numericValue < cLow || numericValue > cHigh) return 'critical';
+  if (numericValue < low) return 'low';
+  if (numericValue > high) return 'high';
+  return 'normal';
+}
 
 // ─── Lab Test Catalog CRUD ────────────────────────────────────────────────────
 
@@ -366,8 +407,8 @@ labCatalogRoutes.put('/items/:itemId/result', zValidator('json', updateLabItemRe
 
     await c.env.DB.prepare(
       `UPDATE lab_order_items SET result = ?, status = 'completed', completed_at = datetime('now')
-       WHERE id = ?`,
-    ).bind(data.result, itemId).run();
+       WHERE id = ? AND lab_order_id IN (SELECT id FROM lab_orders WHERE tenant_id = ?)`,
+    ).bind(data.result, itemId, tenantId).run();
     return c.json({ message: 'Result entered' });
   } catch (error) {
     if (error instanceof HTTPException) throw error;
@@ -398,6 +439,32 @@ labCatalogRoutes.post('/orders/:id/print', async (c) => {
     return c.json({ message: 'Print count updated' });
   } catch {
     throw new HTTPException(500, { message: 'Failed to update print count' });
+  }
+});
+
+// ─── PATCH /api/lab/items/:itemId/sample-status ──────────────────────────────
+
+labCatalogRoutes.patch('/items/:itemId/sample-status', zValidator('json', updateSampleStatusSchema), async (c) => {
+  const tenantId = requireTenantId(c);
+  const itemId = c.req.param('itemId');
+  const data = c.req.valid('json');
+
+  try {
+    const item = await c.env.DB.prepare(
+      `SELECT loi.*, lo.tenant_id FROM lab_order_items loi
+       JOIN lab_orders lo ON loi.lab_order_id = lo.id
+       WHERE loi.id = ? AND lo.tenant_id = ?`
+    ).bind(itemId, tenantId).first();
+    if (!item) throw new HTTPException(404, { message: 'Lab order item not found' });
+
+    await c.env.DB.prepare(
+      `UPDATE lab_order_items SET status = ?, notes = COALESCE(?, notes), updated_at = datetime('now')
+       WHERE id = ? AND lab_order_id IN (SELECT id FROM lab_orders WHERE tenant_id = ?)`
+    ).bind(data.status, data.notes ?? null, itemId, tenantId).run();
+    return c.json({ message: `Sample status updated to ${data.status}` });
+  } catch (error) {
+    if (error instanceof HTTPException) throw error;
+    throw new HTTPException(500, { message: 'Failed to update sample status' });
   }
 });
 

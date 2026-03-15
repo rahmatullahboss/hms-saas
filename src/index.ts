@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { logger } from 'hono/logger';
+import { DashboardDO } from './do/dashboard-state';
 import { securityHeaders } from './middleware/security';
 import { tenantMiddleware } from './middleware/tenant';
 import { authMiddleware } from './middleware/auth';
@@ -54,6 +55,21 @@ import ipdChargeRoutes from './routes/tenant/ipdCharges';
 import inboxRoutes from './routes/tenant/inbox';
 import pushRoutes from './routes/tenant/push';
 import fhirRoutes from './routes/tenant/fhir';
+import allergyRoutes from './routes/tenant/allergies';
+import billingCancellationRoutes from './routes/tenant/billingCancellation';
+import billingHandoverRoutes from './routes/tenant/billingHandover';
+import creditNoteRoutes from './routes/tenant/creditNotes';
+import depositRoutes from './routes/tenant/deposits';
+import doctorDashboardRoutes from './routes/tenant/doctorDashboard';
+import doctorScheduleRoutes2 from './routes/tenant/doctorSchedule';
+import emergencyRoutes from './routes/tenant/emergency';
+import ipBillingRoutes from './routes/tenant/ipBilling';
+import otRoutes from './routes/tenant/ot';
+import pushNotificationRoutes from './routes/tenant/pushNotifications';
+import settlementRoutes from './routes/tenant/settlements';
+import vitalsRoutes from './routes/tenant/vitals';
+import websiteRoutes from './routes/tenant/website';
+import hospitalSiteRoutes from './routes/public/hospitalSite';
 
 import type { Env } from './types';
 
@@ -121,6 +137,9 @@ app.route('/api/register', registerRoutes);
 // Separate path /api/invite/ so it's registered before the catch-all
 // '/api/*' tenant+auth middleware and doesn't require JWT.
 app.route('/api/invite', publicInviteRoutes);
+
+// ─── Public: Hospital site SSR (no auth needed) ──────────────────────
+app.route('/site', hospitalSiteRoutes);
 
 // ─── Public: Shared prescription view (no auth) ─────────────────────────
 app.get('/api/rx/:token', async (c) => {
@@ -250,6 +269,20 @@ app.route('/api/ipd-charges', ipdChargeRoutes);
 app.route('/api/inbox', inboxRoutes);
 app.route('/api/push', pushRoutes);
 app.route('/api/fhir', fhirRoutes);
+app.route('/api/allergies', allergyRoutes);
+app.route('/api/billing-cancellation', billingCancellationRoutes);
+app.route('/api/billing-handover', billingHandoverRoutes);
+app.route('/api/credit-notes', creditNoteRoutes);
+app.route('/api/deposits', depositRoutes);
+app.route('/api/doctor-dashboard', doctorDashboardRoutes);
+app.route('/api/doctor-schedule', doctorScheduleRoutes2);
+app.route('/api/emergency', emergencyRoutes);
+app.route('/api/ip-billing', ipBillingRoutes);
+app.route('/api/ot', otRoutes);
+app.route('/api/push-notifications', pushNotificationRoutes);
+app.route('/api/settlements', settlementRoutes);
+app.route('/api/vitals', vitalsRoutes);
+app.route('/api/website', websiteRoutes);
 
 
 // ─── Not Found handler ──────────────────────────────────────────────
@@ -275,9 +308,9 @@ app.onError((err, c) => {
 });
 
 // Export both the fetch handler (app) and the scheduled handler
+// DashboardDO must be re-exported for the Cloudflare Workers runtime (matches wrangler.toml class_name)
+export { DashboardDO };
 export default {
   fetch: app.fetch,
   scheduled: scheduledHandler.scheduled,
 };
-
-

@@ -46,6 +46,20 @@ index_name = "hms-ai-memory"
 [ai]
 binding = "AI"
 
+# ─── Durable Objects (Real-time Dashboard) ───────────────────────────
+[[durable_objects.bindings]]
+name = "DASHBOARD_DO"
+class_name = "DashboardDO"
+
+[[migrations]]
+tag = "v1-dashboard-do"
+new_sqlite_classes = ["DashboardDO"]
+
+# ─── CRON Triggers ────────────────────────────────────────────────────
+# NOTE: Account limit is 5 cron triggers total. Only configure in env.production below.
+# [triggers]
+# crons = ["0 0 * * *"]
+
 # ─── Default (development) vars ───────────────────────────────────────
 # JWT_SECRET must be set as a Wrangler secret (never in vars!):
 #   wrangler secret put JWT_SECRET
@@ -114,6 +128,17 @@ name = "hms-saas-production"
 [[env.production.migrations]]
 tag = "v2-remove-accounting-do"
 deleted_classes = ["AccountingDashboard"]
+
+[[env.production.migrations]]
+tag = "v3-dashboard-do"
+new_sqlite_classes = ["DashboardDO"]
+
+[[env.production.durable_objects.bindings]]
+name = "DASHBOARD_DO"
+class_name = "DashboardDO"
+
+[env.production.triggers]
+crons = ["0 0 * * *"]
 
 [env.production.vars]
 ENVIRONMENT = "production"

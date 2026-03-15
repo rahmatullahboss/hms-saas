@@ -1,154 +1,215 @@
 import { Hono } from 'hono';
+import { zValidator } from '@hono/zod-validator';
 import { HTTPException } from 'hono/http-exception';
+import { createAppointmentSchema, updateAppointmentSchema } from '../../schemas/appointment';
+import { getNextSequence } from '../../lib/sequence';
+import { createAuditLog } from '../../lib/accounting-helpers';
 import type { Env, Variables } from '../../types';
-import { requireTenantId } from '../../lib/context-helpers';
+import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 
-const app = new Hono<{ Bindings: Env; Variables: Variables }>();
+const appointmentRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-/**
- * GET /api/appointments
- * Retrieves a list of appointments for the current tenant.
- * Filters can be applied by date, doctor ID, and appointment status.
- *
- * @param {string} [date] - Optional appointment date to filter by (defaults to today).
- * @param {string} [doctorId] - Optional ID of the doctor to filter by.
- * @param {string} [status] - Optional appointment status to filter by.
- * @returns {Object} JSON response containing:
- *   - appointments: Array of appointment records with patient and doctor details.
- *
- * @example
- * // GET /api/appointments?date=2024-03-14&doctorId=2
- */
-app.get('/', async (c) => {
-  const tenantId = requireTenantId(c);
-  if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
+// ─── GET /api/appointments ───────────────────────────────────────────────────
+// Params: date, doctorId, status, patientId
+appointmentRoutes.get('/', async (c) => {
+  const tenantId = String(requireTenantId(c));
+  const { date, doctorId, status, patientId } = c.req.query();
 
-  const date = c.req.query('date') || new Date().toISOString().split('T')[0];
-  const doctorId = c.req.query('doctorId');
-  const status = c.req.query('status');
+  try {
+    let query = `
+      SELECT a.*,
+             p.name        AS patient_name,
+             p.patient_code,
+             p.mobile      AS patient_mobile,
+             d.name        AS doctor_name,
+             d.specialty   AS doctor_specialty
+      FROM appointments a
+      JOIN patients p ON a.patient_id = p.id
+      LEFT JOIN doctors d ON a.doctor_id = d.id
+      WHERE a.tenant_id = ?`;
+    const params: (string | number)[] = [tenantId!];
 
-  let sql = `
-    SELECT a.*, p.name AS patient_name, p.patient_code, p.mobile AS patient_mobile,
-           d.name AS doctor_name, d.specialty AS doctor_specialty
-    FROM appointments a
-    LEFT JOIN patients p ON a.patient_id = p.id
-    LEFT JOIN doctors d ON a.doctor_id = d.id
-    WHERE a.tenant_id = ? AND a.appt_date = ?
-  `;
-  const params: (string | number)[] = [tenantId, date];
+    if (date)      { query += ' AND a.appt_date = ?'; params.push(date); }
+    if (doctorId)  { query += ' AND a.doctor_id = ?'; params.push(doctorId); }
+    if (status)    { query += ' AND a.status = ?';    params.push(status); }
+    if (patientId) { query += ' AND a.patient_id = ?'; params.push(patientId); }
 
-  if (doctorId) { sql += ' AND a.doctor_id = ?'; params.push(Number(doctorId)); }
-  if (status)   { sql += ' AND a.status = ?';    params.push(status); }
-  sql += ' ORDER BY a.token_no ASC';
-
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
-  return c.json({ appointments: results });
+    query += ' ORDER BY a.appt_date ASC, a.token_no ASC LIMIT 200';
+    const appts = await c.env.DB.prepare(query).bind(...params).all();
+    return c.json({ appointments: appts.results });
+  } catch {
+    throw new HTTPException(500, { message: 'Failed to fetch appointments' });
+  }
 });
 
-/**
- * POST /api/appointments
- * Creates a new appointment for the given patient and doctor.
- * Generates a daily token number specific to the doctor and a unique appointment number.
- *
- * @param {Object} body - Appointment details.
- * @param {number} body.patientId - The ID of the patient.
- * @param {number} [body.doctorId] - Optional ID of the doctor.
- * @param {string} body.apptDate - The date of the appointment (YYYY-MM-DD).
- * @param {string} [body.apptTime] - Optional time of the appointment.
- * @param {string} [body.visitType='opd'] - Type of visit.
- * @param {string} [body.chiefComplaint] - Optional chief complaint description.
- * @param {number} [body.fee=0] - The fee for the appointment.
- * @returns {Object} JSON response containing:
- *   - apptNo: The unique appointment number (e.g., APT-000001).
- *   - tokenNo: The daily token number for the doctor queue.
- * @throws {HTTPException} 400 if required fields are missing.
- *
- * @example
- * // POST /api/appointments
- * // Body: { "patientId": 1, "doctorId": 2, "apptDate": "2024-03-14" }
- */
-app.post('/', async (c) => {
-  const tenantId = requireTenantId(c);
-  if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
+// ─── GET /api/appointments/today ─────────────────────────────────────────────
+appointmentRoutes.get('/today', async (c) => {
+  const tenantId = String(requireTenantId(c));
+  // Use Bangladesh time (UTC+6) so "today" is correct for local users
+  const now = new Date();
+  const bstOffset = 6 * 60; // minutes
+  const bst = new Date(now.getTime() + (bstOffset + now.getTimezoneOffset()) * 60000);
+  const today = bst.toISOString().split('T')[0];
 
-  const role = c.get('role');
-  const allowedRoles = ['receptionist', 'doctor', 'hospital_admin', 'nurse', 'md'];
-  if (!role || !allowedRoles.includes(role)) {
-    throw new HTTPException(403, { message: 'Not authorized to create appointments' });
+  try {
+    const appts = await c.env.DB.prepare(`
+      SELECT a.*,
+             p.name        AS patient_name,
+             p.patient_code,
+             p.mobile      AS patient_mobile,
+             d.name        AS doctor_name
+      FROM appointments a
+      JOIN patients p ON a.patient_id = p.id
+      LEFT JOIN doctors d ON a.doctor_id = d.id
+      WHERE a.tenant_id = ? AND a.appt_date = ?
+      ORDER BY a.token_no ASC
+    `).bind(tenantId, today).all();
+    return c.json({ appointments: appts.results, date: today });
+  } catch {
+    throw new HTTPException(500, { message: 'Failed to fetch today\'s appointments' });
   }
-
-  const body = await c.req.json<{
-    patientId: number;
-    doctorId?: number;
-    apptDate: string;
-    apptTime?: string;
-    visitType?: string;
-    chiefComplaint?: string;
-    fee?: number;
-  }>();
-
-  if (!body.patientId || !body.apptDate) {
-    throw new HTTPException(400, { message: 'patientId and apptDate are required' });
-  }
-
-  // Calculate the next available token number for a specific doctor on the given date.
-  // This helps in queue management within the clinic for a particular day.
-  const tokenRow = await c.env.DB.prepare(
-    `SELECT COALESCE(MAX(token_no), 0) + 1 AS next_token
-     FROM appointments WHERE tenant_id = ? AND appt_date = ? AND doctor_id IS ?`
-  ).bind(tenantId, body.apptDate, body.doctorId ?? null).first<{ next_token: number }>();
-  const tokenNo = tokenRow?.next_token ?? 1;
-
-  // Generate appointment number
-  const countRow = await c.env.DB.prepare(
-    'SELECT COUNT(*) AS cnt FROM appointments WHERE tenant_id = ?'
-  ).bind(tenantId).first<{ cnt: number }>();
-  const apptNo = `APT-${String((countRow?.cnt ?? 0) + 1).padStart(6, '0')}`;
-
-  await c.env.DB.prepare(
-    `INSERT INTO appointments (appt_no, token_no, patient_id, doctor_id, appt_date, appt_time, visit_type, chief_complaint, fee, tenant_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).bind(
-    apptNo, tokenNo, body.patientId, body.doctorId ?? null,
-    body.apptDate, body.apptTime ?? null,
-    body.visitType ?? 'opd', body.chiefComplaint ?? null,
-    body.fee ?? 0, tenantId
-  ).run();
-
-  return c.json({ apptNo, tokenNo }, 201);
 });
 
-/**
- * PUT /api/appointments/:id
- * Updates the status of an existing appointment.
- *
- * @param {string} id - The ID of the appointment to update.
- * @param {Object} body - The data to update.
- * @param {string} body.status - The new status of the appointment.
- * @returns {Object} JSON response indicating success.
- *
- * @example
- * // PUT /api/appointments/123
- * // Body: { "status": "completed" }
- */
-app.put('/:id', async (c) => {
-  const tenantId = requireTenantId(c);
-  if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
-
-  const role = c.get('role');
-  const allowedRoles = ['receptionist', 'doctor', 'hospital_admin', 'nurse', 'md'];
-  if (!role || !allowedRoles.includes(role)) {
-    throw new HTTPException(403, { message: 'Not authorized to update appointments' });
-  }
-
+// ─── GET /api/appointments/:id ────────────────────────────────────────────────
+appointmentRoutes.get('/:id', async (c) => {
+  const tenantId = String(requireTenantId(c));
   const id = c.req.param('id');
-  const body = await c.req.json<{ status: string }>();
 
-  await c.env.DB.prepare(
-    `UPDATE appointments SET status = ?, updated_at = datetime('now') WHERE id = ? AND tenant_id = ?`
-  ).bind(body.status, id, tenantId).run();
+  try {
+    const appt = await c.env.DB.prepare(`
+      SELECT a.*,
+             p.name AS patient_name, p.patient_code, p.mobile AS patient_mobile,
+             d.name AS doctor_name, d.specialty, d.consultation_fee
+      FROM appointments a
+      JOIN patients p ON a.patient_id = p.id
+      LEFT JOIN doctors d ON a.doctor_id = d.id
+      WHERE a.id = ? AND a.tenant_id = ?
+    `).bind(id, tenantId).first();
 
-  return c.json({ success: true });
+    if (!appt) throw new HTTPException(404, { message: 'Appointment not found' });
+    return c.json({ appointment: appt });
+  } catch (error) {
+    if (error instanceof HTTPException) throw error;
+    throw new HTTPException(500, { message: 'Failed to fetch appointment' });
+  }
 });
 
-export default app;
+// ─── POST /api/appointments ───────────────────────────────────────────────────
+appointmentRoutes.post('/', zValidator('json', createAppointmentSchema), async (c) => {
+  const tenantId = String(requireTenantId(c));
+  const userId   = String(requireUserId(c));
+  const data     = c.req.valid('json');
+
+  const maxRetries = 3;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      // Calculate the next token number for this doctor on this date
+      const tokenRow = await c.env.DB.prepare(`
+        SELECT COALESCE(MAX(token_no), 0) + 1 AS next_token
+        FROM appointments
+        WHERE tenant_id = ? AND appt_date = ? AND (doctor_id = ? OR (doctor_id IS NULL AND ? IS NULL))
+      `).bind(tenantId, data.apptDate, data.doctorId ?? null, data.doctorId ?? null).first<{ next_token: number }>();
+
+      const tokenNo = tokenRow?.next_token ?? 1;
+      const apptNo  = await getNextSequence(c.env.DB, tenantId!, 'appointment', 'APT');
+
+      const result = await c.env.DB.prepare(`
+        INSERT INTO appointments
+          (appt_no, token_no, patient_id, doctor_id, appt_date, appt_time,
+           visit_type, status, chief_complaint, notes, fee, created_by, tenant_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'scheduled', ?, ?, ?, ?, ?)
+      `).bind(
+        apptNo,
+        tokenNo,
+        data.patientId,
+        data.doctorId ?? null,
+        data.apptDate,
+        data.apptTime ?? null,
+        data.visitType,
+        data.chiefComplaint ?? null,
+        data.notes ?? null,
+        data.fee,
+        userId,
+        tenantId,
+      ).run();
+
+      void createAuditLog(c.env, tenantId!, userId!, 'create', 'appointments', result.meta.last_row_id, null, {
+        apptNo, tokenNo, patientId: data.patientId, apptDate: data.apptDate,
+      });
+
+      return c.json({ message: 'Appointment booked', id: result.meta.last_row_id, apptNo, tokenNo }, 201);
+    } catch (error) {
+      // Retry on unique constraint violation (concurrent token assignment)
+      const msg = error instanceof Error ? error.message : '';
+      if (msg.includes('UNIQUE constraint') && attempt < maxRetries - 1) continue;
+      if (error instanceof HTTPException) throw error;
+      throw new HTTPException(500, { message: 'Failed to book appointment' });
+    }
+  }
+  throw new HTTPException(500, { message: 'Failed to book appointment after retries' });
+});
+
+// ─── PUT /api/appointments/:id ────────────────────────────────────────────────
+appointmentRoutes.put('/:id', zValidator('json', updateAppointmentSchema), async (c) => {
+  const tenantId = String(requireTenantId(c));
+  const userId   = String(requireUserId(c));
+  const id       = c.req.param('id');
+  const data     = c.req.valid('json');
+
+  try {
+    const existing = await c.env.DB.prepare(
+      'SELECT * FROM appointments WHERE id = ? AND tenant_id = ?',
+    ).bind(id, tenantId).first<Record<string, unknown>>();
+    if (!existing) throw new HTTPException(404, { message: 'Appointment not found' });
+
+    // Build dynamic SET clause — only update fields that were provided
+    const sets: string[] = ["updated_at = datetime('now')"];
+    const vals: (string | number | null)[] = [];
+
+    if (data.status         !== undefined) { sets.push('status = ?');          vals.push(data.status); }
+    if (data.apptTime       !== undefined) { sets.push('appt_time = ?');       vals.push(data.apptTime); }
+    if (data.notes          !== undefined) { sets.push('notes = ?');           vals.push(data.notes ?? null); }
+    if (data.chiefComplaint !== undefined) { sets.push('chief_complaint = ?'); vals.push(data.chiefComplaint ?? null); }
+    if (data.doctorId       !== undefined) { sets.push('doctor_id = ?');       vals.push(data.doctorId); }
+    if (data.fee            !== undefined) { sets.push('fee = ?');             vals.push(data.fee); }
+
+    vals.push(id as string, tenantId as string);
+
+    await c.env.DB.prepare(
+      `UPDATE appointments SET ${sets.join(', ')} WHERE id = ? AND tenant_id = ?`
+    ).bind(...vals).run();
+
+    void createAuditLog(c.env, tenantId!, userId!, 'update', 'appointments', Number(id), existing, data);
+    return c.json({ message: 'Appointment updated' });
+  } catch (error) {
+    if (error instanceof HTTPException) throw error;
+    throw new HTTPException(500, { message: 'Failed to update appointment' });
+  }
+});
+
+// ─── DELETE /api/appointments/:id — cancel ────────────────────────────────────
+appointmentRoutes.delete('/:id', async (c) => {
+  const tenantId = String(requireTenantId(c));
+  const userId   = String(requireUserId(c));
+  const id       = c.req.param('id');
+
+  try {
+    const existing = await c.env.DB.prepare(
+      'SELECT * FROM appointments WHERE id = ? AND tenant_id = ?',
+    ).bind(id, tenantId).first();
+    if (!existing) throw new HTTPException(404, { message: 'Appointment not found' });
+
+    await c.env.DB.prepare(`
+      UPDATE appointments SET status = 'cancelled', updated_at = datetime('now')
+      WHERE id = ? AND tenant_id = ?
+    `).bind(id, tenantId).run();
+
+    void createAuditLog(c.env, tenantId!, userId!, 'cancel', 'appointments', Number(id), null, { status: 'cancelled' });
+    return c.json({ message: 'Appointment cancelled' });
+  } catch (error) {
+    if (error instanceof HTTPException) throw error;
+    throw new HTTPException(500, { message: 'Failed to cancel appointment' });
+  }
+});
+
+export default appointmentRoutes;

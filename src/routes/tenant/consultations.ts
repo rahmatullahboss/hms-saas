@@ -6,7 +6,7 @@ import { createVideoProvider } from '../../lib/video';
 import { createSmsProvider, SmsTemplates } from '../../lib/sms';
 import { sendEmail, EmailTemplates } from '../../lib/email';
 import type { Env, Variables } from '../../types';
-import { requireTenantId } from '../../lib/context-helpers';
+import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 
 const consultationRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -73,7 +73,7 @@ consultationRoutes.get('/:id', async (c) => {
 // ─── POST /api/consultations — book new teleconsultation ─────────────────────
 consultationRoutes.post('/', zValidator('json', createConsultationSchema), async (c) => {
   const tenantId = requireTenantId(c);
-  const userId   = c.get('userId');
+  const userId   = requireUserId(c);
   const role     = c.get('role');
   if (!role || !CONSULTATION_STAFF_ROLES.includes(role)) {
     throw new HTTPException(403, { message: 'Only authorized staff can book consultations' });

@@ -6,6 +6,30 @@ const dashboardRoutes = new Hono<{
   Variables: { tenantId?: string };
 }>();
 
+// GET / — aggregated overview (backward compat)
+dashboardRoutes.get('/', async (c) => {
+  const tenantId = requireTenantId(c);
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const [patients, revenue, appointments] = await Promise.all([
+      c.env.DB.prepare('SELECT COUNT(*) as cnt FROM patients WHERE tenant_id = ?')
+        .bind(tenantId).first<{ cnt: number }>(),
+      c.env.DB.prepare('SELECT COALESCE(SUM(total),0) as total, COALESCE(SUM(due),0) as due FROM bills WHERE tenant_id = ?')
+        .bind(tenantId).first<{ total: number; due: number }>(),
+      c.env.DB.prepare('SELECT COUNT(*) as cnt FROM appointments WHERE tenant_id = ? AND DATE(created_at) = ?')
+        .bind(tenantId, today).first<{ cnt: number }>().catch(() => ({ cnt: 0 })),
+    ]);
+    return c.json({
+      totalPatients: patients?.cnt ?? 0,
+      todayAppointments: appointments?.cnt ?? 0,
+      totalRevenue: revenue?.total ?? 0,
+      pendingDue: revenue?.due ?? 0,
+    });
+  } catch {
+    return c.json({ totalPatients: 0, todayAppointments: 0, totalRevenue: 0, pendingDue: 0 });
+  }
+});
+
 // Get dashboard stats
 dashboardRoutes.get('/stats', async (c) => {
   const tenantId = requireTenantId(c);
@@ -77,7 +101,7 @@ dashboardRoutes.get('/stats', async (c) => {
     const recentPatientsResult = recentPatientsBatch;
     
     // Format revenue data for chart
-    const incomeList = incomeResult.results || [];
+    const incomeList = (incomeResult.results || []) as { date: string; total: number }[];
     const revenueData: { day: string; revenue: number }[] = [];
     for (let i = 6; i >= 0; i--) {
       const date = new Date();

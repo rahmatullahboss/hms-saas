@@ -14,6 +14,7 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { sendPushToTenant } from '../../utils/web-push';
 import type { Env, Variables } from '../../types';
+import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 
 const push = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -47,11 +48,8 @@ push.get('/vapid-key', (c) => {
 // ─── POST /subscribe — Save push subscription ──────────────────────
 
 push.post('/subscribe', zValidator('json', subscribeSchema), async (c) => {
-  const tenantId = c.get('tenantId');
-  const userId = c.get('userId');
-  if (!tenantId || !userId) {
-    throw new HTTPException(401, { message: 'Authentication required' });
-  }
+  const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
 
   const { endpoint, keys } = c.req.valid('json');
 
@@ -72,10 +70,7 @@ push.post('/subscribe', zValidator('json', subscribeSchema), async (c) => {
 // ─── DELETE /unsubscribe — Remove push subscription ─────────────────
 
 push.delete('/unsubscribe', async (c) => {
-  const tenantId = c.get('tenantId');
-  if (!tenantId) {
-    throw new HTTPException(401, { message: 'Authentication required' });
-  }
+  const tenantId = requireTenantId(c);
 
   let endpoint: string | undefined;
   try {
@@ -99,12 +94,8 @@ push.delete('/unsubscribe', async (c) => {
 // ─── POST /send — Send push notification (admin only) ───────────────
 
 push.post('/send', zValidator('json', sendSchema), async (c) => {
-  const tenantId = c.get('tenantId');
+  const tenantId = requireTenantId(c);
   const role = c.get('role');
-
-  if (!tenantId) {
-    throw new HTTPException(401, { message: 'Authentication required' });
-  }
 
   // Only admins can send push notifications
   if (role !== 'hospital_admin' && role !== 'super_admin') {

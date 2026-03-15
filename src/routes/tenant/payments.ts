@@ -4,7 +4,7 @@ import { HTTPException } from 'hono/http-exception';
 import { createPaymentGateway, type GatewayName } from '../../lib/payment-gateway';
 import { initiatePaymentSchema } from '../../schemas/payment';
 import type { Env, Variables } from '../../types';
-import { requireTenantId } from '../../lib/context-helpers';
+import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 
 const paymentRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -15,7 +15,7 @@ const PAYMENT_STAFF_ROLES = ['hospital_admin', 'reception', 'accountant'];
 // Initiates bKash or Nagad payment, returns redirect URL for the patient.
 paymentRoutes.post('/initiate', zValidator('json', initiatePaymentSchema), async (c) => {
   const tenantId = requireTenantId(c);
-  const userId   = c.get('userId');
+  const userId   = requireUserId(c);
   const role     = c.get('role');
   if (!role || !PAYMENT_STAFF_ROLES.includes(role)) {
     throw new HTTPException(403, { message: 'Only authorized staff can initiate payments' });
@@ -70,7 +70,7 @@ const VALID_GATEWAYS = ['bkash', 'nagad'];
 
 paymentRoutes.post('/verify', async (c) => {
   const tenantId = requireTenantId(c);
-  const userId   = c.get('userId');
+  const userId   = requireUserId(c);
 
   let body: { paymentId?: string; gateway?: string };
   try {

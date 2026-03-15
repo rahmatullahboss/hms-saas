@@ -5,7 +5,7 @@ import { createPatientSchema, updatePatientSchema } from '../../schemas/patient'
 import { getNextSequence } from '../../lib/sequence';
 import { createAuditLog } from '../../lib/accounting-helpers';
 import type { Env, Variables } from '../../types';
-import { requireTenantId } from '../../lib/context-helpers';
+import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 
 const patientRoutes = new Hono<{
   Bindings: Env;
@@ -161,7 +161,7 @@ patientRoutes.post('/', zValidator('json', createPatientSchema), async (c) => {
       .run();
 
     // Audit log
-    void createAuditLog(c.env, tenantId!, c.get('userId') ?? '', 'create', 'patients', result.meta.last_row_id, null, data);
+    void createAuditLog(c.env, tenantId!, requireUserId(c), 'create', 'patients', result.meta.last_row_id, null, data);
 
     return c.json(
       {
@@ -233,7 +233,7 @@ patientRoutes.put('/:id', zValidator('json', updatePatientSchema), async (c) => 
       .run();
 
     // Audit log
-    void createAuditLog(c.env, tenantId!, c.get('userId') ?? '', 'update', 'patients', Number(id), existing, data);
+    void createAuditLog(c.env, tenantId!, requireUserId(c), 'update', 'patients', Number(id), existing, data);
 
     return c.json({ message: 'Patient updated' });
   } catch (error) {
