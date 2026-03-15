@@ -137,8 +137,10 @@ new_sqlite_classes = ["DashboardDO"]
 name = "DASHBOARD_DO"
 class_name = "DashboardDO"
 
-[env.production.triggers]
-crons = ["0 0 * * *"]
+# NOTE: CRON trigger disabled — account limit of 5 reached.
+# Uncomment after removing unused crons from other workers or upgrading plan.
+# [env.production.triggers]
+# crons = ["0 0 * * *"]
 
 [env.production.vars]
 ENVIRONMENT = "production"
