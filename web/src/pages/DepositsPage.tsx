@@ -2,13 +2,13 @@ import { useState, useEffect } from 'react';
 import { Wallet } from 'lucide-react';
 import axios from 'axios';
 
-export default function DepositsPage({ role }: { role?: string }) {
+export default function DepositsPage({ role: _role }: { role?: string }) {
   
   const [deposits, setDeposits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    axios.get('/api/deposits').then(({ data: d }: any) => setDeposits(d.deposits ?? [])).catch(() => setDeposits([])).finally(() => setLoading(false), { headers: { Authorization: `Bearer ${localStorage.getItem('hms_token')}` } });
+    axios.get('/api/deposits', { headers: { Authorization: `Bearer ${localStorage.getItem('hms_token')}` } }).then(({ data: d }: any) => setDeposits(d.deposits ?? [])).catch(() => setDeposits([])).finally(() => setLoading(false));
   }, []);
 
   return (

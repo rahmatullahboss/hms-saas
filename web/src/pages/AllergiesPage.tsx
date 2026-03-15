@@ -2,13 +2,13 @@ import { useState, useEffect } from 'react';
 import { ShieldAlert } from 'lucide-react';
 import axios from 'axios';
 
-export default function AllergiesPage({ role }: { role?: string }) {
+export default function AllergiesPage({ role: _role }: { role?: string }) {
   
   const [allergies, setAllergies] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    axios.get('/api/allergies').then(({ data: d }: any) => setAllergies(d.allergies ?? [])).catch(() => setAllergies([])).finally(() => setLoading(false), { headers: { Authorization: `Bearer ${localStorage.getItem('hms_token')}` } });
+    axios.get('/api/allergies', { headers: { Authorization: `Bearer ${localStorage.getItem('hms_token')}` } }).then(({ data: d }: any) => setAllergies(d.allergies ?? [])).catch(() => setAllergies([])).finally(() => setLoading(false));
   }, []);
 
   return (

@@ -4,7 +4,7 @@ import { Siren, Plus, Clock, AlertTriangle, CheckCircle, Activity } from 'lucide
 import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 
-export default function EmergencyDashboard({ role }: { role?: string }) {
+export default function EmergencyDashboard({ role: _role }: { role?: string }) {
   const { slug } = useParams<{ slug: string }>();
   const { t } = useTranslation('common');
   

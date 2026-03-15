@@ -3,7 +3,7 @@ import { useParams } from 'react-router';
 import { Scissors, Calendar, Clock, CheckCircle } from 'lucide-react';
 import axios from 'axios';
 
-export default function OTDashboard({ role }: { role?: string }) {
+export default function OTDashboard({ role: _role }: { role?: string }) {
   
   const [bookings, setBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);

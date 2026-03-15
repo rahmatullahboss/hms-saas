@@ -2,13 +2,13 @@ import { useState, useEffect } from 'react';
 import { XCircle } from 'lucide-react';
 import axios from 'axios';
 
-export default function BillCancellationPage({ role }: { role?: string }) {
+export default function BillCancellationPage({ role: _role }: { role?: string }) {
   
   const [cancellations, setCancellations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    axios.get('/api/billing/cancellation').then(({ data: d }: any) => setCancellations(d.cancellations ?? [])).catch(() => setCancellations([])).finally(() => setLoading(false), { headers: { Authorization: `Bearer ${localStorage.getItem('hms_token')}` } });
+    axios.get('/api/billing/cancellation', { headers: { Authorization: `Bearer ${localStorage.getItem('hms_token')}` } }).then(({ data: d }: any) => setCancellations(d.cancellations ?? [])).catch(() => setCancellations([])).finally(() => setLoading(false));
   }, []);
 
   return (

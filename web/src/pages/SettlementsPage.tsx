@@ -2,13 +2,13 @@ import { useState, useEffect } from 'react';
 import { Handshake } from 'lucide-react';
 import axios from 'axios';
 
-export default function SettlementsPage({ role }: { role?: string }) {
+export default function SettlementsPage({ role: _role }: { role?: string }) {
   
   const [settlements, setSettlements] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    axios.get('/api/settlements').then(({ data: d }: any) => setSettlements(d.settlements ?? [])).catch(() => setSettlements([])).finally(() => setLoading(false), { headers: { Authorization: `Bearer ${localStorage.getItem('hms_token')}` } });
+    axios.get('/api/settlements', { headers: { Authorization: `Bearer ${localStorage.getItem('hms_token')}` } }).then(({ data: d }: any) => setSettlements(d.settlements ?? [])).catch(() => setSettlements([])).finally(() => setLoading(false));
   }, []);
 
   return (

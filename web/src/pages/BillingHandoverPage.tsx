@@ -2,13 +2,13 @@ import { useState, useEffect } from 'react';
 import { ArrowRightLeft } from 'lucide-react';
 import axios from 'axios';
 
-export default function BillingHandoverPage({ role }: { role?: string }) {
+export default function BillingHandoverPage({ role: _role }: { role?: string }) {
   
   const [handovers, setHandovers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    axios.get('/api/billing/handover').then(({ data: d }: any) => setHandovers(d.handovers ?? [])).catch(() => setHandovers([])).finally(() => setLoading(false), { headers: { Authorization: `Bearer ${localStorage.getItem('hms_token')}` } });
+    axios.get('/api/billing/handover', { headers: { Authorization: `Bearer ${localStorage.getItem('hms_token')}` } }).then(({ data: d }: any) => setHandovers(d.handovers ?? [])).catch(() => setHandovers([])).finally(() => setLoading(false));
   }, []);
 
   return (

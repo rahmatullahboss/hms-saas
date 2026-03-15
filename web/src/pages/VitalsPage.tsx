@@ -2,13 +2,13 @@ import { useState, useEffect } from 'react';
 import { Heart } from 'lucide-react';
 import axios from 'axios';
 
-export default function VitalsPage({ role }: { role?: string }) {
+export default function VitalsPage({ role: _role }: { role?: string }) {
   
   const [vitals, setVitals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    axios.get('/api/vitals').then(({ data: d }: any) => setVitals(d.vitals ?? [])).catch(() => setVitals([])).finally(() => setLoading(false), { headers: { Authorization: `Bearer ${localStorage.getItem('hms_token')}` } });
+    axios.get('/api/vitals', { headers: { Authorization: `Bearer ${localStorage.getItem('hms_token')}` } }).then(({ data: d }: any) => setVitals(d.vitals ?? [])).catch(() => setVitals([])).finally(() => setLoading(false));
   }, []);
 
   return (

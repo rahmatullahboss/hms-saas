@@ -2,13 +2,13 @@ import { useState, useEffect } from 'react';
 import { FileText } from 'lucide-react';
 import axios from 'axios';
 
-export default function CreditNotesPage({ role }: { role?: string }) {
+export default function CreditNotesPage({ role: _role }: { role?: string }) {
   
   const [notes, setNotes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    axios.get('/api/credit-notes').then(({ data: d }: any) => setNotes(d.creditNotes ?? d.credit_notes ?? [])).catch(() => setNotes([])).finally(() => setLoading(false), { headers: { Authorization: `Bearer ${localStorage.getItem('hms_token')}` } });
+    axios.get('/api/credit-notes', { headers: { Authorization: `Bearer ${localStorage.getItem('hms_token')}` } }).then(({ data: d }: any) => setNotes(d.creditNotes ?? d.credit_notes ?? [])).catch(() => setNotes([])).finally(() => setLoading(false));
   }, []);
 
   return (
