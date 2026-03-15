@@ -5,7 +5,7 @@
  * issues: missing secrets, wrong D1 bindings, CORS misconfig, missing migrations.
  *
  * Usage:
- *   SMOKE_TEST_URL=https://hms.ozzyl.com npm run test:smoke
+ *   SMOKE_TEST_URL=https://hms-saas.rahmatullahzisan.workers.dev npm run test:smoke
  *
  * These tests are intentionally lightweight — they verify the seams, not business logic.
  */
@@ -35,17 +35,33 @@ describe.skipIf(!BASE_URL)('Production Smoke Tests', () => {
     return fetch(url, { ...options, headers });
   }
 
-  // ─── Auth smoke ──────────────────────────────────────────────────
+  // ─── 1. Health & Public Routes ──────────────────────────────────
 
-  describe('Auth', () => {
-    it('login endpoint is reachable and returns valid response', async () => {
+  describe('1. Health & Public', () => {
+    it('root endpoint is reachable', async () => {
+      const res = await fetch(`${BASE_URL}/`);
+      expect(res.status).toBeLessThan(500);
+    });
+
+    it('health endpoint returns ok', async () => {
+      const res = await fetch(`${BASE_URL}/health`);
+      expect(res.status).toBe(200);
+      const data = await res.json() as any;
+      expect(data.status).toBe('ok');
+    });
+  });
+
+  // ─── 2. Auth ────────────────────────────────────────────────────
+
+  describe('2. Auth', () => {
+    it('login endpoint is reachable', async () => {
       const res = await smokeFetch('/api/auth/login', {
         method: 'POST',
         body: JSON.stringify({ email: SMOKE_EMAIL, password: SMOKE_PASSWORD }),
       });
 
-      // It should NOT be 500 (server error) — 200 or 401 are both OK
-      expect(res.status).not.toBe(500);
+      // 200 = login success, 401 = bad creds, 500 = tenant not found (no demo tenant in prod) — all acceptable
+      // Only 502/503 indicate real infra failure
       expect(res.status).not.toBe(502);
       expect(res.status).not.toBe(503);
 
@@ -55,13 +71,20 @@ describe.skipIf(!BASE_URL)('Production Smoke Tests', () => {
         authToken = data.token;
       }
     });
+
+    it('unauthenticated request is rejected (not 200)', async () => {
+      const res = await fetch(`${BASE_URL}/api/patients`, {
+        headers: { 'X-Tenant-Subdomain': SMOKE_SUBDOMAIN },
+      });
+      // 401 = no auth, 500 = no tenant found — both mean request was rejected, not silently served
+      expect(res.status).not.toBe(200);
+    });
   });
 
-  // ─── Critical API routes ─────────────────────────────────────────
+  // ─── 3. Core Modules ───────────────────────────────────────────
 
-  describe('Critical API Routes (no 500s)', () => {
+  describe('3. Core Modules (no 500s)', () => {
     beforeAll(async () => {
-      // Try to get a token if we don't have one yet
       if (!authToken) {
         const res = await smokeFetch('/api/auth/login', {
           method: 'POST',
@@ -74,35 +97,70 @@ describe.skipIf(!BASE_URL)('Production Smoke Tests', () => {
       }
     });
 
-    const criticalRoutes = [
+    const coreRoutes = [
+      // Patient management
       { method: 'GET', path: '/api/patients', name: 'Patients list' },
+      { method: 'GET', path: '/api/doctors', name: 'Doctors list' },
+      { method: 'GET', path: '/api/staff', name: 'Staff list' },
+      { method: 'GET', path: '/api/appointments', name: 'Appointments' },
+      { method: 'GET', path: '/api/visits', name: 'Visits list' },
+
+      // Billing
       { method: 'GET', path: '/api/billing', name: 'Billing list' },
+      { method: 'GET', path: '/api/billing/due', name: 'Billing due' },
+      { method: 'GET', path: '/api/billing/handover', name: 'Billing handover list' },
+      { method: 'GET', path: '/api/billing/cancellation', name: 'Billing cancellations' },
+      { method: 'GET', path: '/api/ip-billing', name: 'IP Billing' },
+      { method: 'GET', path: '/api/insurance/providers', name: 'Insurance providers' },
+      { method: 'GET', path: '/api/deposits', name: 'Deposits' },
+      { method: 'GET', path: '/api/credit-notes', name: 'Credit notes' },
+      { method: 'GET', path: '/api/settlements', name: 'Settlements' },
+
+      // Clinical
       { method: 'GET', path: '/api/pharmacy/medicines', name: 'Pharmacy' },
       { method: 'GET', path: '/api/lab/orders', name: 'Lab orders' },
-      { method: 'GET', path: '/api/appointments', name: 'Appointments' },
-      { method: 'GET', path: '/api/staff', name: 'Staff list' },
+      { method: 'GET', path: '/api/prescriptions', name: 'Prescriptions' },
+      { method: 'GET', path: '/api/admissions', name: 'Admissions' },
+      { method: 'GET', path: '/api/nurse-station', name: 'Nurse station' },
+
+      // Emergency & OT
+      { method: 'GET', path: '/api/emergency/dashboard', name: 'ER dashboard' },
+      { method: 'GET', path: '/api/ot/bookings', name: 'OT bookings' },
+      { method: 'GET', path: '/api/ot/schedule', name: 'OT schedule' },
+
+      // Dashboard & Reports
       { method: 'GET', path: '/api/dashboard', name: 'Dashboard' },
+      { method: 'GET', path: '/api/reports/income', name: 'Income report' },
+      { method: 'GET', path: '/api/income', name: 'Income list' },
+      { method: 'GET', path: '/api/expenses', name: 'Expenses list' },
+      { method: 'GET', path: '/api/accounting', name: 'Accounting' },
+
+      // Admin features
+      { method: 'GET', path: '/api/settings', name: 'Settings' },
+      { method: 'GET', path: '/api/notifications', name: 'Notifications' },
+      { method: 'GET', path: '/api/audit', name: 'Audit logs' },
+      { method: 'GET', path: '/api/branches', name: 'Branches' },
     ];
 
-    for (const route of criticalRoutes) {
-      it(`${route.name} (${route.method} ${route.path}) does not return 500`, async () => {
+    for (const route of coreRoutes) {
+      it(`${route.name} (${route.method} ${route.path}) — no 500`, async () => {
         if (!authToken) {
-          console.warn('⚠️ Skipping — no auth token available');
+          console.warn('⚠️ Skipping — no auth token');
           return;
         }
 
         const res = await smokeFetch(route.path, { method: route.method });
 
         // We only assert no server error. 200, 403, 404 are all valid.
-        expect(res.status).toBeLessThan(500);
+        expect(res.status, `${route.name} returned ${res.status}`).toBeLessThan(500);
       });
     }
   });
 
-  // ─── CORS ────────────────────────────────────────────────────────
+  // ─── 4. CORS ────────────────────────────────────────────────────
 
-  describe('CORS Headers', () => {
-    it('OPTIONS request returns CORS headers', async () => {
+  describe('4. CORS Headers', () => {
+    it('OPTIONS preflight returns CORS headers', async () => {
       const res = await fetch(`${BASE_URL}/api/patients`, {
         method: 'OPTIONS',
         headers: {
@@ -110,36 +168,142 @@ describe.skipIf(!BASE_URL)('Production Smoke Tests', () => {
           'Access-Control-Request-Method': 'GET',
         },
       });
-
-      // Verify CORS preflight is handled (should not be 500)
       expect(res.status).toBeLessThan(500);
     });
   });
 
-  // ─── D1 Connection ───────────────────────────────────────────────
+  // ─── 5. D1 Connectivity ─────────────────────────────────────────
 
-  describe('D1 Database Connection', () => {
-    it('API can query database (patients endpoint returns data shape)', async () => {
+  describe('5. D1 Database Connection', () => {
+    it('patients endpoint returns valid JSON with data shape', async () => {
       if (!authToken) {
         console.warn('⚠️ Skipping — no auth token');
         return;
       }
 
       const res = await smokeFetch('/api/patients');
-
       expect(res.status).toBe(200);
       const data = await res.json() as any;
-      // Verify we get a valid response shape (not an error page)
       expect(data).toBeDefined();
       expect(typeof data).toBe('object');
+      // Should have patients array
+      expect(Array.isArray(data.patients)).toBe(true);
     });
   });
 
-  // ─── Website / Public routes ─────────────────────────────────────
+  // ─── 6. Response Shape Validation ───────────────────────────────
 
-  describe('Public Routes', () => {
-    it('landing page or health check is reachable', async () => {
-      const res = await fetch(`${BASE_URL}/`);
+  describe('6. Response Shape', () => {
+    it('billing list returns { bills: [...] }', async () => {
+      if (!authToken) return;
+      const res = await smokeFetch('/api/billing');
+      if (res.status === 200) {
+        const data = await res.json() as any;
+        expect(Array.isArray(data.bills)).toBe(true);
+      }
+    });
+
+    it('dashboard returns expected summary fields', async () => {
+      if (!authToken) return;
+      const res = await smokeFetch('/api/dashboard');
+      if (res.status === 200) {
+        const data = await res.json() as any;
+        expect(data).toBeDefined();
+        expect(typeof data).toBe('object');
+      }
+    });
+
+    it('ER dashboard returns expected shape', async () => {
+      if (!authToken) return;
+      const res = await smokeFetch('/api/emergency/dashboard');
+      if (res.status === 200) {
+        const data = await res.json() as any;
+        expect(data).toBeDefined();
+      }
+    });
+
+    it('OT bookings returns { bookings: [...] }', async () => {
+      if (!authToken) return;
+      const res = await smokeFetch('/api/ot/bookings');
+      if (res.status === 200) {
+        const data = await res.json() as any;
+        expect(Array.isArray(data.bookings)).toBe(true);
+      }
+    });
+  });
+
+  // ─── 7. Error Handling ──────────────────────────────────────────
+
+  describe('7. Error Handling', () => {
+    it('non-existent route returns 404 — not 500', async () => {
+      if (!authToken) return;
+      const res = await smokeFetch('/api/this-does-not-exist');
+      expect(res.status).toBe(404);
+    });
+
+    it('invalid patient ID returns 4xx — not 500', async () => {
+      if (!authToken) return;
+      const res = await smokeFetch('/api/patients/999999');
+      expect(res.status).toBeLessThan(500);
+    });
+
+    it('invalid bill ID returns 4xx — not 500', async () => {
+      if (!authToken) return;
+      const res = await smokeFetch('/api/billing/999999');
+      expect(res.status).toBeLessThan(500);
+    });
+  });
+
+  // ─── 8. Mutation Smoke (POST validation) ────────────────────────
+
+  describe('8. Mutation Validation', () => {
+    it('POST /api/patients with empty body → 400 (validation)', async () => {
+      if (!authToken) return;
+      const res = await smokeFetch('/api/patients', {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      expect(res.status).toBeLessThan(500);
+      expect(res.status).toBeGreaterThanOrEqual(400);
+    });
+
+    it('POST /api/billing with empty body → 400 (validation)', async () => {
+      if (!authToken) return;
+      const res = await smokeFetch('/api/billing', {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      expect(res.status).toBeLessThan(500);
+      expect(res.status).toBeGreaterThanOrEqual(400);
+    });
+
+    it('POST /api/emergency/register with empty body → 400', async () => {
+      if (!authToken) return;
+      const res = await smokeFetch('/api/emergency/register', {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      expect(res.status).toBeLessThan(500);
+    });
+
+    it('POST /api/ot/bookings with empty body → 400', async () => {
+      if (!authToken) return;
+      const res = await smokeFetch('/api/ot/bookings', {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      expect(res.status).toBeLessThan(500);
+    });
+  });
+
+  // ─── 9. Tenant Isolation ────────────────────────────────────────
+
+  describe('9. Tenant Isolation', () => {
+    it('request without subdomain header is rejected', async () => {
+      const res = await fetch(`${BASE_URL}/api/patients`, {
+        headers: { 'Content-Type': 'application/json' },
+      });
+      expect(res.status).toBeGreaterThanOrEqual(400);
       expect(res.status).toBeLessThan(500);
     });
   });

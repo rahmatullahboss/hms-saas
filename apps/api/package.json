@@ -9,7 +9,7 @@
     "deploy": "wrangler deploy",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:smoke": "SMOKE_TEST_URL=https://hms.ozzyl.com vitest run tests/smoke.test.ts"
+    "test:smoke": "SMOKE_TEST_URL=https://hms-saas.rahmatullahzisan.workers.dev vitest run --config vitest.smoke.config.ts"
   },
   "dependencies": {
     "@hono/zod-validator": "^0.7.6",
