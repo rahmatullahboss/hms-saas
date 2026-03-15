@@ -257,6 +257,10 @@ pharmacyRoutes.post('/sales', zValidator('json', createSaleSchema), async (c) =>
   const saleDate = new Date().toISOString().split('T')[0];
 
   try {
+    // ⚡ Bolt: Fix N+1 queries by collecting all writes into an array
+    // and executing them concurrently with DB.batch() for atomicity and speed.
+    const batchStmts: D1PreparedStatement[] = [];
+
     for (const item of data.items) {
       // FEFO: get batches ordered by earliest expiry first
       const batches = await c.env.DB.prepare(
@@ -278,21 +282,31 @@ pharmacyRoutes.post('/sales', zValidator('json', createSaleSchema), async (c) =>
         const deduct = Math.min(remaining, batch.quantity_available);
         remaining -= deduct;
 
-        await c.env.DB.prepare(
-          `UPDATE medicine_stock_batches SET quantity_available = quantity_available - ? WHERE id = ? AND tenant_id = ?`,
-        ).bind(deduct, batch.id, tenantId).run();
+        batchStmts.push(
+          c.env.DB.prepare(
+            `UPDATE medicine_stock_batches SET quantity_available = quantity_available - ? WHERE id = ? AND tenant_id = ?`,
+          ).bind(deduct, batch.id, tenantId)
+        );
 
-        await c.env.DB.prepare(`
-          INSERT INTO medicine_stock_movements
-            (medicine_id, batch_id, movement_type, quantity, unit_cost, unit_price, reference_type, movement_date, tenant_id, created_by)
-          VALUES (?, ?, 'sale_out', ?, ?, ?, 'sale', ?, ?, ?)
-        `).bind(item.medicineId, batch.id, deduct, batch.purchase_price, item.unitPrice, saleDate, tenantId, userId).run();
+        batchStmts.push(
+          c.env.DB.prepare(`
+            INSERT INTO medicine_stock_movements
+              (medicine_id, batch_id, movement_type, quantity, unit_cost, unit_price, reference_type, movement_date, tenant_id, created_by)
+            VALUES (?, ?, 'sale_out', ?, ?, ?, 'sale', ?, ?, ?)
+          `).bind(item.medicineId, batch.id, deduct, batch.purchase_price, item.unitPrice, saleDate, tenantId, userId)
+        );
       }
 
       // Update aggregate quantity on medicine
-      await c.env.DB.prepare(
-        `UPDATE medicines SET quantity = quantity - ? WHERE id = ? AND tenant_id = ?`,
-      ).bind(item.quantity, item.medicineId, tenantId).run();
+      batchStmts.push(
+        c.env.DB.prepare(
+          `UPDATE medicines SET quantity = quantity - ? WHERE id = ? AND tenant_id = ?`,
+        ).bind(item.quantity, item.medicineId, tenantId)
+      );
+    }
+
+    if (batchStmts.length > 0) {
+      await c.env.DB.batch(batchStmts);
     }
 
     return c.json({ message: 'Sale recorded' }, 201);

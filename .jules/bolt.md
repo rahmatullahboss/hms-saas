@@ -11,3 +11,7 @@
 ## 2024-03-14 - Optimizing Promise.all in D1
 **Learning:** In Cloudflare D1, `Promise.all` with multiple queries sends multiple HTTP requests, causing significant overhead. Using `c.env.DB.batch(statements)` sends a single network request. When converting `Promise.all` to `batch`, the array of prepared statements should not include `.first()` or `.all()`. The results are returned as an array of `D1Result` objects where `.results` must be accessed manually.
 **Action:** Always prefer `c.env.DB.batch()` over `Promise.all()` for concurrent database queries in D1 to minimize network latency. When mapping the results, extract single rows via `batchResult.results[0]`.
+
+## 2024-03-14 - [Fix N+1 query and atomicity issue in Pharmacy sales]
+**Learning:** Executing sequential write queries (`UPDATE`, `INSERT`) inside a loop over a list of items (e.g., in a shopping cart or pharmacy sale) not only causes an N+1 query bottleneck but also loses database atomicity. If a query fails midway, data will be left in an inconsistent state.
+**Action:** Collect all write queries across the entire loop into a single `batchStmts` array and execute them concurrently with `await c.env.DB.batch(batchStmts)` at the end. This guarantees both optimal performance (single round-trip) and transactional atomicity for the entire operation.
