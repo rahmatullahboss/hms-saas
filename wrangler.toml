@@ -118,27 +118,19 @@ deleted_classes = ["AccountingDashboard"]
 [env.production.vars]
 ENVIRONMENT = "production"
 ALLOWED_ORIGINS = "https://hms-saas.rahmatullahzisan.workers.dev,https://*.ozzyl.com"
-SAAS_DOMAIN = "ozzyl.com"
-HMS_SUBDOMAIN_PREFIX = "hms-"
 # Replace with your verified Resend domain email once domain is verified
 RESEND_FROM_EMAIL = "HMS <noreply@yourhospital.com>"
 # Change to "sslwireless" or "bnotify" when SMS service is activated
 SMS_PROVIDER = "stub"
 # bKash/Nagad/Daily — set via wrangler secrets (--env production)
+# NOTE: HMS subdomains (hms-*.ozzyl.com) are routed here via
+# multi-store-saas worker's service binding (HMS_SERVICE).
 
 [env.production.assets]
 directory = "./web/dist/"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
 run_worker_first = ["/api/*", "/site/*", "/sitemap.xml", "/robots.txt"]
-
-# ─── Production Routes (hms-*.ozzyl.com) ──────────────────────────────
-# This route is MORE SPECIFIC than multi-store-saas's "*.ozzyl.com/*",
-# so Cloudflare will correctly route HMS subdomains here first.
-# Example tenants: hms-citymedical.ozzyl.com, hms-greenlife.ozzyl.com
-[[env.production.routes]]
-pattern = "hms-*.ozzyl.com/*"
-zone_name = "ozzyl.com"
 
 [[env.production.d1_databases]]
 binding = "DB"
