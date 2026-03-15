@@ -134,8 +134,8 @@ app.use('/api/auth/register', authMiddleware);
 app.route('/api/auth', authRoutes);
 
 // ─── Patient Portal routes ───────────────────────────────────────────
-// Auth endpoints (request-otp, verify-otp) are public; data endpoints
-// use patient JWT checked inside the route handler itself.
+// Auth endpoints (request-otp, verify-otp) are public; all other
+// endpoints require JWT via authMiddleware + patientAuthMiddleware.
 app.use('/api/patient-portal/*', tenantMiddleware);
 app.use('/api/patient-portal/me', authMiddleware);
 app.use('/api/patient-portal/dashboard', authMiddleware);
@@ -146,6 +146,17 @@ app.use('/api/patient-portal/lab-results', authMiddleware);
 app.use('/api/patient-portal/bills', authMiddleware);
 app.use('/api/patient-portal/vitals', authMiddleware);
 app.use('/api/patient-portal/visits', authMiddleware);
+app.use('/api/patient-portal/available-doctors', authMiddleware);
+app.use('/api/patient-portal/available-slots/*', authMiddleware);
+app.use('/api/patient-portal/book-appointment', authMiddleware);
+app.use('/api/patient-portal/cancel-appointment/*', authMiddleware);
+app.use('/api/patient-portal/messages', authMiddleware);
+app.use('/api/patient-portal/messages/*', authMiddleware);
+app.use('/api/patient-portal/refill-requests', authMiddleware);
+app.use('/api/patient-portal/timeline', authMiddleware);
+app.use('/api/patient-portal/family', authMiddleware);
+app.use('/api/patient-portal/family/*', authMiddleware);
+app.use('/api/patient-portal/refresh-token', authMiddleware);
 app.route('/api/patient-portal', patientPortalRoutes);
 
 // ─── Protected tenant routes ─────────────────────────────────────────

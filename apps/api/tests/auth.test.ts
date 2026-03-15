@@ -1,114 +1,235 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { env } from 'cloudflare:test';
+import app from '../src/index';
+import * as jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
 
-// Mock data for tests
-const mockEnv = {
-  DB: {
-    prepare: (query: string) => ({
-      bind: (...args: any[]) => ({
-        first: async () => null,
-        all: async () => ({ results: [] }),
-        run: async () => ({ meta: { last_row_id: 1 } }),
-      }),
-    }),
-  },
-  ENVIRONMENT: 'test',
-};
+const TEST_JWT_SECRET = 'test-secret-for-vitest';
 
-describe('HMS Authentication Tests', () => {
-  describe('User Login', () => {
-    it('should validate email format', () => {
-      const isValidEmail = (email: string) => {
-        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-      };
-      
-      expect(isValidEmail('admin@hms.com')).toBe(true);
-      expect(isValidEmail('invalid-email')).toBe(false);
-      expect(isValidEmail('')).toBe(false);
+// ─── Helpers ─────────────────────────────────────────────────────────
+
+function getAuthHeaders(tenantId: number, userId = 1, role = 'hospital_admin') {
+  const token = jwt.sign(
+    { userId: userId.toString(), tenantId: String(tenantId), role, permissions: [] },
+    TEST_JWT_SECRET,
+    { expiresIn: '1h' }
+  );
+  return {
+    'Content-Type': 'application/json',
+    'X-Tenant-Subdomain': 'test',
+    'Authorization': `Bearer ${token}`,
+  };
+}
+
+async function api(method: string, path: string, body?: any, headers?: Record<string, string>) {
+  const req = new Request(`http://localhost${path}`, {
+    method,
+    headers: headers ?? {
+      'Content-Type': 'application/json',
+      'X-Tenant-Subdomain': 'test',
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return app.fetch(req, env as any, { waitUntil: () => {}, passThroughOnException: () => {} } as any);
+}
+
+async function seedUser(email: string, password: string, role = 'hospital_admin', tenantId = 1) {
+  const hash = await bcrypt.hash(password, 10);
+  await env.DB.prepare(
+    'INSERT INTO users (email, password_hash, name, role, tenant_id) VALUES (?, ?, ?, ?, ?)'
+  ).bind(email, hash, 'Test User', role, tenantId).run();
+}
+
+// ─── Tests ───────────────────────────────────────────────────────────
+
+describe('Auth API – Real Integration Tests', () => {
+
+  // ─── Login ───────────────────────────────────────────────────────
+
+  describe('POST /api/auth/login', () => {
+    const LOGIN_PATH = '/api/auth/login';
+
+    beforeEach(async () => {
+      // Use unique email to avoid conflict with setup.ts seeded admin@test.com
+      await seedUser('login-test@test.com', 'SecurePass123', 'hospital_admin');
     });
 
-    it('should validate password minimum length', () => {
-      const isValidPassword = (password: string) => {
-        return password.length >= 6;
-      };
-      
-      expect(isValidPassword('123456')).toBe(true);
-      expect(isValidPassword('12345')).toBe(false);
-      expect(isValidPassword('pass')).toBe(false);
+    it('returns 200 + JWT for valid credentials', async () => {
+      const res = await api('POST', LOGIN_PATH, {
+        email: 'login-test@test.com',
+        password: 'SecurePass123',
+      });
+
+      expect(res.status).toBe(200);
+      const data = await res.json() as any;
+      expect(data.token).toBeTruthy();
+      expect(data.user.email).toBe('login-test@test.com');
+      expect(data.user.role).toBe('hospital_admin');
+      expect(data.user.id).toBeDefined();
     });
 
-    it('should generate JWT token', () => {
-      const payload = {
-        userId: 1,
-        email: 'admin@hms.com',
-        role: 'admin',
-        tenantId: 1,
-      };
-      
-      expect(payload.userId).toBeDefined();
-      expect(payload.email).toBe('admin@hms.com');
-      expect(payload.role).toBe('admin');
+    it('returns 401 for wrong password', async () => {
+      const res = await api('POST', LOGIN_PATH, {
+        email: 'login-test@test.com',
+        password: 'WrongPassword',
+      });
+
+      expect(res.status).toBe(401);
+      const data = await res.json() as any;
+      expect(data.error).toBeTruthy();
     });
 
-    it('should validate user role', () => {
-      const validRoles = ['admin', 'doctor', 'receptionist', 'pharmacist', 'accountant', 'lab_assistant', 'director', 'md'];
-      
-      expect(validRoles).toContain('admin');
-      expect(validRoles).toContain('receptionist');
-      expect(validRoles).toContain('pharmacist');
-      expect(validRoles).toContain('md');
+    it('returns 401 for non-existent user', async () => {
+      const res = await api('POST', LOGIN_PATH, {
+        email: 'nobody@test.com',
+        password: 'anything',
+      });
+
+      expect(res.status).toBe(401);
+    });
+
+    it('returns 400 for invalid email format (Zod validation)', async () => {
+      const res = await api('POST', LOGIN_PATH, {
+        email: 'not-an-email',
+        password: 'pass',
+      });
+
+      expect(res.status).toBe(400);
+    });
+
+    it('returns 400 for missing password (Zod validation)', async () => {
+      const res = await api('POST', LOGIN_PATH, {
+        email: 'login-test@test.com',
+      });
+
+      expect(res.status).toBe(400);
+    });
+
+    it('returns JWT that decodes correctly', async () => {
+      const res = await api('POST', LOGIN_PATH, {
+        email: 'login-test@test.com',
+        password: 'SecurePass123',
+      });
+
+      const data = await res.json() as any;
+      const decoded = jwt.verify(data.token, TEST_JWT_SECRET) as any;
+      expect(String(decoded.tenantId)).toBe('1');
+      expect(decoded.role).toBe('hospital_admin');
+      expect(decoded.userId).toBeDefined();
+    });
+
+    it('respects tenant isolation – cannot login to wrong tenant', async () => {
+      // Seed user in tenant 2
+      await seedUser('tenant2@test.com', 'Pass123456', 'hospital_admin', 2);
+
+      // Try to login with tenant 1 subdomain — user doesn't exist in tenant 1
+      const res = await api('POST', LOGIN_PATH, {
+        email: 'tenant2@test.com',
+        password: 'Pass123456',
+      });
+
+      expect(res.status).toBe(401);
     });
   });
 
-  describe('Role-Based Access', () => {
-    it('should allow admin full access', () => {
-      const role = 'admin';
-      const permissions = ['read', 'write', 'delete', 'approve'];
-      
-      expect(permissions.length).toBe(4);
+  // ─── Register ────────────────────────────────────────────────────
+  //
+  // ⚠️ KNOWN BUG: authMiddleware line 20 skips ALL /api/auth/* paths,
+  //    which means /api/auth/register's auth enforcement is bypassed.
+  //    The route handler's `c.get('role')` becomes undefined → always 403.
+  //    These tests document the ACTUAL behavior.
+  //
+
+  describe('POST /api/auth/register', () => {
+    const REGISTER_PATH = '/api/auth/register';
+
+    it('creates user with valid data (requires hospital_admin JWT)', async () => {
+      const res = await api('POST', REGISTER_PATH, {
+        email: 'newuser@test.com',
+        password: 'NewP@ss1234',
+        name: 'New User',
+        role: 'reception',
+      }, getAuthHeaders(1, 1, 'hospital_admin'));
+
+      expect(res.status).toBe(201);
+      const data = await res.json() as any;
+      expect(data.userId).toBeGreaterThan(0);
     });
 
-    it('should restrict laboratory access', () => {
-      const labPermissions = ['read_tests', 'print_results'];
-      
-      expect(labPermissions).toContain('read_tests');
-      expect(labPermissions).not.toContain('write');
+    it('rejects registration by non-admin role (403)', async () => {
+      const res = await api('POST', REGISTER_PATH, {
+        email: 'sneaky@test.com',
+        password: 'SneakyPass123',
+        name: 'Sneaky User',
+        role: 'reception',
+      }, getAuthHeaders(1, 1, 'reception'));
+
+      expect(res.status).toBe(403);
     });
 
-    it('should restrict receptionist access', () => {
-      const receptionPermissions = ['register_patient', 'create_bill', 'receive_payment'];
-      
-      expect(receptionPermissions).toContain('register_patient');
-      expect(receptionPermissions).toContain('create_bill');
-    });
+    it('rejects duplicate email within same tenant (409)', async () => {
+      await seedUser('existing@test.com', 'Pass1234', 'reception');
 
-    it('should restrict pharmacist access', () => {
-      const pharmacyPermissions = ['manage_medicine', 'pharmacy_sale'];
-      
-      expect(pharmacyPermissions).toContain('manage_medicine');
-      expect(pharmacyPermissions).not.toContain('approve_expense');
-    });
+      const res = await api('POST', REGISTER_PATH, {
+        email: 'existing@test.com',
+        password: 'NewP@ss1234',
+        name: 'Dup User',
+        role: 'laboratory',
+      }, getAuthHeaders(1, 1, 'hospital_admin'));
 
-    it('should restrict MD/Director access', () => {
-      const mdPermissions = ['view_reports', 'approve_expense', 'manage_staff', 'profit_distribution'];
-      
-      expect(mdPermissions).toContain('view_reports');
-      expect(mdPermissions).toContain('profit_distribution');
+      expect(res.status).toBe(409);
     });
   });
 
-  describe('Session Management', () => {
-    it('should validate session token', () => {
-      const token = 'abc123xyz789';
-      const isValid = token.length > 10;
-      
-      expect(isValid).toBe(true);
+  // ─── Protected routes ────────────────────────────────────────────
+
+  describe('Protected Route Access', () => {
+    it('returns 401 for requests without token', async () => {
+      const res = await api('GET', '/api/patients');
+      expect(res.status).toBe(401);
     });
 
-    it('should check session expiry', () => {
-      const sessionExpiry = Date.now() + (24 * 60 * 60 * 1000); // 24 hours
-      const isExpired = sessionExpiry < Date.now();
-      
-      expect(isExpired).toBe(false);
+    it('returns 401 for expired token', async () => {
+      const expiredToken = jwt.sign(
+        { userId: '1', tenantId: '1', role: 'hospital_admin', permissions: [] },
+        TEST_JWT_SECRET,
+        { expiresIn: '-10s' }
+      );
+
+      const res = await api('GET', '/api/patients', undefined, {
+        'Content-Type': 'application/json',
+        'X-Tenant-Subdomain': 'test',
+        'Authorization': `Bearer ${expiredToken}`,
+      });
+
+      expect(res.status).toBe(401);
+    });
+
+    it('returns 401 for malformed token', async () => {
+      const res = await api('GET', '/api/patients', undefined, {
+        'Content-Type': 'application/json',
+        'X-Tenant-Subdomain': 'test',
+        'Authorization': 'Bearer totally.invalid.garbage',
+      });
+
+      expect(res.status).toBe(401);
+    });
+
+    it('returns success for valid token on protected route', async () => {
+      const res = await api('GET', '/api/patients', undefined, getAuthHeaders(1));
+      // Should NOT be 401 — could be 200 or other, but never unauthorized
+      expect(res.status).not.toBe(401);
+    });
+  });
+
+  // ─── Logout ──────────────────────────────────────────────────────
+
+  describe('POST /api/auth/logout', () => {
+    it('returns 200 even without auth header', async () => {
+      const res = await api('POST', '/api/auth/logout');
+      expect(res.status).toBe(200);
+      const data = await res.json() as any;
+      expect(data.message).toContain('Logged out');
     });
   });
 });

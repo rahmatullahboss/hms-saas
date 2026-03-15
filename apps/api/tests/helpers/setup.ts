@@ -545,6 +545,70 @@ const EXTRA_SQL: string[] = [
 
   // ── stock_quantity column on medicines (used by pharmacy routes) ──────────
   `ALTER TABLE medicines ADD COLUMN stock_quantity INTEGER DEFAULT 0`,
+
+  // ── patient_portal_audit (fire-and-forget action tracking) ────────────────
+  `CREATE TABLE IF NOT EXISTS patient_portal_audit (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    patient_id TEXT,
+    action TEXT NOT NULL,
+    tenant_id TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+
+  // ── patient_otp_codes (login flow) ───────────────────────────────────────
+  `CREATE TABLE IF NOT EXISTS patient_otp_codes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT NOT NULL,
+    otp_code TEXT NOT NULL,
+    tenant_id TEXT NOT NULL,
+    expires_at DATETIME NOT NULL,
+    used INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+
+  // ── patient_credentials (portal login state) ─────────────────────────────
+  `CREATE TABLE IF NOT EXISTS patient_credentials (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    patient_id INTEGER NOT NULL,
+    email TEXT NOT NULL,
+    tenant_id TEXT NOT NULL,
+    is_active INTEGER DEFAULT 1,
+    last_login_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+
+  // ── patient_messages (secure messaging) ──────────────────────────────────
+  `CREATE TABLE IF NOT EXISTS patient_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    patient_id INTEGER NOT NULL,
+    doctor_id INTEGER NOT NULL,
+    sender_type TEXT NOT NULL,
+    message TEXT NOT NULL,
+    is_read INTEGER DEFAULT 0,
+    tenant_id TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+
+  // ── patient_family_links (family member management) ──────────────────────
+  `CREATE TABLE IF NOT EXISTS patient_family_links (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    parent_patient_id INTEGER NOT NULL,
+    child_patient_id INTEGER NOT NULL,
+    relationship TEXT NOT NULL,
+    tenant_id TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
+
+  // ── prescription_refill_requests ─────────────────────────────────────────
+  `CREATE TABLE IF NOT EXISTS prescription_refill_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prescription_id INTEGER NOT NULL,
+    patient_id INTEGER NOT NULL,
+    notes TEXT,
+    status TEXT DEFAULT 'pending',
+    tenant_id TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`,
 ];
 
 export async function setupDb() {
@@ -642,6 +706,12 @@ const ALL_TABLES = [
   'push_subscriptions',
   'medicine_batches',
   'invitations',
+  'patient_portal_audit',
+  'patient_otp_codes',
+  'patient_credentials',
+  'patient_messages',
+  'patient_family_links',
+  'prescription_refill_requests',
   'patients',
   'doctors',
   'beds',

@@ -437,9 +437,10 @@ patientPortalRoutes.get('/dashboard', async (c) => {
 
   const latestLabResult = await c.env.DB.prepare(
     `SELECT lo.id, lo.order_no, lo.created_at, lo.status,
-            GROUP_CONCAT(loi.test_name, ', ') as test_names
+            GROUP_CONCAT(ltc.name, ', ') as test_names
      FROM lab_orders lo
      JOIN lab_order_items loi ON loi.lab_order_id = lo.id
+     LEFT JOIN lab_test_catalog ltc ON ltc.id = loi.lab_test_id
      WHERE lo.patient_id = ? AND lo.tenant_id = ?
      GROUP BY lo.id
      ORDER BY lo.created_at DESC LIMIT 1`
@@ -451,9 +452,9 @@ patientPortalRoutes.get('/dashboard', async (c) => {
   ).bind(patientId, tenantId).first<{ cnt: number }>();
 
   const balance = await c.env.DB.prepare(
-    `SELECT COALESCE(SUM(due), 0) as total_due,
-            COALESCE(SUM(paid), 0) as total_paid,
-            COALESCE(SUM(total), 0) as total_billed
+    `SELECT COALESCE(SUM(total_amount - paid_amount), 0) as total_due,
+            COALESCE(SUM(paid_amount), 0) as total_paid,
+            COALESCE(SUM(total_amount), 0) as total_billed
      FROM bills WHERE patient_id = ? AND tenant_id = ?`
   ).bind(patientId, tenantId).first<{ total_due: number; total_paid: number; total_billed: number }>();
 
@@ -491,7 +492,7 @@ patientPortalRoutes.get('/appointments', async (c) => {
   const { results } = await c.env.DB.prepare(
     `SELECT a.id, a.appt_no, a.token_no, a.appt_date, a.appt_time,
             a.visit_type, a.status, a.chief_complaint, a.fee,
-            d.name as doctor_name, d.specialization as doctor_specialization
+            d.name as doctor_name, d.specialty as doctor_specialization
      FROM appointments a
      LEFT JOIN doctors d ON d.id = a.doctor_id
      WHERE a.patient_id = ? AND a.tenant_id = ?
@@ -518,7 +519,7 @@ patientPortalRoutes.get('/prescriptions', async (c) => {
     `SELECT p.id, p.rx_no, p.diagnosis, p.chief_complaint, p.advice,
             p.follow_up_date, p.bp, p.temperature, p.weight, p.spo2,
             p.created_at, p.status,
-            d.name as doctor_name, d.specialization as doctor_specialization
+            d.name as doctor_name, d.specialty as doctor_specialization
      FROM prescriptions p
      LEFT JOIN doctors d ON d.id = p.doctor_id
      WHERE p.patient_id = ? AND p.tenant_id = ? AND p.status = 'final'
@@ -572,12 +573,12 @@ patientPortalRoutes.get('/lab-results', async (c) => {
 
   const { results } = await c.env.DB.prepare(
     `SELECT lo.id, lo.order_no, lo.created_at, lo.status,
-            loi.test_name, loi.result, loi.result_numeric, loi.abnormal_flag,
+            ltc.name as test_name, loi.result, loi.result_numeric, loi.abnormal_flag,
             loi.sample_status,
             ltc.unit, ltc.normal_range
      FROM lab_orders lo
      JOIN lab_order_items loi ON loi.lab_order_id = lo.id
-     LEFT JOIN lab_test_catalog ltc ON ltc.id = loi.test_id
+     LEFT JOIN lab_test_catalog ltc ON ltc.id = loi.lab_test_id
      WHERE lo.patient_id = ? AND lo.tenant_id = ?
      ORDER BY lo.created_at DESC
      LIMIT ? OFFSET ?`
@@ -605,8 +606,9 @@ patientPortalRoutes.get('/bills', async (c) => {
   ).bind(patientId, tenantId).first<{ total: number }>();
 
   const { results } = await c.env.DB.prepare(
-    `SELECT id, invoice_no, total, paid, due, discount, status,
-            description, created_at
+    `SELECT id, invoice_no, total_amount as total, paid_amount as paid,
+            (total_amount - paid_amount) as due, discount, status,
+            created_at
      FROM bills WHERE patient_id = ? AND tenant_id = ?
      ORDER BY created_at DESC
      LIMIT ? OFFSET ?`
@@ -652,13 +654,13 @@ patientPortalRoutes.get('/visits', async (c) => {
   ).bind(patientId, tenantId).first<{ total: number }>();
 
   const { results } = await c.env.DB.prepare(
-    `SELECT v.id, v.visit_date, v.chief_complaint, v.diagnosis, v.icd10_code,
-            v.treatment, v.notes, v.follow_up_date,
+    `SELECT v.id, v.created_at as visit_date, v.visit_type, v.visit_no,
+            v.notes,
             d.name as doctor_name
      FROM visits v
      LEFT JOIN doctors d ON d.id = v.doctor_id
      WHERE v.patient_id = ? AND v.tenant_id = ?
-     ORDER BY v.visit_date DESC
+     ORDER BY v.created_at DESC
      LIMIT ? OFFSET ?`
   ).bind(patientId, tenantId, limit, offset).all();
 

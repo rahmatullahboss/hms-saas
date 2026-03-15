@@ -8,7 +8,8 @@
     "build": "npx esbuild src/index.ts --bundle --format=esm --outfile=dist/index.js --platform=neutral --external:*",
     "deploy": "wrangler deploy",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:smoke": "SMOKE_TEST_URL=https://hms.ozzyl.com vitest run tests/smoke.test.ts"
   },
   "dependencies": {
     "@hono/zod-validator": "^0.7.6",

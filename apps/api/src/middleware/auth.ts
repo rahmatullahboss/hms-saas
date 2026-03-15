@@ -16,8 +16,8 @@ export type AppEnv = {
 
 export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
   const path = c.req.path;
-  // Public auth routes — skip token check
-  if (path.startsWith('/api/auth/')) {
+  // Public auth routes — skip token check (but NOT register, which needs auth)
+  if (path.startsWith('/api/auth/') && path !== '/api/auth/register') {
     await next();
     return;
   }
