@@ -376,25 +376,47 @@ reportsRoutes.get('/monthly-summary', async (c) => {
   })();
 
   try {
-    const [revenue, expenses, patients, visits, admissions, diagnoses] = await Promise.all([
+    // ⚡ BOLT OPTIMIZATION:
+    // Replaced Promise.all() with c.env.DB.batch() for monthly summary reports.
+    // Why: Promise.all() sends 6 separate HTTP network requests to Cloudflare D1.
+    //      DB.batch() sends a single network request containing all 6 statements.
+    // Impact: Eliminates 5 network round-trips, significantly reducing latency and
+    //         making the reports dashboard load much faster.
+    const batchResults = await c.env.DB.batch([
       c.env.DB.prepare(`SELECT COALESCE(SUM(amount), 0) as total FROM income WHERE tenant_id = ? AND date >= ? AND date < ?`)
-        .bind(tenantId, monthStart, nextMonth).first<{ total: number }>(),
+        .bind(tenantId, monthStart, nextMonth),
 
       c.env.DB.prepare(`SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE tenant_id = ? AND date >= ? AND date < ? AND status = 'approved'`)
-        .bind(tenantId, monthStart, nextMonth).first<{ total: number }>(),
+        .bind(tenantId, monthStart, nextMonth),
 
       c.env.DB.prepare(`SELECT COUNT(*) as new_patients FROM patients WHERE tenant_id = ? AND created_at >= ? AND created_at < ?`)
-        .bind(tenantId, monthStart, nextMonth).first<{ new_patients: number }>(),
+        .bind(tenantId, monthStart, nextMonth),
 
       c.env.DB.prepare(`SELECT COUNT(*) as total FROM visits WHERE tenant_id = ? AND visit_date >= ? AND visit_date < ?`)
-        .bind(tenantId, monthStart, nextMonth).first<{ total: number }>(),
+        .bind(tenantId, monthStart, nextMonth),
 
       c.env.DB.prepare(`SELECT COUNT(*) as total, SUM(CASE WHEN status = 'discharged' THEN 1 ELSE 0 END) as discharged FROM admissions WHERE tenant_id = ? AND admission_date >= ? AND admission_date < ?`)
-        .bind(tenantId, monthStart, nextMonth).first<{ total: number; discharged: number }>(),
+        .bind(tenantId, monthStart, nextMonth),
 
       c.env.DB.prepare(`SELECT diagnosis, COUNT(*) as cnt FROM visits WHERE tenant_id = ? AND visit_date >= ? AND visit_date < ? AND diagnosis IS NOT NULL GROUP BY diagnosis ORDER BY cnt DESC LIMIT 10`)
-        .bind(tenantId, monthStart, nextMonth).all<{ diagnosis: string; cnt: number }>(),
+        .bind(tenantId, monthStart, nextMonth),
     ]);
+
+    const [
+      revenueBatch,
+      expensesBatch,
+      patientsBatch,
+      visitsBatch,
+      admissionsBatch,
+      diagnosesBatch
+    ] = batchResults;
+
+    const revenue = revenueBatch.results[0] as { total: number } | undefined;
+    const expenses = expensesBatch.results[0] as { total: number } | undefined;
+    const patients = patientsBatch.results[0] as { new_patients: number } | undefined;
+    const visits = visitsBatch.results[0] as { total: number } | undefined;
+    const admissions = admissionsBatch.results[0] as { total: number; discharged: number } | undefined;
+    const diagnoses = diagnosesBatch as { results: { diagnosis: string; cnt: number }[] };
 
     const totalRevenue = revenue?.total ?? 0;
     const totalExpenses = expenses?.total ?? 0;
