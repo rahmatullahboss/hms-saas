@@ -5,7 +5,8 @@ import {
   Building2, Wallet, TrendingUp, TrendingDown, Repeat,
   BookOpen, FileText, Video, ChevronRight,
   BedDouble, Stethoscope, Calendar, Shield, ClipboardList,
-  Globe,
+  Globe, Siren, Scissors, Heart, ShieldAlert, ArrowRightLeft,
+  XCircle, Handshake, CreditCard,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -63,6 +64,8 @@ export default function Sidebar({ role, onLogout }: SidebarProps) {
           { labelKey: 'dashboard',     path: 'dashboard',         icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
           { labelKey: 'appointments',  path: 'appointments',      icon: <Calendar        className="w-4.5 h-4.5" /> },
           { labelKey: 'patients',      path: 'patients',          icon: <Users           className="w-4.5 h-4.5" /> },
+          { labelKey: 'emergency',     path: 'emergency',         icon: <Siren           className="w-4.5 h-4.5" /> },
+          { labelKey: 'ot',            path: 'ot',                icon: <Scissors        className="w-4.5 h-4.5" /> },
           { labelKey: 'ipdAdmissions', path: 'admissions',        icon: <BedDouble       className="w-4.5 h-4.5" /> },
           { labelKey: 'beds',          path: 'beds',              icon: <ClipboardList   className="w-4.5 h-4.5" /> },
           { labelKey: 'nurseStation',  path: 'nurse-station',     icon: <Stethoscope     className="w-4.5 h-4.5" /> },
@@ -75,18 +78,25 @@ export default function Sidebar({ role, onLogout }: SidebarProps) {
         items: [
           { labelKey: 'labTests',      path: 'tests',             icon: <FlaskConical    className="w-4.5 h-4.5" /> },
           { labelKey: 'pharmacy',      path: 'pharmacy',          icon: <Pill            className="w-4.5 h-4.5" /> },
+          { labelKey: 'vitals',        path: 'vitals',            icon: <Heart           className="w-4.5 h-4.5" /> },
+          { labelKey: 'allergies',     path: 'allergies',         icon: <ShieldAlert     className="w-4.5 h-4.5" /> },
         ],
       },
       {
         groupKey: 'groupFinance',
         items: [
-          { labelKey: 'billing',       path: 'billing',           icon: <Receipt         className="w-4.5 h-4.5" /> },
-          { labelKey: 'accounting',    path: 'accounting',        icon: <Wallet          className="w-4.5 h-4.5" /> },
-          { labelKey: 'income',        path: 'income',            icon: <TrendingUp      className="w-4.5 h-4.5" /> },
-          { labelKey: 'expenses',      path: 'expenses',          icon: <TrendingDown    className="w-4.5 h-4.5" /> },
-          { labelKey: 'recurring',     path: 'recurring',         icon: <Repeat          className="w-4.5 h-4.5" /> },
-          { labelKey: 'accounts',      path: 'accounts',          icon: <BookOpen        className="w-4.5 h-4.5" /> },
-          { labelKey: 'insurance',     path: 'insurance-claims',  icon: <FileText        className="w-4.5 h-4.5" /> },
+          { labelKey: 'billing',          path: 'billing',             icon: <Receipt         className="w-4.5 h-4.5" /> },
+          { labelKey: 'deposits',         path: 'deposits',            icon: <CreditCard      className="w-4.5 h-4.5" /> },
+          { labelKey: 'creditNotes',      path: 'credit-notes',        icon: <FileText        className="w-4.5 h-4.5" /> },
+          { labelKey: 'billHandover',     path: 'billing-handover',    icon: <ArrowRightLeft  className="w-4.5 h-4.5" /> },
+          { labelKey: 'billCancellation', path: 'billing-cancellation', icon: <XCircle        className="w-4.5 h-4.5" /> },
+          { labelKey: 'settlements',      path: 'settlements',         icon: <Handshake       className="w-4.5 h-4.5" /> },
+          { labelKey: 'accounting',       path: 'accounting',          icon: <Wallet          className="w-4.5 h-4.5" /> },
+          { labelKey: 'income',           path: 'income',              icon: <TrendingUp      className="w-4.5 h-4.5" /> },
+          { labelKey: 'expenses',         path: 'expenses',            icon: <TrendingDown    className="w-4.5 h-4.5" /> },
+          { labelKey: 'recurring',        path: 'recurring',           icon: <Repeat          className="w-4.5 h-4.5" /> },
+          { labelKey: 'accounts',         path: 'accounts',            icon: <BookOpen        className="w-4.5 h-4.5" /> },
+          { labelKey: 'insurance',        path: 'insurance-claims',    icon: <FileText        className="w-4.5 h-4.5" /> },
         ],
       },
       {

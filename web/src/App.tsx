@@ -65,6 +65,15 @@ import SuperAdminDashboard from './pages/SuperAdminDashboard';
 import SuperAdminHospitalList from './pages/SuperAdminHospitalList';
 import SuperAdminHospitalDetail from './pages/SuperAdminHospitalDetail';
 import SuperAdminOnboardingQueue from './pages/SuperAdminOnboardingQueue';
+import EmergencyDashboard from './pages/EmergencyDashboard';
+import OTDashboard from './pages/OTDashboard';
+import DepositsPage from './pages/DepositsPage';
+import CreditNotesPage from './pages/CreditNotesPage';
+import SettlementsPage from './pages/SettlementsPage';
+import BillingHandoverPage from './pages/BillingHandoverPage';
+import BillCancellationPage from './pages/BillCancellationPage';
+import VitalsPage from './pages/VitalsPage';
+import AllergiesPage from './pages/AllergiesPage';
 
 function Unauthorized() {
   const { t } = useTranslation('common');
@@ -170,6 +179,15 @@ function App() {
             <Route path="telemedicine" element={<TelemedicineDashboard role="hospital_admin" />} />
             <Route path="telemedicine/room/:roomId" element={<TelemedicineRoom role="hospital_admin" />} />
             <Route path="triage" element={<TriageChatbot />} />
+            <Route path="emergency" element={<EmergencyDashboard role="hospital_admin" />} />
+            <Route path="ot" element={<OTDashboard role="hospital_admin" />} />
+            <Route path="deposits" element={<DepositsPage role="hospital_admin" />} />
+            <Route path="credit-notes" element={<CreditNotesPage role="hospital_admin" />} />
+            <Route path="settlements" element={<SettlementsPage role="hospital_admin" />} />
+            <Route path="billing-handover" element={<BillingHandoverPage role="hospital_admin" />} />
+            <Route path="billing-cancellation" element={<BillCancellationPage role="hospital_admin" />} />
+            <Route path="vitals" element={<VitalsPage role="hospital_admin" />} />
+            <Route path="allergies" element={<AllergiesPage role="hospital_admin" />} />
           </Route>
 
           {/* ─── Laboratory ──────────────────────────────────────────── */}
