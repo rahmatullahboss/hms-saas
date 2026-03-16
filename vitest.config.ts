@@ -5,7 +5,11 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['test/**/*.test.ts'],
-    exclude: ['test/workers/**'],
+    exclude: [
+      'test/workers/**',
+      'test/integration/real-db/**',  // Needs running Wrangler dev server
+      'test/e2e/**',                  // Needs Playwright (separate CI stage)
+    ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov', 'html'],
