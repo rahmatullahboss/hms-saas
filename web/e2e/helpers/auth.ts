@@ -1,7 +1,7 @@
 import { Page, Route } from '@playwright/test';
 
 /**
- * E2E Auth Helpers — for HMS SaaS web/ app
+ * E2E Auth Helpers — for Ozzyl HMS web/ app
  * Routes: /h/:slug/*   Token key: hms_token   Vite port: 5174
  */
 

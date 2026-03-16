@@ -4,6 +4,8 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import type { Env, Variables } from '../../types';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
+import { getNextSequence } from '../../lib/sequence';
+import { createPrescriptionSchema, updatePrescriptionSchema, updateDeliveryStatusSchema } from '../../schemas/clinical';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -96,7 +98,7 @@ app.get('/:id/print', async (c) => {
 });
 
 // ─── POST /api/prescriptions — create prescription ────────────────────────────
-app.post('/', async (c) => {
+app.post('/', zValidator('json', createPrescriptionSchema), async (c) => {
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
@@ -107,26 +109,12 @@ app.post('/', async (c) => {
   }
 
   const userId = requireUserId(c);
-  const body = await c.req.json<{
-    patientId: number;
-    doctorId?: number;
-    appointmentId?: number;
-    bp?: string; temperature?: string; weight?: string; spo2?: string;
-    chiefComplaint?: string; diagnosis?: string; examinationNotes?: string;
-    advice?: string; labTests?: string[]; followUpDate?: string;
-    status?: string;
-    items?: { medicine_name: string; dosage?: string; frequency?: string; duration?: string; instructions?: string; sort_order?: number }[];
-  }>();
+  const body = c.req.valid('json');
 
-  if (!body.patientId) throw new HTTPException(400, { message: 'patientId required' });
+  // ✅ Use sequence-based rx_no (no more COUNT(*) race condition)
+  const rxNo = await getNextSequence(c.env.DB, tenantId, 'prescription', 'RX');
 
-  // Generate rx_no
-  const countRow = await c.env.DB.prepare(
-    'SELECT COUNT(*) AS cnt FROM prescriptions WHERE tenant_id = ?'
-  ).bind(tenantId).first<{ cnt: number }>();
-  const rxNo = `RX-${String((countRow?.cnt ?? 0) + 1).padStart(5, '0')}`;
-
-  const result = await c.env.DB.prepare(`
+  const prescriptionStmt = c.env.DB.prepare(`
     INSERT INTO prescriptions (rx_no, patient_id, doctor_id, appointment_id, bp, temperature, weight, spo2,
       chief_complaint, diagnosis, examination_notes, advice, lab_tests, follow_up_date, status, created_by, tenant_id)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -136,29 +124,34 @@ app.post('/', async (c) => {
     body.chiefComplaint ?? null, body.diagnosis ?? null, body.examinationNotes ?? null,
     body.advice ?? null, body.labTests ? JSON.stringify(body.labTests) : null,
     body.followUpDate ?? null, body.status ?? 'draft', userId ?? 0, tenantId
-  ).run();
+  );
 
-  const rxId = result.meta.last_row_id;
+  // ✅ Atomic batch: prescription + items all succeed or all fail
+  const batchStmts: D1PreparedStatement[] = [prescriptionStmt];
 
-  // Insert items
   if (body.items?.length) {
     for (const item of body.items) {
-      await c.env.DB.prepare(`
-        INSERT INTO prescription_items (prescription_id, medicine_name, dosage, frequency, duration, instructions, sort_order)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).bind(
-        rxId, item.medicine_name, item.dosage ?? null,
-        item.frequency ?? null, item.duration ?? null,
-        item.instructions ?? null, item.sort_order ?? 0
-      ).run();
+      batchStmts.push(
+        c.env.DB.prepare(`
+          INSERT INTO prescription_items (prescription_id, medicine_name, dosage, frequency, duration, instructions, sort_order)
+          VALUES (last_insert_rowid(), ?, ?, ?, ?, ?, ?)
+        `).bind(
+          item.medicine_name, item.dosage ?? null,
+          item.frequency ?? null, item.duration ?? null,
+          item.instructions ?? null, item.sort_order ?? 0
+        )
+      );
     }
   }
+
+  const batchResults = await c.env.DB.batch(batchStmts);
+  const rxId = batchResults[0].meta.last_row_id;
 
   return c.json({ id: rxId, rxNo }, 201);
 });
 
 // ─── PUT /api/prescriptions/:id — update prescription ─────────────────────────
-app.put('/:id', async (c) => {
+app.put('/:id', zValidator('json', updatePrescriptionSchema), async (c) => {
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
@@ -169,13 +162,7 @@ app.put('/:id', async (c) => {
   }
 
   const id = c.req.param('id');
-  const body = await c.req.json<{
-    bp?: string; temperature?: string; weight?: string; spo2?: string;
-    chiefComplaint?: string; diagnosis?: string; examinationNotes?: string;
-    advice?: string; labTests?: string[]; followUpDate?: string;
-    status?: string; dispense_status?: string;
-    items?: { medicine_name: string; dosage?: string; frequency?: string; duration?: string; instructions?: string; sort_order?: number }[];
-  }>();
+  const body = c.req.valid('json');
 
   // Build SET clause dynamically
   const sets: string[] = ["updated_at = datetime('now')"];
@@ -282,7 +269,7 @@ app.post('/:id/order-delivery', zValidator('json', orderDeliverySchema), async (
 
 // ─── PUT /api/prescriptions/:id/delivery-status — update delivery status ──────
 // Only admins and pharmacy staff may update delivery status (not patients)
-app.put('/:id/delivery-status', async (c) => {
+app.put('/:id/delivery-status', zValidator('json', updateDeliveryStatusSchema), async (c) => {
   const tenantId = requireTenantId(c);
   const id = c.req.param('id');
   const role = c.get('role');
@@ -292,15 +279,11 @@ app.put('/:id/delivery-status', async (c) => {
     throw new HTTPException(403, { message: 'Not authorized to update delivery status' });
   }
 
-  const body = await c.req.json<{ status: string }>();
-  const validStatuses = ['none', 'ordered', 'dispatched', 'delivered'];
-  if (!validStatuses.includes(body.status)) {
-    throw new HTTPException(400, { message: `status must be one of: ${validStatuses.join(', ')}` });
-  }
+  const { status } = c.req.valid('json');
 
   await c.env.DB.prepare(
     'UPDATE prescriptions SET delivery_status = ? WHERE id = ? AND tenant_id = ?'
-  ).bind(body.status, id, tenantId).run();
+  ).bind(status, id, tenantId).run();
 
   return c.json({ success: true });
 });

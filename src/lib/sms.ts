@@ -1,5 +1,5 @@
 /**
- * SMS abstraction layer for HMS SaaS.
+ * SMS abstraction layer for Ozzyl HMS.
  *
  * Currently in STUB mode — no SMS service purchased yet.
  * When ready, set SMS_PROVIDER to one of:

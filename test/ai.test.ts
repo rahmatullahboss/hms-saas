@@ -786,8 +786,8 @@ describe('HMS AI Integration Tests', () => {
       const headers = {
         'Authorization': 'Bearer sk-test',
         'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://hms-saas.app',
-        'X-Title': 'HMS SaaS AI',
+        'HTTP-Referer': 'https://ozzyl-hms.app',
+        'X-Title': 'Ozzyl HMS AI',
       };
 
       expect(headers['Authorization']).toMatch(/^Bearer /);

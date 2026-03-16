@@ -135,13 +135,13 @@ creditNotes.post('/', zValidator('json', createCreditNoteSchema), async (c) => {
     );
   }
 
-  // P1#7: Fix bill status logic — compare against total_amount
+  // P1#7: Fix bill status logic — compare against total
   itemStmts.push(
     c.env.DB.prepare(`
-      UPDATE bills SET paid_amount = MAX(0, paid_amount - ?),
+      UPDATE bills SET paid = MAX(0, paid - ?),
         status = CASE
-          WHEN MAX(0, paid_amount - ?) >= total_amount THEN 'paid'
-          WHEN MAX(0, paid_amount - ?) > 0 THEN 'partially_paid'
+          WHEN MAX(0, paid - ?) >= total THEN 'paid'
+          WHEN MAX(0, paid - ?) > 0 THEN 'partially_paid'
           ELSE 'refunded'
         END
       WHERE id = ? AND tenant_id = ?

@@ -3,6 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { HTTPException } from 'hono/http-exception';
 import { createPaymentGateway, type GatewayName } from '../../lib/payment-gateway';
 import { initiatePaymentSchema } from '../../schemas/payment';
+import { verifyPaymentSchema } from '../../schemas/accounting';
 import type { Env, Variables } from '../../types';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 
@@ -24,12 +25,12 @@ paymentRoutes.post('/initiate', zValidator('json', initiatePaymentSchema), async
 
   // Verify bill belongs to this tenant and isn't already paid
   const bill = await c.env.DB.prepare(
-    'SELECT id, total_amount, paid_amount, status FROM bills WHERE id = ? AND tenant_id = ?',
-  ).bind(data.billId, tenantId).first<{ id: number; total_amount: number; paid_amount: number; status: string }>();
+    'SELECT id, total, paid, status FROM bills WHERE id = ? AND tenant_id = ?',
+  ).bind(data.billId, tenantId).first<{ id: number; total: number; paid: number; status: string }>();
   if (!bill) throw new HTTPException(404, { message: 'Bill not found' });
   if (bill.status === 'paid') throw new HTTPException(400, { message: 'Bill is already fully paid' });
 
-  const outstanding = bill.total_amount - bill.paid_amount;
+  const outstanding = bill.total - bill.paid;
   if (data.amount > outstanding + 0.01) {  // 0.01 tolerance for float rounding
     throw new HTTPException(400, { message: `Amount ৳${data.amount} exceeds outstanding ৳${outstanding.toFixed(2)}` });
   }
@@ -68,24 +69,11 @@ paymentRoutes.post('/initiate', zValidator('json', initiatePaymentSchema), async
 // This is a POST (not GET) to prevent accidental replays.
 const VALID_GATEWAYS = ['bkash', 'nagad'];
 
-paymentRoutes.post('/verify', async (c) => {
+paymentRoutes.post('/verify', zValidator('json', verifyPaymentSchema), async (c) => {
   const tenantId = requireTenantId(c);
   const userId   = requireUserId(c);
 
-  let body: { paymentId?: string; gateway?: string };
-  try {
-    body = await c.req.json();
-  } catch {
-    throw new HTTPException(400, { message: 'Invalid JSON body' });
-  }
-
-  const { paymentId, gateway } = body;
-  if (!paymentId || !gateway) {
-    throw new HTTPException(400, { message: 'paymentId and gateway are required' });
-  }
-  if (!VALID_GATEWAYS.includes(gateway)) {
-    throw new HTTPException(400, { message: `Invalid gateway: ${gateway}` });
-  }
+  const { paymentId, gateway } = c.req.valid('json');
 
   // Find the log entry
   const log = await c.env.DB.prepare(
@@ -128,12 +116,12 @@ paymentRoutes.post('/verify', async (c) => {
 
   // Payment confirmed — record the payment on the bill (atomic batch)
   const bill = await c.env.DB.prepare(
-    'SELECT total_amount, paid_amount FROM bills WHERE id = ? AND tenant_id = ?',
-  ).bind(log.bill_id, log.tenant_id).first<{ total_amount: number; paid_amount: number }>();
+    'SELECT total, paid FROM bills WHERE id = ? AND tenant_id = ?',
+  ).bind(log.bill_id, log.tenant_id).first<{ total: number; paid: number }>();
 
   if (bill) {
-    const newPaid = bill.paid_amount + log.amount;
-    const status  = newPaid >= bill.total_amount ? 'paid' : 'partially_paid';
+    const newPaid = bill.paid + log.amount;
+    const status  = newPaid >= bill.total ? 'paid' : 'partially_paid';
     const receiptNo = `${gateway.toUpperCase()}-${verifyResult.transactionId ?? paymentId}`;
 
     await c.env.DB.batch([
@@ -142,7 +130,7 @@ paymentRoutes.post('/verify', async (c) => {
         VALUES (?, ?, 'received', ?, ?, ?, ?, datetime('now'))
       `).bind(log.bill_id, log.amount, receiptNo, gateway, userId, log.tenant_id),
       c.env.DB.prepare(
-        `UPDATE bills SET paid_amount = ?, status = ? WHERE id = ? AND tenant_id = ?`,
+        `UPDATE bills SET paid = ?, status = ? WHERE id = ? AND tenant_id = ?`,
       ).bind(newPaid, status, log.bill_id, log.tenant_id),
       c.env.DB.prepare(
         `UPDATE payment_gateway_logs SET status = 'success', raw_response = ?, updated_at = datetime('now') WHERE id = ?`,

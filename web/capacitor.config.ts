@@ -2,7 +2,7 @@ import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.hms.saas',
-  appName: 'HMS SaaS',
+  appName: 'Ozzyl HMS',
   webDir: 'dist',
   server: {
     // Use the live server URL in production so the app always has the latest data.

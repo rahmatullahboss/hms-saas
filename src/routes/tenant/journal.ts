@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
+import { zValidator } from '@hono/zod-validator';
 import { createAuditLog } from '../../lib/accounting-helpers';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
+import { createJournalEntrySchema } from '../../schemas/accounting';
 
 const journalRoutes = new Hono<{
   Bindings: {
@@ -57,15 +59,10 @@ journalRoutes.get('/', async (c) => {
   }
 });
 
-journalRoutes.post('/', async (c) => {
+journalRoutes.post('/', zValidator('json', createJournalEntrySchema), async (c) => {
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
-  const body = await c.req.json();
-  const { entry_date, reference, description, debit_account_id, credit_account_id, amount } = body;
-
-  if (!entry_date || !debit_account_id || !credit_account_id || !amount) {
-    return c.json({ error: 'Missing required fields' }, 400);
-  }
+  const { entry_date, reference, description, debit_account_id, credit_account_id, amount } = c.req.valid('json');
 
   if (debit_account_id === credit_account_id) {
     return c.json({ error: 'Debit and credit accounts must be different' }, 400);

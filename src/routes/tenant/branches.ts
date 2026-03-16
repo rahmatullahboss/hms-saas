@@ -150,7 +150,7 @@ branchRoutes.get('/:id/report', async (c) => {
         ORDER BY date ASC
       `).bind(id, tenantId, dateFrom, dateTo),
       c.env.DB.prepare(`
-        SELECT COUNT(*) as count, COALESCE(SUM(total_amount),0) as total, COALESCE(SUM(paid_amount),0) as paid
+        SELECT COUNT(*) as count, COALESCE(SUM(total),0) as total, COALESCE(SUM(paid),0) as paid
         FROM bills
         WHERE branch_id = ? AND tenant_id = ? AND date(created_at) BETWEEN ? AND ?
       `).bind(id, tenantId, dateFrom, dateTo),

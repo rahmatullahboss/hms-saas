@@ -7,7 +7,7 @@
 ## 1. Race Condition on `getNextSequence` — ✅ Already Fixed
 
 **Scope**: System-wide (Lab, Billing, Pharmacy, Patients)
-**File**: [`sequence.ts`](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/apps/api/src/lib/sequence.ts)
+**File**: [`sequence.ts`](file:///Users/rahmatullahzisan/Desktop/Dev/hms/ozzyl-hms/apps/api/src/lib/sequence.ts)
 
 **Problem**: Two simultaneous requests could generate duplicate sequence numbers.
 
@@ -17,7 +17,7 @@
 
 ## 2. Approximate Critical Threshold in `detectAbnormalFlag` — ✅ Fixed
 
-**File**: [`lab.ts`](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/apps/api/src/routes/tenant/lab.ts)
+**File**: [`lab.ts`](file:///Users/rahmatullahzisan/Desktop/Dev/hms/ozzyl-hms/apps/api/src/routes/tenant/lab.ts)
 
 **Problem**: Critical thresholds were computed as `2× the normal range width` — a rough heuristic, not clinically accurate.
 
@@ -27,7 +27,7 @@
 
 ## 3. No Pagination on Lab Queue Endpoint — ✅ Fixed
 
-**File**: [`lab.ts`](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/apps/api/src/routes/tenant/lab.ts)
+**File**: [`lab.ts`](file:///Users/rahmatullahzisan/Desktop/Dev/hms/ozzyl-hms/apps/api/src/routes/tenant/lab.ts)
 
 **Problem**: `GET /orders/queue/today` returned ALL lab items without `LIMIT`/`OFFSET`.
 

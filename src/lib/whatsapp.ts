@@ -1,5 +1,5 @@
 /**
- * WhatsApp Business API abstraction layer for HMS SaaS.
+ * WhatsApp Business API abstraction layer for Ozzyl HMS.
  *
  * Uses Meta Cloud API (graph.facebook.com) for sending WhatsApp messages.
  * Supports two modes:

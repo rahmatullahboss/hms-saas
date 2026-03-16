@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
+import { zValidator } from '@hono/zod-validator';
 import { createAuditLog } from '../../lib/accounting-helpers';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
+import { createIncomeSchema, updateIncomeSchema } from '../../schemas/accounting';
 
 const incomeRoutes = new Hono<{
   Bindings: {
@@ -47,15 +49,10 @@ incomeRoutes.get('/', async (c) => {
   }
 });
 
-incomeRoutes.post('/', async (c) => {
+incomeRoutes.post('/', zValidator('json', createIncomeSchema), async (c) => {
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
-  const body = await c.req.json();
-  const { date, source, amount, description, bill_id } = body;
-
-  if (!date || !source || !amount) {
-    return c.json({ error: 'Missing required fields' }, 400);
-  }
+  const { date, source, amount, description, bill_id } = c.req.valid('json');
 
   try {
     const result = await c.env.DB.prepare(`
@@ -107,12 +104,11 @@ incomeRoutes.get('/:id', async (c) => {
   }
 });
 
-incomeRoutes.put('/:id', async (c) => {
+incomeRoutes.put('/:id', zValidator('json', updateIncomeSchema), async (c) => {
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const id = c.req.param('id');
-  const body = await c.req.json();
-  const { date, source, amount, description } = body;
+  const { date, source, amount, description } = c.req.valid('json');
 
   try {
     const existing = await c.env.DB.prepare(`

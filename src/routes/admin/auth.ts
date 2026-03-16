@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
+import { zValidator } from '@hono/zod-validator';
 import bcrypt from 'bcryptjs';
 import { generateToken } from '../../middleware/auth';
+import { loginSchema, registerSchema } from '../../schemas/admin';
 
 const authRoutes = new Hono<{
   Bindings: {
@@ -11,12 +13,8 @@ const authRoutes = new Hono<{
 }>();
 
 // Login for super admin (main domain)
-authRoutes.post('/login', async (c) => {
-  const { email, password } = await c.req.json();
-  
-  if (!email || !password) {
-    return c.json({ error: 'Email and password required' }, 400);
-  }
+authRoutes.post('/login', zValidator('json', loginSchema), async (c) => {
+  const { email, password } = c.req.valid('json');
   
   try {
     // Look up super admin user
@@ -64,12 +62,8 @@ authRoutes.post('/login', async (c) => {
 });
 
 // Register first super admin (only if no super admin exists)
-authRoutes.post('/register', async (c) => {
-  const { email, password, name } = await c.req.json();
-  
-  if (!email || !password || !name) {
-    return c.json({ error: 'All fields required' }, 400);
-  }
+authRoutes.post('/register', zValidator('json', registerSchema), async (c) => {
+  const { email, password, name } = c.req.valid('json');
   
   // Check if super admin already exists
   const existing = await c.env.DB.prepare(

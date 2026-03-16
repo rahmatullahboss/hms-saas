@@ -1,5 +1,5 @@
 /**
- * HMS SaaS — Browser UI E2E Tests (Playwright)
+ * Ozzyl HMS — Browser UI E2E Tests (Playwright)
  *
  * Tests the React SPA and key UI flows in a real browser against production.
  * Follows Playwright best practices:
@@ -11,14 +11,14 @@
  *
  * Run:
  *   npx playwright test --project=e2e
- *   BASE_URL=https://hms-saas-production.rahmatullahzisan.workers.dev npx playwright test --project=e2e
+ *   BASE_URL=https://ozzyl-hms-production.rahmatullahzisan.workers.dev npx playwright test --project=e2e
  */
 
 import { test, expect, type Page } from '@playwright/test';
 
 const BASE_URL =
   process.env['BASE_URL'] ||
-  'https://hms-saas-production.rahmatullahzisan.workers.dev';
+  'https://ozzyl-hms-production.rahmatullahzisan.workers.dev';
 
 // ─── Page Object Model ─────────────────────────────────────────────────────────
 

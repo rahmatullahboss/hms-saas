@@ -1,4 +1,4 @@
-# HMS SaaS — Backup & Recovery Runbook
+# Ozzyl HMS — Backup & Recovery Runbook
 
 > **Version**: 1.0 | **Owner**: Engineering Team | **Last Updated**: 2026-03-13
 
@@ -6,7 +6,7 @@
 
 ## Overview
 
-This runbook defines the backup strategy and recovery procedures for the HMS SaaS
+This runbook defines the backup strategy and recovery procedures for the Ozzyl HMS
 platform running on Cloudflare D1 (SQLite), Cloudflare R2, and Cloudflare KV.
 
 ---
@@ -48,7 +48,7 @@ crons = ["0 1 * * *"]   # Daily at 01:00 UTC
 export default {
   async scheduled(event: ScheduledEvent, env: Env): Promise<void> {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const dbName = 'hms-saas-prod';
+    const dbName = 'ozzyl-hms-prod';
 
     // Export D1 to R2
     // Note: Use wrangler CLI in CI or Cloudflare API for production backups
@@ -87,12 +87,12 @@ npx wrangler r2 object list hms-backups/db/
 npx wrangler r2 object get hms-backups/db/20260313.sql --file restore.sql
 
 # Step 3: Apply to a new D1 database (NEVER restore to prod directly)
-npx wrangler d1 create hms-saas-restore-$(date +%Y%m%d)
-npx wrangler d1 execute hms-saas-restore-$(date +%Y%m%d) \
+npx wrangler d1 create ozzyl-hms-restore-$(date +%Y%m%d)
+npx wrangler d1 execute ozzyl-hms-restore-$(date +%Y%m%d) \
   --remote --file ./restore.sql
 
 # Step 4: Verify the restore
-npx wrangler d1 execute hms-saas-restore-$(date +%Y%m%d) \
+npx wrangler d1 execute ozzyl-hms-restore-$(date +%Y%m%d) \
   --remote --command "SELECT COUNT(*) FROM patients"
 
 # Step 5: Swap DNS/worker binding after validation

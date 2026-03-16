@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { HTTPException } from 'hono/http-exception';
-import { createBillSchema, paymentSchema } from '../../schemas/billing';
+import { createBillSchema, paymentSchema, editBillSchema } from '../../schemas/billing';
 import { getNextSequence } from '../../lib/sequence';
 import { createAuditLog } from '../../lib/accounting-helpers';
 import type { Env, Variables } from '../../types';
@@ -260,23 +260,23 @@ billingRoutes.post('/pay', zValidator('json', paymentSchema), async (c) => {
 
   try {
     const bill = await c.env.DB.prepare(
-      'SELECT *, total AS total_amount, paid AS paid_amount FROM bills WHERE id = ? AND tenant_id = ?',
+      'SELECT id, total, paid, status FROM bills WHERE id = ? AND tenant_id = ?',
     ).bind(data.billId, tenantId).first<{
-      id: number; total: number; paid: number; total_amount: number; paid_amount: number; status: string;
+      id: number; total: number; paid: number; status: string;
     }>();
     if (!bill) throw new HTTPException(404, { message: 'Bill not found' });
     if (bill.status === 'paid') throw new HTTPException(400, { message: 'Bill is already fully paid' });
 
     // Calculate the current outstanding balance to prevent overpayment
-    const outstanding = bill.total_amount - bill.paid_amount;
+    const outstanding = bill.total - bill.paid;
     if (data.amount > outstanding) {
       throw new HTTPException(400, {
         message: `Payment amount (${data.amount}) exceeds outstanding balance (${outstanding})`,
       });
     }
 
-    const newPaid = bill.paid_amount + data.amount;
-    const status = newPaid >= bill.total_amount ? 'paid' : 'partially_paid';
+    const newPaid = bill.paid + data.amount;
+    const status = newPaid >= bill.total ? 'paid' : 'partially_paid';
 
     const receiptNo = await getNextSequence(c.env.DB, tenantId!, 'receipt', 'RCP');
 
@@ -297,12 +297,98 @@ billingRoutes.post('/pay', zValidator('json', paymentSchema), async (c) => {
       message: 'Payment recorded',
       receiptNo,
       paidAmount: newPaid,
-      outstanding: Math.max(0, bill.total_amount - newPaid),
+      outstanding: Math.max(0, bill.total - newPaid),
       status,
     });
   } catch (error) {
     if (error instanceof HTTPException) throw error;
     throw new HTTPException(500, { message: 'Failed to record payment' });
+  }
+});
+
+// ─── PUT /api/billing/:id — edit bill (pre-payment only) ─────────────────────
+
+/**
+ * PUT /api/billing/:id
+ * Allows editing a bill BEFORE any payment has been made.
+ * Replaces existing bill items with the new set and recalculates totals.
+ *
+ * @param {string} id - The ID of the bill to edit.
+ * @param {Object} body - Validated data containing items and optional discount.
+ * @returns {Object} JSON response indicating success with updated totals.
+ * @throws {HTTPException} 404 if bill not found.
+ * @throws {HTTPException} 409 if bill already has payments (cannot edit).
+ */
+billingRoutes.put('/:id', zValidator('json', editBillSchema), async (c) => {
+  const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
+  const id = c.req.param('id');
+  const data = c.req.valid('json');
+
+  try {
+    // Verify bill exists and belongs to tenant
+    const bill = await c.env.DB.prepare(
+      `SELECT id, status, paid, invoice_no FROM bills WHERE id = ? AND tenant_id = ?`
+    ).bind(id, tenantId).first<{ id: number; status: string; paid: number; invoice_no: string }>();
+
+    if (!bill) {
+      throw new HTTPException(404, { message: 'Bill not found' });
+    }
+
+    // Only allow editing unpaid bills
+    if (bill.paid > 0 || bill.status === 'paid') {
+      throw new HTTPException(409, { message: 'Cannot edit bill — payment already received. Use credit note instead.' });
+    }
+
+    // Calculate new totals
+    const subtotal = data.items.reduce((s, item) => s + item.quantity * item.unitPrice, 0);
+    const discount = data.discount ?? 0;
+    const totalAmount = subtotal - discount;
+
+    // Atomic batch: delete old items, insert new ones, update bill totals
+    const batchStmts: D1PreparedStatement[] = [
+      // Delete existing items
+      c.env.DB.prepare(
+        `DELETE FROM invoice_items WHERE bill_id = ? AND tenant_id = ?`
+      ).bind(id, tenantId),
+
+      // Update bill totals
+      c.env.DB.prepare(
+        `UPDATE bills SET total = ?, discount = ?, due = ?, updated_at = datetime('now')
+         WHERE id = ? AND tenant_id = ?`
+      ).bind(totalAmount, discount, totalAmount, id, tenantId),
+    ];
+
+    // Insert new items
+    for (const item of data.items) {
+      const lineTotal = item.quantity * item.unitPrice;
+      batchStmts.push(
+        c.env.DB.prepare(
+          `INSERT INTO invoice_items (bill_id, item_category, description, quantity, unit_price, line_total, tenant_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`
+        ).bind(id, item.itemCategory, item.description ?? null, item.quantity, item.unitPrice, lineTotal, tenantId)
+      );
+    }
+
+    // Audit log
+    batchStmts.push(
+      c.env.DB.prepare(
+        `INSERT INTO audit_log (tenant_id, user_id, action, entity, entity_id, details)
+         VALUES (?, ?, 'edit', 'bill', ?, ?)`
+      ).bind(tenantId, userId, id, `Bill ${bill.invoice_no} edited — new total: ${totalAmount}`)
+    );
+
+    await c.env.DB.batch(batchStmts);
+
+    return c.json({
+      message: 'Bill updated',
+      totalAmount,
+      discount,
+      itemCount: data.items.length,
+    });
+  } catch (error) {
+    if (error instanceof HTTPException) throw error;
+    throw new HTTPException(500, { message: 'Failed to edit bill' });
   }
 });
 

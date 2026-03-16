@@ -1,5 +1,5 @@
 /**
- * HMS SaaS — Comprehensive API Smoke Test (Playwright)
+ * Ozzyl HMS — Comprehensive API Smoke Test (Playwright)
  *
  * Tests ALL HMS API endpoints against production (or any BASE_URL).
  * Validates:
@@ -11,12 +11,12 @@
  *
  * Run:
  *   npx playwright test --project=smoke
- *   BASE_URL=https://hms-saas-production.rahmatullahzisan.workers.dev npx playwright test --project=smoke
+ *   BASE_URL=https://ozzyl-hms-production.rahmatullahzisan.workers.dev npx playwright test --project=smoke
  */
 
 import { test, expect } from '@playwright/test';
 
-const PROD = 'https://hms-saas-production.rahmatullahzisan.workers.dev';
+const PROD = 'https://ozzyl-hms-production.rahmatullahzisan.workers.dev';
 const BASE_URL = process.env['BASE_URL'] || PROD;
 
 // ─── SMOKE: Worker Health ─────────────────────────────────────────────────────

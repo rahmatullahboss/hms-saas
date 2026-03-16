@@ -108,7 +108,7 @@ handover.get('/report/daily', async (c) => {
   if (!staffId) throw new HTTPException(400, { message: 'staff_id required' });
 
   const collections = await c.env.DB.prepare(`
-    SELECT COALESCE(SUM(paid_amount), 0) as total_collection
+    SELECT COALESCE(SUM(paid), 0) as total_collection
     FROM bills WHERE tenant_id = ? AND date(created_at) = ? AND created_by = ? AND status IN ('paid', 'partially_paid')
   `).bind(tenantId, date, staffId).first<{ total_collection: number }>();
 

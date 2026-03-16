@@ -58,7 +58,7 @@ cancellation.put('/item', zValidator('json', cancelItemSchema), async (c) => {
 
   const newTotal = activeItems[0]?.new_total || 0;
   await c.env.DB.prepare(`
-    UPDATE bills SET total_amount = ?, status = CASE WHEN paid_amount >= ? THEN 'paid' WHEN paid_amount > 0 THEN 'partially_paid' ELSE 'open' END
+    UPDATE bills SET total = ?, status = CASE WHEN paid >= ? THEN 'paid' WHEN paid > 0 THEN 'partially_paid' ELSE 'open' END
     WHERE id = ? AND tenant_id = ?
   `).bind(newTotal, newTotal, item.bill_id, tenantId).run();
 

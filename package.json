@@ -1,5 +1,5 @@
 {
-  "name": "hms-saas",
+  "name": "ozzyl-hms",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -29,7 +29,7 @@
     "test:e2e:smoke": "playwright test --project=smoke",
     "test:e2e:api": "playwright test --project=api",
     "test:e2e:browser": "playwright test --project=e2e",
-    "test:e2e:prod": "BASE_URL=https://hms-saas-production.rahmatullahzisan.workers.dev playwright test --project=smoke --project=api",
+    "test:e2e:prod": "BASE_URL=https://ozzyl-hms-production.rahmatullahzisan.workers.dev playwright test --project=smoke --project=api",
     "test:e2e:report": "playwright show-report test/e2e/report",
     "types": "wrangler types"
   },

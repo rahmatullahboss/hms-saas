@@ -282,7 +282,7 @@ reportsRoutes.get('/department-revenue', async (c) => {
       SELECT
         COALESCE(v.department, 'General') as department,
         COUNT(DISTINCT b.id) as bill_count,
-        COALESCE(SUM(b.total_amount), 0) as revenue,
+        COALESCE(SUM(b.total), 0) as revenue,
         COUNT(DISTINCT v.patient_id) as patient_count
       FROM visits v
       LEFT JOIN bills b ON b.visit_id = v.id AND b.tenant_id = v.tenant_id
@@ -327,7 +327,7 @@ reportsRoutes.get('/doctor-performance', async (c) => {
         d.specialty,
         COUNT(DISTINCT v.id) as visit_count,
         COUNT(DISTINCT v.patient_id) as unique_patients,
-        COALESCE(SUM(b.total_amount), 0) as revenue
+        COALESCE(SUM(b.total), 0) as revenue
       FROM doctors d
       LEFT JOIN visits v ON v.doctor_id = d.id AND v.tenant_id = d.tenant_id
       LEFT JOIN bills b ON b.visit_id = v.id AND b.tenant_id = d.tenant_id

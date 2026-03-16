@@ -12,8 +12,8 @@ test.describe('Login Page — Structure', () => {
     await page.goto('/login');
   });
 
-  test('has HMS SaaS branding', async ({ page }) => {
-    await expect(page.getByText(/HMS SaaS/i)).toBeVisible({ timeout: 8000 });
+  test('has Ozzyl HMS branding', async ({ page }) => {
+    await expect(page.getByText(/Ozzyl HMS/i)).toBeVisible({ timeout: 8000 });
   });
 
   test('has email input', async ({ page }) => {
@@ -56,7 +56,7 @@ test.describe('Login Page — Structure', () => {
 test.describe('Hospital Slug Login Page', () => {
   test('slug-based login page loads', async ({ page }) => {
     await page.goto(`/h/${SLUG}/login`);
-    await expect(page.getByText(/HMS SaaS/i)).toBeVisible({ timeout: 8000 });
+    await expect(page.getByText(/Ozzyl HMS/i)).toBeVisible({ timeout: 8000 });
     await expect(page.locator('input[type="email"]').first()).toBeVisible();
   });
 

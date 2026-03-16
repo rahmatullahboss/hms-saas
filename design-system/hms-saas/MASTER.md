@@ -6,7 +6,7 @@
 
 ---
 
-**Project:** HMS SaaS
+**Project:** Ozzyl HMS
 **Generated:** 2026-03-11 23:31:27
 **Category:** Healthcare App
 

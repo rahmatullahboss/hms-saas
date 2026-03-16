@@ -1,4 +1,4 @@
-# HMS SaaS — Hospital Management System
+# Ozzyl HMS — Hospital Management System
 
 A comprehensive, multi-tenant Hospital Management System built on **Cloudflare Workers + D1 + React**.
 
@@ -11,7 +11,7 @@ A comprehensive, multi-tenant Hospital Management System built on **Cloudflare W
 
 ## 🚀 Live Demo
 
-**URL:** `https://hms-saas.rahmatullahzisan.workers.dev`
+**URL:** `https://ozzyl-hms.rahmatullahzisan.workers.dev`
 
 **Direct login (no slug needed):** `/login`  
 **Tenant login:** `/h/demo-hospital/login`
@@ -151,7 +151,7 @@ All major transactions create **journal entries** in the `journal_entries` table
 ## 📁 Project Structure
 
 ```
-hms-saas/
+ozzyl-hms/
 ├── src/
 │   ├── index.ts              # Main Hono app
 │   ├── routes/               # API route handlers
@@ -193,7 +193,7 @@ hms-saas/
 
 ```bash
 git clone <repo-url>
-cd hms-saas
+cd ozzyl-hms
 pnpm install
 ```
 

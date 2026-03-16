@@ -1,15 +1,15 @@
 /// <reference types="node" />
 /**
- * Playwright configuration for HMS SaaS E2E + Smoke Tests
+ * Playwright configuration for Ozzyl HMS E2E + Smoke Tests
  *
  * Runs against:
- *   - Production: https://hms-saas-production.rahmatullahzisan.workers.dev
- *   - Staging:    https://hms-saas-staging.rahmatullahzisan.workers.dev
+ *   - Production: https://ozzyl-hms-production.rahmatullahzisan.workers.dev
+ *   - Staging:    https://ozzyl-hms-staging.rahmatullahzisan.workers.dev
  *   - Local:      http://localhost:8787
  *
  * Usage:
  *   npx playwright test                              # run vs BASE_URL (default: local)
- *   BASE_URL=https://hms-saas-production.rahmatullahzisan.workers.dev npx playwright test
+ *   BASE_URL=https://ozzyl-hms-production.rahmatullahzisan.workers.dev npx playwright test
  *   npx playwright test --project=smoke             # smoke only
  *   npx playwright test --project=api               # API e2e only
  */
@@ -18,7 +18,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 const BASE_URL =
   process.env.BASE_URL ||
-  'https://hms-saas-production.rahmatullahzisan.workers.dev';
+  'https://ozzyl-hms-production.rahmatullahzisan.workers.dev';
 
 export default defineConfig({
   testDir: './test/e2e',

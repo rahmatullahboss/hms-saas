@@ -1,9 +1,9 @@
-# HMS SaaS Full Stack Upgrade
+# Ozzyl HMS Full Stack Upgrade
 
 ## Phase A — Safe Minor/Patch Upgrades
-- [x] Root [package.json](file:///c:/Users/rahma/Desktop/dev/hms-saas/package.json) — Hono 4.12, wrangler 4.73, workers-types, TS 5.9, Vitest 4.1
-- [x] [apps/api/package.json](file:///c:/Users/rahma/Desktop/dev/hms-saas/apps/api/package.json) — all packages updated
-- [x] [web/package.json](file:///c:/Users/rahma/Desktop/dev/hms-saas/web/package.json) — Playwright 1.58, react-router 7.13, React 19, Tailwind v4
+- [x] Root [package.json](file:///c:/Users/rahma/Desktop/dev/ozzyl-hms/package.json) — Hono 4.12, wrangler 4.73, workers-types, TS 5.9, Vitest 4.1
+- [x] [apps/api/package.json](file:///c:/Users/rahma/Desktop/dev/ozzyl-hms/apps/api/package.json) — all packages updated
+- [x] [web/package.json](file:///c:/Users/rahma/Desktop/dev/ozzyl-hms/web/package.json) — Playwright 1.58, react-router 7.13, React 19, Tailwind v4
 - [x] `pnpm install` — succeeded ✅
 
 ## Phase B — Major Upgrades

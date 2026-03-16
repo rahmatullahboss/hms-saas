@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 // Individual line item on a bill
 export const invoiceItemSchema = z.object({
-  itemCategory: z.enum(['test', 'doctor_visit', 'operation', 'medicine', 'admission', 'fire_service', 'other']),
+  itemCategory: z.enum(['test', 'doctor_visit', 'operation', 'medicine', 'admission', 'other']),
   description: z.string().optional(),
   quantity: z.number().int().positive().default(1),
   unitPrice: z.number().int().nonnegative('Price cannot be negative'),
@@ -24,5 +24,12 @@ export const paymentSchema = z.object({
   notes: z.string().optional(),
 });
 
+// Edit bill (only allowed before any payment)
+export const editBillSchema = z.object({
+  items: z.array(invoiceItemSchema).min(1, 'At least one item is required'),
+  discount: z.number().int().nonnegative().optional(),
+});
+
 export type CreateBillInput = z.infer<typeof createBillSchema>;
 export type PaymentInput = z.infer<typeof paymentSchema>;
+export type EditBillInput = z.infer<typeof editBillSchema>;

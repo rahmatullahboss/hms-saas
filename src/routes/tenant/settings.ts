@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
+import { zValidator } from '@hono/zod-validator';
 import { requireTenantId } from '../../lib/context-helpers';
+import { updateSettingSchema, bulkUpdateSettingsSchema } from '../../schemas/clinical';
 
 const settingsRoutes = new Hono<{
   Bindings: { DB: D1Database; UPLOADS: R2Bucket };
@@ -158,7 +160,7 @@ settingsRoutes.delete('/logo', async (c) => {
 });
 
 // ─── Update setting ──────────────────────────────────────────────────────────
-settingsRoutes.put('/:key', async (c) => {
+settingsRoutes.put('/:key', zValidator('json', updateSettingSchema), async (c) => {
   const callerRole = c.get('role');
   if (callerRole !== 'hospital_admin' && callerRole !== 'director' && callerRole !== 'md') {
     return c.json({ error: 'Forbidden: Insufficient permissions to update settings' }, 403);
@@ -166,7 +168,7 @@ settingsRoutes.put('/:key', async (c) => {
 
   const key = c.req.param('key');
   const tenantId = requireTenantId(c);
-  const { value } = await c.req.json();
+  const { value } = c.req.valid('json');
 
   try {
     await c.env.DB.prepare(
@@ -180,14 +182,14 @@ settingsRoutes.put('/:key', async (c) => {
 });
 
 // ─── Bulk update settings ────────────────────────────────────────────────────
-settingsRoutes.put('/', async (c) => {
+settingsRoutes.put('/', zValidator('json', bulkUpdateSettingsSchema), async (c) => {
   const callerRole = c.get('role');
   if (callerRole !== 'hospital_admin' && callerRole !== 'director' && callerRole !== 'md') {
     return c.json({ error: 'Forbidden: Insufficient permissions to update settings' }, 403);
   }
 
   const tenantId = requireTenantId(c);
-  const settings = await c.req.json();
+  const settings = c.req.valid('json');
 
   try {
     for (const [key, value] of Object.entries(settings)) {

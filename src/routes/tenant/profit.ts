@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
+import { zValidator } from '@hono/zod-validator';
 import { createAuditLog } from '../../lib/accounting-helpers';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
+import { distributeProfitSchema } from '../../schemas/accounting';
 
 const profitRoutes = new Hono<{
   Bindings: {
@@ -64,11 +66,11 @@ profitRoutes.get('/calculate', async (c) => {
   }
 });
 
-profitRoutes.post('/distribute', async (c) => {
+profitRoutes.post('/distribute', zValidator('json', distributeProfitSchema), async (c) => {
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const role = c.get('role');
-  const { month } = await c.req.json();
+  const { month } = c.req.valid('json');
 
   if (role !== 'director') {
     return c.json({ error: 'Unauthorized. Director access required.' }, 403);

@@ -48,7 +48,7 @@ export const Footer: FC<FooterProps> = (props) => (
       <div class="footer-bottom">
         <p>© {new Date().getFullYear()} {props.hospitalName}. Powered by{' '}
           <a href={`https://hms.ozzyl.com?ref=${props.subdomain || 'hospital-site'}`} target="_blank" rel="noopener noreferrer"
-            style="opacity:0.6;text-decoration:underline">HMS SaaS</a>.</p>
+            style="opacity:0.6;text-decoration:underline">Ozzyl HMS</a>.</p>
       </div>
     </div>
   </footer>

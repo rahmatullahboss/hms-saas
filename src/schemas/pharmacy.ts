@@ -49,7 +49,26 @@ export const createSaleSchema = z.object({
   discount: z.number().int().nonnegative().default(0),
 });
 
-export type CreateMedicineInput   = z.infer<typeof createMedicineSchema>;
-export type CreateSupplierInput   = z.infer<typeof createSupplierSchema>;
-export type CreatePurchaseInput   = z.infer<typeof createPurchaseSchema>;
-export type CreateSaleInput       = z.infer<typeof createSaleSchema>;
+// ─── Pharmacy Billing ─────────────────────────────────────────────────────────
+
+const pharmacyBillItemSchema = z.object({
+  medicineId: z.number().int().positive(),
+  name: z.string().min(1, 'Item name required'),
+  quantity: z.number().int().positive('Quantity must be positive'),
+  unitPrice: z.number().int().nonnegative('Unit price required'),
+});
+
+export const createPharmacyBillSchema = z.object({
+  patientId: z.number().int().positive().optional(),
+  items: z.array(pharmacyBillItemSchema).min(1, 'At least one item required'),
+  discount: z.number().int().nonnegative().default(0),
+  paymentMethod: z.enum(['cash', 'bkash', 'bank', 'other']).optional(),
+});
+
+// ─── Type Exports ─────────────────────────────────────────────────────────────
+
+export type CreateMedicineInput      = z.infer<typeof createMedicineSchema>;
+export type CreateSupplierInput      = z.infer<typeof createSupplierSchema>;
+export type CreatePurchaseInput      = z.infer<typeof createPurchaseSchema>;
+export type CreateSaleInput          = z.infer<typeof createSaleSchema>;
+export type CreatePharmacyBillInput  = z.infer<typeof createPharmacyBillSchema>;

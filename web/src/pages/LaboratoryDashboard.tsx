@@ -85,7 +85,7 @@ export default function LaboratoryDashboard({ role = 'laboratory' }: { role?: st
           .field{margin:.75rem 0}.label{font-weight:600;color:#475569}
           .value{margin-top:.25rem;color:#164e63}</style>
         </head><body>
-          <h1>HMS SaaS — Lab Report</h1>
+          <h1>Ozzyl HMS — Lab Report</h1>
           <div class="field"><div class="label">Patient ID</div><div class="value">#${test.patient_id}</div></div>
           <div class="field"><div class="label">Patient Name</div><div class="value">${test.patient_name}</div></div>
           <div class="field"><div class="label">Test</div><div class="value">${test.test_name}</div></div>

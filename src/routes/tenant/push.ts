@@ -15,6 +15,7 @@ import { z } from 'zod';
 import { sendPushToTenant } from '../../utils/web-push';
 import type { Env, Variables } from '../../types';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
+import { unsubscribePushSchema } from '../../schemas/clinical';
 
 const push = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -69,20 +70,9 @@ push.post('/subscribe', zValidator('json', subscribeSchema), async (c) => {
 
 // ─── DELETE /unsubscribe — Remove push subscription ─────────────────
 
-push.delete('/unsubscribe', async (c) => {
+push.delete('/unsubscribe', zValidator('json', unsubscribePushSchema), async (c) => {
   const tenantId = requireTenantId(c);
-
-  let endpoint: string | undefined;
-  try {
-    const body = await c.req.json() as { endpoint?: string };
-    endpoint = body.endpoint;
-  } catch {
-    // Invalid JSON
-  }
-
-  if (!endpoint) {
-    throw new HTTPException(400, { message: 'Endpoint is required' });
-  }
+  const { endpoint } = c.req.valid('json');
 
   await c.env.DB.prepare(
     'DELETE FROM push_subscriptions WHERE tenant_id = ? AND endpoint = ?'

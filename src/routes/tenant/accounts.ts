@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
+import { zValidator } from '@hono/zod-validator';
 import { createAuditLog } from '../../lib/accounting-helpers';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
+import { createAccountSchema, updateAccountSchema } from '../../schemas/accounting';
 
 const accountsRoutes = new Hono<{
   Bindings: {
@@ -39,16 +41,11 @@ accountsRoutes.get('/', async (c) => {
   }
 });
 
-accountsRoutes.post('/', async (c) => {
+accountsRoutes.post('/', zValidator('json', createAccountSchema), async (c) => {
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const role = c.get('role');
-  const body = await c.req.json();
-  const { code, name, type, parent_id } = body;
-
-  if (!code || !name || !type) {
-    return c.json({ error: 'Missing required fields' }, 400);
-  }
+  const { code, name, type, parent_id } = c.req.valid('json');
 
   if (role !== 'director') {
     return c.json({ error: 'Unauthorized. Director access required.' }, 403);
@@ -108,13 +105,12 @@ accountsRoutes.get('/:id', async (c) => {
   }
 });
 
-accountsRoutes.put('/:id', async (c) => {
+accountsRoutes.put('/:id', zValidator('json', updateAccountSchema), async (c) => {
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const role = c.get('role');
   const id = c.req.param('id');
-  const body = await c.req.json();
-  const { name, type, is_active } = body;
+  const { name, type, is_active } = c.req.valid('json');
 
   if (role !== 'director') {
     return c.json({ error: 'Unauthorized. Director access required.' }, 403);

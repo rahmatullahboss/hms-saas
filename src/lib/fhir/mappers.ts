@@ -435,7 +435,7 @@ export function toBundle(resources: FhirResource[], baseUrl: string): FhirBundle
 export function buildCapabilityStatement(baseUrl: string): FhirCapabilityStatement {
   return {
     resourceType: 'CapabilityStatement',
-    id: 'hms-saas',
+    id: 'ozzyl-hms',
     status: 'active',
     kind: 'instance',
     fhirVersion: '4.0.1',

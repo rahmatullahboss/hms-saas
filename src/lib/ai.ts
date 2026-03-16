@@ -1,5 +1,5 @@
 /**
- * OpenRouter AI Client for HMS SaaS
+ * OpenRouter AI Client for Ozzyl HMS
  *
  * Thin wrapper around OpenRouter's OpenAI-compatible API.
  * Default model: openrouter/healer-alpha (medical-focused).
@@ -115,8 +115,8 @@ export async function callAI(
         headers: {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://hms-saas.app',
-          'X-Title': 'HMS SaaS AI',
+          'HTTP-Referer': 'https://ozzyl-hms.app',
+          'X-Title': 'Ozzyl HMS AI',
         },
         body: JSON.stringify(body),
         signal: controller.signal,

@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
+import { zValidator } from '@hono/zod-validator';
 import { createAuditLog } from '../../lib/accounting-helpers';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
+import { createExpenseSchema, updateExpenseSchema } from '../../schemas/accounting';
 
 const expenseRoutes = new Hono<{
   Bindings: {
@@ -77,15 +79,10 @@ expenseRoutes.get('/pending', async (c) => {
   }
 });
 
-expenseRoutes.post('/', async (c) => {
+expenseRoutes.post('/', zValidator('json', createExpenseSchema), async (c) => {
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
-  const body = await c.req.json();
-  const { date, category, amount, description } = body;
-
-  if (!date || !category || !amount) {
-    return c.json({ error: 'Missing required fields' }, 400);
-  }
+  const { date, category, amount, description } = c.req.valid('json');
 
   const status = amount > APPROVAL_THRESHOLD ? 'pending' : 'approved';
 
@@ -155,12 +152,11 @@ expenseRoutes.get('/:id', async (c) => {
   }
 });
 
-expenseRoutes.put('/:id', async (c) => {
+expenseRoutes.put('/:id', zValidator('json', updateExpenseSchema), async (c) => {
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const id = c.req.param('id');
-  const body = await c.req.json();
-  const { date, category, amount, description } = body;
+  const { date, category, amount, description } = c.req.valid('json');
 
   try {
     const existing = await c.env.DB.prepare(`

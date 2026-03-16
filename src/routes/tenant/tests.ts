@@ -1,5 +1,7 @@
 import { Hono } from 'hono';
+import { zValidator } from '@hono/zod-validator';
 import { requireTenantId } from '../../lib/context-helpers';
+import { createTestSchema, updateTestResultSchema } from '../../schemas/clinical';
 
 const testRoutes = new Hono<{
   Bindings: { DB: D1Database };
@@ -36,13 +38,9 @@ testRoutes.get('/', async (c) => {
 });
 
 // Create test for patient
-testRoutes.post('/', async (c) => {
+testRoutes.post('/', zValidator('json', createTestSchema), async (c) => {
   const tenantId = requireTenantId(c);
-  const { patientId, testName } = await c.req.json();
-  
-  if (!patientId || !testName) {
-    return c.json({ error: 'Patient ID and test name required' }, 400);
-  }
+  const { patientId, testName } = c.req.valid('json');
   
   try {
     const result = await c.env.DB.prepare(
@@ -59,21 +57,16 @@ testRoutes.post('/', async (c) => {
 });
 
 // Update test result
-testRoutes.put('/:id/result', async (c) => {
+testRoutes.put('/:id/result', zValidator('json', updateTestResultSchema), async (c) => {
   const id = c.req.param('id');
   const tenantId = requireTenantId(c);
-  const { result } = await c.req.json();
+  const { result } = c.req.valid('json');
   
   try {
-    // Use batch for atomicity — both UPDATE and INSERT succeed or fail together
-    await c.env.DB.batch([
-      c.env.DB.prepare(
-        'UPDATE tests SET result = ?, status = ?, updated_at = datetime("now") WHERE id = ? AND tenant_id = ?'
-      ).bind(result, 'completed', id, tenantId),
-      c.env.DB.prepare(
-        'INSERT INTO income (date, source, amount, tenant_id) VALUES (date("now"), ?, ?, ?)'
-      ).bind('test', result.includes('Normal') ? 200 : 300, tenantId),
-    ]);
+    // Update test result — income is created via billing, not here
+    await c.env.DB.prepare(
+      'UPDATE tests SET result = ?, status = ?, updated_at = datetime("now") WHERE id = ? AND tenant_id = ?'
+    ).bind(result, 'completed', id, tenantId).run();
     
     return c.json({ message: 'Test result updated' });
   } catch (error) {

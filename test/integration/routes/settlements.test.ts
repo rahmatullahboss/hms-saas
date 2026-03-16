@@ -144,7 +144,7 @@ describe('Settlements Routes', () => {
         role: 'accountant',
         tenantId: TENANT_1.id,
         tables: {
-          bills: [{ ...unpaidBill, total_amount: 1000, paid_amount: 0, patient_id: PATIENT_1.id }],
+          bills: [{ ...unpaidBill, total: 1000, paid: 0, patient_id: PATIENT_1.id }],
           billing_deposits: [],
         },
       });
@@ -169,7 +169,7 @@ describe('Settlements Routes', () => {
         role: 'accountant',
         tenantId: TENANT_1.id,
         tables: {
-          bills: [{ ...unpaidBill, total_amount: 2500, paid_amount: 0, patient_id: PATIENT_1.id }],
+          bills: [{ ...unpaidBill, total: 2500, paid: 0, patient_id: PATIENT_1.id }],
           billing_deposits: [],
           billing_settlements: [],
           sequences: [],

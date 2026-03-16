@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { HTTPException } from 'hono/http-exception';
-import { createMedicineSchema, updateMedicineSchema, createPurchaseSchema, createSupplierSchema, updateSupplierSchema, createSaleSchema } from '../../schemas/pharmacy';
+import { createMedicineSchema, updateMedicineSchema, createPurchaseSchema, createSupplierSchema, updateSupplierSchema, createSaleSchema, createPharmacyBillSchema } from '../../schemas/pharmacy';
 import { getNextSequence } from '../../lib/sequence';
 import type { Env, Variables } from '../../types';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
@@ -316,42 +316,28 @@ pharmacyRoutes.post('/sales', zValidator('json', createSaleSchema), async (c) =>
   }
 });
 
-// POST /api/pharmacy/billing — create a pharmacy bill
-pharmacyRoutes.post('/billing', async (c) => {
+// POST /api/pharmacy/billing — create a pharmacy bill (Zod validated + sequence)
+pharmacyRoutes.post('/billing', zValidator('json', createPharmacyBillSchema), async (c) => {
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
+  const data = c.req.valid('json');
 
   try {
-    const body = await c.req.json<{
-      patientId?: number;
-      items: Array<{ medicineId: number; name: string; quantity: number; unitPrice: number }>;
-      discount?: number;
-      paymentMethod?: string;
-    }>();
+    const subtotal = data.items.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
+    const totalAmount = subtotal - data.discount;
 
-    if (!body.items || body.items.length === 0) {
-      throw new HTTPException(400, { message: 'At least one item is required' });
-    }
-
-    const subtotal = body.items.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
-    const discount = body.discount ?? 0;
-    const totalAmount = subtotal - discount;
-
-    // Generate bill number
-    const countResult = await c.env.DB.prepare(
-      'SELECT COUNT(*) as cnt FROM bills WHERE tenant_id = ?'
-    ).bind(tenantId).first<{ cnt: number }>();
-    const billNo = `PB-${String((countResult?.cnt ?? 0) + 1).padStart(5, '0')}`;
+    // ✅ Use sequence-based bill number (no more COUNT(*) race condition)
+    const billNo = await getNextSequence(c.env.DB, tenantId!, 'pharmacy_bill', 'PB');
 
     // Create bill
     const billResult = await c.env.DB.prepare(`
-      INSERT INTO bills (bill_no, patient_id, total_amount, discount, paid_amount, due, status, bill_type, tenant_id, created_by)
+      INSERT INTO bills (bill_no, patient_id, total, discount, paid, due, status, bill_type, tenant_id, created_by)
       VALUES (?, ?, ?, ?, ?, ?, ?, 'pharmacy', ?, ?)
     `).bind(
       billNo,
-      body.patientId ?? null,
+      data.patientId ?? null,
       totalAmount,
-      discount,
+      data.discount,
       totalAmount,
       0,
       'paid',

@@ -331,7 +331,7 @@ aiRoutes.post('/dashboard-insights', zValidator('json', dashboardInsightsSchema)
     const [revenueData, patientData, visitData, expenseData] = await Promise.all([
       c.env.DB.prepare(`
         SELECT strftime('%Y-%m', created_at) AS month,
-               SUM(total_amount) AS revenue,
+               SUM(total) AS revenue,
                COUNT(*) AS bill_count
         FROM bills WHERE tenant_id = ? AND date(created_at) BETWEEN ? AND ?
         GROUP BY month ORDER BY month

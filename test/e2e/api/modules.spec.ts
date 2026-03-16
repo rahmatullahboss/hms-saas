@@ -1,5 +1,5 @@
 /**
- * HMS SaaS — Full API E2E Module Tests (Playwright)
+ * Ozzyl HMS — Full API E2E Module Tests (Playwright)
  *
  * Validates every HMS API module against production (or BASE_URL):
  *  - Unauthenticated access returns proper 401 (not 500)
@@ -10,14 +10,14 @@
  *
  * Run:
  *   npx playwright test --project=api
- *   BASE_URL=https://hms-saas-production.rahmatullahzisan.workers.dev npx playwright test --project=api
+ *   BASE_URL=https://ozzyl-hms-production.rahmatullahzisan.workers.dev npx playwright test --project=api
  */
 
 import { test, expect } from '@playwright/test';
 
 const BASE_URL =
   process.env['BASE_URL'] ||
-  'https://hms-saas-production.rahmatullahzisan.workers.dev';
+  'https://ozzyl-hms-production.rahmatullahzisan.workers.dev';
 
 const JSON_HEADERS = { 'Content-Type': 'application/json' };
 const SLA_MS = 3000; // 3s response time SLA

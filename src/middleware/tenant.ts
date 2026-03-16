@@ -40,7 +40,7 @@ export const tenantMiddleware: MiddlewareHandler<{
   }
   
   // Main domain access (super admin) or workers.dev / pages.dev deployment
-  // workers.dev hostnames like hms-saas-production.rahmatullahzisan.workers.dev
+  // workers.dev hostnames like ozzyl-hms-production.rahmatullahzisan.workers.dev
   // have 4+ parts but are NOT tenant subdomains — use header-based resolution
   if (parts.length <= 2 || hostname.endsWith('.workers.dev') || hostname.endsWith('.pages.dev')) {
     const tenantId = c.req.query('tenant') || c.req.header('X-Tenant-ID');

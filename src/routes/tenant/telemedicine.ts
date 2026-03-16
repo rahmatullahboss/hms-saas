@@ -1,7 +1,10 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
+import { zValidator } from '@hono/zod-validator';
+import { z } from 'zod';
 import type { Env, Variables } from '../../types';
 import { requireTenantId } from '../../lib/context-helpers';
+import { createTeleRoomSchema } from '../../schemas/clinical';
 
 /**
  * Telemedicine route — manages rooms via KV store.
@@ -56,17 +59,11 @@ app.get('/rooms/:id', async (c) => {
 });
 
 // ─── POST /api/telemedicine/rooms — create room ──────────────────────────────
-app.post('/rooms', async (c) => {
+app.post('/rooms', zValidator('json', createTeleRoomSchema), async (c) => {
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
-  const body = await c.req.json<{
-    name: string;
-    patientId?: number;
-    doctorId?: number;
-    patientName?: string;
-    doctorName?: string;
-  }>();
+  const body = c.req.valid('json');
 
   const derivedName =
     body.name ||
@@ -149,7 +146,14 @@ app.post('/sessions/:sessionId/tracks', async (c) => {
   }
 
   const sessionId = c.req.param('sessionId');
-  const body = await c.req.json();
+
+  // Limit opaque SFU payload size (256KB max)
+  const contentLength = parseInt(c.req.header('content-length') || '0', 10);
+  if (contentLength > 256 * 1024) {
+    throw new HTTPException(413, { message: 'Payload too large' });
+  }
+
+  const body = await c.req.json(); // SFU track data is opaque — pass through raw
 
   const resp = await fetch(
     `https://rtc.live.cloudflare.com/v1/apps/${c.env.CF_REALTIME_APP_ID}/sessions/${sessionId}/tracks/new`,

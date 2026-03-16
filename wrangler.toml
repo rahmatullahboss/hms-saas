@@ -1,4 +1,4 @@
-name = "hms-saas"
+name = "ozzyl-hms"
 main = "src/index.ts"
 account_id = "474078d5f990169d7dadf4e1df83214a"
 compatibility_date = "2026-02-17"
@@ -88,11 +88,11 @@ SMS_PROVIDER = "stub"
 
 # ─── Staging environment ──────────────────────────────────────────────
 [env.staging]
-name = "hms-saas-staging"
+name = "ozzyl-hms-staging"
 
 [env.staging.vars]
 ENVIRONMENT = "staging"
-ALLOWED_ORIGINS = "https://hms-saas-staging.rahmatullahzisan.workers.dev"
+ALLOWED_ORIGINS = "https://ozzyl-hms-staging.rahmatullahzisan.workers.dev"
 RESEND_FROM_EMAIL = "HMS Staging <noreply@hms-staging.app>"
 SMS_PROVIDER = "stub"
 # bKash/Nagad/Daily — set via wrangler secrets (--env staging)
@@ -122,7 +122,7 @@ bucket_name = "hms-uploads-staging"
 
 # ─── Production environment ───────────────────────────────────────────
 [env.production]
-name = "hms-saas-production"
+name = "ozzyl-hms-production"
 
 # Migration to delete previously-deployed AccountingDashboard Durable Object
 [[env.production.migrations]]
@@ -144,7 +144,7 @@ class_name = "DashboardDO"
 
 [env.production.vars]
 ENVIRONMENT = "production"
-ALLOWED_ORIGINS = "https://hms-saas.rahmatullahzisan.workers.dev,https://*.ozzyl.com"
+ALLOWED_ORIGINS = "https://ozzyl-hms.rahmatullahzisan.workers.dev,https://*.ozzyl.com"
 # Replace with your verified Resend domain email once domain is verified
 RESEND_FROM_EMAIL = "HMS <noreply@yourhospital.com>"
 # Change to "sslwireless" or "bnotify" when SMS service is activated

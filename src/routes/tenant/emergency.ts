@@ -4,6 +4,7 @@ import { zValidator } from '@hono/zod-validator';
 import { HTTPException } from 'hono/http-exception';
 import type { Env, Variables } from '../../types';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
+import { getNextSequence } from '../../lib/sequence';
 
 const emergency = new Hono<{
   Bindings: Env;
@@ -77,14 +78,15 @@ const dischargeSummarySchema = z.object({
   medical_officer: z.string().optional(),
 });
 
+const updateERPatientSchema = createERPatientSchema
+  .omit({ is_existing_patient: true })
+  .partial();
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-async function nextERNumber(db: D1Database, tenantId: number): Promise<string> {
-  const row = await db.prepare(
-    `SELECT COALESCE(MAX(id), 0) as max_id FROM er_patients WHERE tenant_id = ?`
-  ).bind(tenantId).first<{ max_id: number }>();
-  const seq = (row?.max_id ?? 0) + 1;
-  return `ER-${String(seq).padStart(5, '0')}`;
+async function nextERNumber(db: D1Database, tenantId: string): Promise<string> {
+  // ✅ Use sequence-based ER number (no more MAX(id) race condition)
+  return getNextSequence(db, tenantId, 'er_patient', 'ER');
 }
 
 function getDateFilter(selectedCase: number): string {
@@ -280,7 +282,7 @@ emergency.post('/', zValidator('json', createERPatientSchema), async (c) => {
   const userId = requireUserId(c);
   const data = c.req.valid('json');
   const now = new Date().toISOString();
-  const erNumber = await nextERNumber(c.env.DB, Number(tenantId));
+  const erNumber = await nextERNumber(c.env.DB, tenantId);
 
   let patientId = data.patient_id || null;
   let visitId = data.visit_id || null;
@@ -486,12 +488,12 @@ emergency.post('/discharge-summary', zValidator('json', dischargeSummarySchema),
   return c.json({ id: summaryId, message: 'Discharge summary created' }, 201);
 });
 
-// ─── PUT /:id — general update ───────────────────────────────────────────────
+// ─── PUT /:id — general update (Zod validated) ──────────────────────────────
 
-emergency.put('/:id', async (c) => {
+emergency.put('/:id', zValidator('json', updateERPatientSchema), async (c) => {
   const tenantId = requireTenantId(c);
   const id = parseInt(c.req.param('id'));
-  const body = await c.req.json() as Record<string, unknown>;
+  const data = c.req.valid('json');
   const now = new Date().toISOString();
 
   const existing = await c.env.DB.prepare(
@@ -510,11 +512,12 @@ emergency.put('/:id', async (c) => {
 
   const sets: string[] = [];
   const vals: (string | number | null)[] = [];
+  const dataRecord = data as Record<string, unknown>;
 
   for (const field of allowedFields) {
-    if (body[field] !== undefined) {
+    if (dataRecord[field] !== undefined) {
       sets.push(`${field} = ?`);
-      vals.push(body[field] as string | number | null);
+      vals.push(dataRecord[field] as string | number | null);
     }
   }
 

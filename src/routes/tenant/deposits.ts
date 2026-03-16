@@ -208,8 +208,8 @@ deposits.post('/adjust', zValidator('json', adjustDepositSchema), async (c) => {
       VALUES (?, ?, ?, ?, 'adjustment', ?, ?, ?)
     `).bind(tenantId, data.patient_id, receiptNo, data.amount, data.bill_id, data.remarks || 'Deposit adjustment', userId),
     c.env.DB.prepare(`
-      UPDATE bills SET paid_amount = paid_amount + ?,
-        status = CASE WHEN paid_amount + ? >= total_amount THEN 'paid' ELSE 'partially_paid' END
+      UPDATE bills SET paid = paid + ?,
+        status = CASE WHEN paid + ? >= total THEN 'paid' ELSE 'partially_paid' END
       WHERE id = ? AND tenant_id = ?
     `).bind(data.amount, data.amount, data.bill_id, tenantId),
   ];

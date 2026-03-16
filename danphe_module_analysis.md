@@ -1,10 +1,10 @@
-# 🔍 Danphe-Next → HMS SaaS: Module Portability Analysis
+# 🔍 Danphe-Next → Ozzyl HMS: Module Portability Analysis
 
 ## Summary
 
-Danphe-next-cloudflare is a **massive** project with **122 migrations**, **52+ backend route files**, and **35 frontend page modules**. Your HMS SaaS is leaner with **38 backend routes** and **~10 frontend pages** — but it's built on the **same stack** (Hono + D1 + React), making module porting very realistic.
+Danphe-next-cloudflare is a **massive** project with **122 migrations**, **52+ backend route files**, and **35 frontend page modules**. Your Ozzyl HMS is leaner with **38 backend routes** and **~10 frontend pages** — but it's built on the **same stack** (Hono + D1 + React), making module porting very realistic.
 
-Below is a ranked list of **high-value modules** that exist in danphe-next but are **missing or underdeveloped** in HMS SaaS.
+Below is a ranked list of **high-value modules** that exist in danphe-next but are **missing or underdeveloped** in Ozzyl HMS.
 
 ---
 
@@ -17,7 +17,7 @@ Below is a ranked list of **high-value modules** that exist in danphe-next but a
 | **Emergency Department** | `0032_emergency.sql` | ✅ | `EmergencyDashboard.tsx` | ✅ Done |
 | **Operation Theatre** | `0033_operation_theatre.sql` | ✅ | `OTDashboard.tsx` | ✅ Done |
 
-### ✅ Already in HMS SaaS (Pre-existing — No Port Needed)
+### ✅ Already in Ozzyl HMS (Pre-existing — No Port Needed)
 
 | Module | Backend | Frontend | Quality |
 |--------|---------|----------|---------|
@@ -109,7 +109,7 @@ Below is a ranked list of **high-value modules** that exist in danphe-next but a
 > Both projects use **Hono + D1 + React**, so the stack is identical. Routes, schemas, and migrations can be adapted with relatively low friction.
 
 > [!WARNING]
-> Danphe-next uses **TailwindCSS** in frontend. HMS SaaS uses **vanilla CSS**. Frontend components will need styling conversion.
+> Danphe-next uses **TailwindCSS** in frontend. Ozzyl HMS uses **vanilla CSS**. Frontend components will need styling conversion.
 
 > [!NOTE]
-> Danphe-next migrations go up to **0107**. You'll need to create corresponding new migrations in HMS SaaS's numbering scheme and adapt table/column names to match your existing schema conventions.
+> Danphe-next migrations go up to **0107**. You'll need to create corresponding new migrations in Ozzyl HMS's numbering scheme and adapt table/column names to match your existing schema conventions.

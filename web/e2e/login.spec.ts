@@ -10,7 +10,7 @@ test.describe('HMS Login Page', () => {
   });
 
   test('should display login form', async ({ page }) => {
-    await expect(page.getByText(/HMS SaaS/i)).toBeVisible({ timeout: 8000 });
+    await expect(page.getByText(/Ozzyl HMS/i)).toBeVisible({ timeout: 8000 });
   });
 
   test('should have email input field', async ({ page }) => {

@@ -1,6 +1,6 @@
 # Dashboard Page Overrides
 
-> **PROJECT:** HMS SaaS
+> **PROJECT:** Ozzyl HMS
 > **Generated:** 2026-03-11 23:31:27
 > **Page Type:** Dashboard / Data View
 

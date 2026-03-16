@@ -228,7 +228,7 @@ describe('Schema: billing', () => {
     expect(r.success).toBe(true);
   });
   it('invoiceItemSchema covers all categories', () => {
-    for (const cat of ['test', 'doctor_visit', 'operation', 'medicine', 'admission', 'fire_service', 'other'] as const) {
+    for (const cat of ['test', 'doctor_visit', 'operation', 'medicine', 'admission', 'other'] as const) {
       const r = invoiceItemSchema.safeParse({ itemCategory: cat, unitPrice: 100 });
       expect(r.success).toBe(true);
       if (r.success) expect(r.data.quantity).toBe(1); // default

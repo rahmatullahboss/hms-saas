@@ -1,5 +1,5 @@
 /**
- * Central pricing configuration for HMS SaaS.
+ * Central pricing configuration for Ozzyl HMS.
  *
  * All plan definitions, feature flags, add-on prices, and trial config
  * are defined here so both backend logic and API responses use the

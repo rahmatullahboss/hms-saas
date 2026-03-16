@@ -58,7 +58,7 @@ export default function Header({
     try { return JSON.parse(localStorage.getItem('tenant') ?? '{}'); }
     catch { return {}; }
   })();
-  const hospitalName = tenant?.name ?? 'HMS SaaS';
+  const hospitalName = tenant?.name ?? 'Ozzyl HMS';
 
   const token = localStorage.getItem('hms_token');
   const authHeaders = { Authorization: `Bearer ${token}` };

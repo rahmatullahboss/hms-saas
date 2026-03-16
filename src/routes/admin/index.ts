@@ -4,6 +4,7 @@ import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { generateToken } from '../../middleware/auth';
 import { PLANS, ADDONS, TRIAL_DAYS, type PlanId } from '../../schemas/pricing';
+import { loginSchema, createHospitalSchema, updateHospitalSchema } from '../../schemas/admin';
 import type { Env, Variables } from '../../types';
 
 const adminRoutes = new Hono<{
@@ -12,12 +13,8 @@ const adminRoutes = new Hono<{
 }>();
 
 // ─── Super admin login (no tenant required) ───────────────────────────
-adminRoutes.post('/login', async (c) => {
-  const { email, password } = await c.req.json();
-
-  if (!email || !password) {
-    return c.json({ error: 'Email and password required' }, 400);
-  }
+adminRoutes.post('/login', zValidator('json', loginSchema), async (c) => {
+  const { email, password } = c.req.valid('json');
 
   try {
     const user = await c.env.DB.prepare(
@@ -147,13 +144,8 @@ adminRoutes.get('/hospitals/:id', async (c) => {
 });
 
 // Create hospital
-adminRoutes.post('/hospitals', async (c) => {
-  const { name, subdomain, adminEmail, adminName, adminPassword } = await c.req.json();
-
-  const subdomainRegex = /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/;
-  if (!subdomainRegex.test(subdomain)) {
-    return c.json({ error: 'Invalid subdomain format' }, 400);
-  }
+adminRoutes.post('/hospitals', zValidator('json', createHospitalSchema), async (c) => {
+  const { name, subdomain, adminEmail, adminName, adminPassword } = c.req.valid('json');
 
   const RESERVED = ['www', 'api', 'admin', 'super', 'mail', 'ftp', 'test', 'dev'];
   if (RESERVED.includes(subdomain.toLowerCase())) {
@@ -194,9 +186,9 @@ adminRoutes.post('/hospitals', async (c) => {
 });
 
 // Update hospital
-adminRoutes.put('/hospitals/:id', async (c) => {
+adminRoutes.put('/hospitals/:id', zValidator('json', updateHospitalSchema), async (c) => {
   const id = c.req.param('id');
-  const { name, status, plan } = await c.req.json();
+  const { name, status, plan } = c.req.valid('json');
 
   try {
     await c.env.DB.prepare(
@@ -448,7 +440,7 @@ adminRoutes.post('/onboarding/:id/provision', zValidator('json', provisionSchema
         password: generatedPassword,
         loginUrl: `/h/${slug}/login`,
       },
-      whatsappMessage: `🏥 আপনার হাসপাতালের HMS SaaS অ্যাকাউন্ট তৈরি হয়েছে!\n\n📧 ইমেইল: ${adminEmail}\n🔑 পাসওয়ার্ড: ${generatedPassword}\n🔗 লগইন: /h/${slug}/login\n\nলগইন করে পাসওয়ার্ড পরিবর্তন করুন।`,
+      whatsappMessage: `🏥 আপনার হাসপাতালের Ozzyl HMS অ্যাকাউন্ট তৈরি হয়েছে!\n\n📧 ইমেইল: ${adminEmail}\n🔑 পাসওয়ার্ড: ${generatedPassword}\n🔗 লগইন: /h/${slug}/login\n\nলগইন করে পাসওয়ার্ড পরিবর্তন করুন।`,
     }, 201);
   } catch (error) {
     console.error('Provision error:', error);

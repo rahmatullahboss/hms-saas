@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
+import { zValidator } from '@hono/zod-validator';
 import { createAuditLog } from '../../lib/accounting-helpers';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
+import { createRecurringExpenseSchema, updateRecurringExpenseSchema } from '../../schemas/accounting';
 
 const recurringRoutes = new Hono<{
   Bindings: {
@@ -45,20 +47,10 @@ recurringRoutes.get('/', async (c) => {
   }
 });
 
-recurringRoutes.post('/', async (c) => {
+recurringRoutes.post('/', zValidator('json', createRecurringExpenseSchema), async (c) => {
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
-  const body = await c.req.json();
-  const { category_id, amount, description, frequency, next_run_date, end_date } = body;
-
-  if (!category_id || !amount || !frequency || !next_run_date) {
-    return c.json({ error: 'Missing required fields' }, 400);
-  }
-
-  const validFrequencies = ['daily', 'weekly', 'monthly'];
-  if (!validFrequencies.includes(frequency)) {
-    return c.json({ error: 'Invalid frequency. Must be daily, weekly, or monthly' }, 400);
-  }
+  const { category_id, amount, description, frequency, next_run_date, end_date } = c.req.valid('json');
 
   try {
     const category = await c.env.DB.prepare(`
@@ -122,12 +114,11 @@ recurringRoutes.get('/:id', async (c) => {
   }
 });
 
-recurringRoutes.put('/:id', async (c) => {
+recurringRoutes.put('/:id', zValidator('json', updateRecurringExpenseSchema), async (c) => {
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const id = c.req.param('id');
-  const body = await c.req.json();
-  const { category_id, amount, description, frequency, next_run_date, end_date, is_active } = body;
+  const { category_id, amount, description, frequency, next_run_date, end_date, is_active } = c.req.valid('json');
 
   try {
     const existing = await c.env.DB.prepare(`

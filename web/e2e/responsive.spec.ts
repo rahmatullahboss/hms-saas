@@ -14,7 +14,7 @@ test.describe('Login Page — Responsive', () => {
     test(`login renders on ${vp.name}`, async ({ page }) => {
       await page.setViewportSize({ width: vp.width, height: vp.height });
       await page.goto('/login');
-      await expect(page.getByText(/HMS SaaS/i)).toBeVisible({ timeout: 8000 });
+      await expect(page.getByText(/Ozzyl HMS/i)).toBeVisible({ timeout: 8000 });
       await expect(page.locator('input[type="email"]').first()).toBeVisible();
       await expect(page.locator('button[type="submit"]').first()).toBeVisible();
     });
@@ -50,7 +50,7 @@ test.describe('Dark Mode Support', () => {
   test('login page renders in dark color scheme', async ({ page }) => {
     await page.emulateMedia({ colorScheme: 'dark' });
     await page.goto('/login');
-    await expect(page.getByText(/HMS SaaS/i)).toBeVisible({ timeout: 8000 });
+    await expect(page.getByText(/Ozzyl HMS/i)).toBeVisible({ timeout: 8000 });
     // Dark mode shouldn't break the layout
     await expect(page.locator('input[type="email"]').first()).toBeVisible();
   });

@@ -1,5 +1,13 @@
 import { Hono } from 'hono';
+import { zValidator } from '@hono/zod-validator';
 import { HTTPException } from 'hono/http-exception';
+import {
+  createAdmissionSchema,
+  updateAdmissionSchema,
+  createBedSchema,
+  updateBedSchema,
+} from '../../schemas/admission';
+import { getNextSequence } from '../../lib/sequence';
 import type { Env, Variables } from '../../types';
 import { requireTenantId } from '../../lib/context-helpers';
 
@@ -128,8 +136,8 @@ app.get('/beds', async (c) => {
   return c.json({ beds: results });
 });
 
-// POST /api/admissions/beds — add a new bed
-app.post('/beds', async (c) => {
+// POST /api/admissions/beds — add a new bed (Zod validated)
+app.post('/beds', zValidator('json', createBedSchema), async (c) => {
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
@@ -139,31 +147,21 @@ app.post('/beds', async (c) => {
     throw new HTTPException(403, { message: 'Not authorized to create beds' });
   }
 
-  const body = await c.req.json<{
-    ward_name: string;
-    bed_number: string;
-    bed_type?: string;
-    floor?: string;
-    notes?: string;
-  }>();
-
-  if (!body.ward_name || !body.bed_number) {
-    throw new HTTPException(400, { message: 'ward_name and bed_number required' });
-  }
+  const data = c.req.valid('json');
 
   await c.env.DB.prepare(
     `INSERT INTO beds (tenant_id, ward_name, bed_number, bed_type, floor, notes)
      VALUES (?, ?, ?, ?, ?, ?)`
   ).bind(
-    tenantId, body.ward_name, body.bed_number,
-    body.bed_type ?? 'general', body.floor ?? null, body.notes ?? null
+    tenantId, data.ward_name, data.bed_number,
+    data.bed_type, data.floor ?? null, data.notes ?? null
   ).run();
 
   return c.json({ success: true }, 201);
 });
 
-// PUT /api/admissions/beds/:id — update bed status
-app.put('/beds/:id', async (c) => {
+// PUT /api/admissions/beds/:id — update bed status (Zod validated)
+app.put('/beds/:id', zValidator('json', updateBedSchema), async (c) => {
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
@@ -174,17 +172,17 @@ app.put('/beds/:id', async (c) => {
   }
 
   const id = c.req.param('id');
-  const body = await c.req.json<{ status?: string; notes?: string }>();
+  const data = c.req.valid('json');
 
   await c.env.DB.prepare(
     `UPDATE beds SET status = COALESCE(?, status), notes = COALESCE(?, notes) WHERE id = ? AND tenant_id = ?`
-  ).bind(body.status ?? null, body.notes ?? null, id, tenantId).run();
+  ).bind(data.status ?? null, data.notes ?? null, id, tenantId).run();
 
   return c.json({ success: true });
 });
 
-// POST /api/admissions
-app.post('/', async (c) => {
+// POST /api/admissions — create admission (Zod validated + atomic batch + sequence)
+app.post('/', zValidator('json', createAdmissionSchema), async (c) => {
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
@@ -194,44 +192,39 @@ app.post('/', async (c) => {
     throw new HTTPException(403, { message: 'Not authorized to create admissions' });
   }
 
-  const body = await c.req.json<{
-    patient_id: number;
-    bed_id?: number;
-    doctor_id?: number;
-    admission_type?: string;
-    provisional_diagnosis?: string;
-    notes?: string;
-  }>();
+  const data = c.req.valid('json');
 
-  if (!body.patient_id) throw new HTTPException(400, { message: 'patient_id required' });
+  // ✅ Use sequence-based admission number (no more COUNT(*) race condition)
+  const admNo = await getNextSequence(c.env.DB, tenantId, 'admission', 'ADM');
 
-  // Generate admission number
-  const countRow = await c.env.DB.prepare(
-    'SELECT COUNT(*) AS cnt FROM admissions WHERE tenant_id = ?'
-  ).bind(tenantId).first<{ cnt: number }>();
-  const admNo = `ADM-${String((countRow?.cnt ?? 0) + 1).padStart(5, '0')}`;
+  // ✅ Atomic batch: admission insert + bed status update in one transaction
+  const batchStmts: D1PreparedStatement[] = [
+    c.env.DB.prepare(
+      `INSERT INTO admissions (tenant_id, admission_no, patient_id, bed_id, doctor_id, admission_type, provisional_diagnosis, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(
+      tenantId, admNo, data.patient_id, data.bed_id ?? null,
+      data.doctor_id ?? null, data.admission_type,
+      data.provisional_diagnosis ?? null, data.notes ?? null
+    ),
+  ];
 
-  await c.env.DB.prepare(
-    `INSERT INTO admissions (tenant_id, admission_no, patient_id, bed_id, doctor_id, admission_type, provisional_diagnosis, notes)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-  ).bind(
-    tenantId, admNo, body.patient_id, body.bed_id ?? null,
-    body.doctor_id ?? null, body.admission_type ?? 'planned',
-    body.provisional_diagnosis ?? null, body.notes ?? null
-  ).run();
-
-  // Mark bed as occupied
-  if (body.bed_id) {
-    await c.env.DB.prepare(
-      `UPDATE beds SET status = 'occupied' WHERE id = ? AND tenant_id = ?`
-    ).bind(body.bed_id, tenantId).run();
+  // Mark bed as occupied atomically with admission
+  if (data.bed_id) {
+    batchStmts.push(
+      c.env.DB.prepare(
+        `UPDATE beds SET status = 'occupied' WHERE id = ? AND tenant_id = ?`
+      ).bind(data.bed_id, tenantId)
+    );
   }
+
+  await c.env.DB.batch(batchStmts);
 
   return c.json({ admission_no: admNo }, 201);
 });
 
-// PUT /api/admissions/:id
-app.put('/:id', async (c) => {
+// PUT /api/admissions/:id — update admission (Zod validated + atomic discharge)
+app.put('/:id', zValidator('json', updateAdmissionSchema), async (c) => {
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
@@ -242,27 +235,34 @@ app.put('/:id', async (c) => {
   }
 
   const id = c.req.param('id');
-  const body = await c.req.json<{ status: string }>();
+  const { status } = c.req.valid('json');
 
-  if (body.status === 'discharged') {
-    // Free the bed
+  if (status === 'discharged') {
+    // Free the bed atomically with discharge
     const adm = await c.env.DB.prepare(
       `SELECT bed_id FROM admissions WHERE id = ? AND tenant_id = ?`
     ).bind(id, tenantId).first<{ bed_id: number | null }>();
 
-    await c.env.DB.prepare(
-      `UPDATE admissions SET status = 'discharged', discharge_date = datetime('now'), updated_at = datetime('now') WHERE id = ? AND tenant_id = ?`
-    ).bind(id, tenantId).run();
+    // ✅ Atomic batch: discharge + bed free in one transaction
+    const batchStmts: D1PreparedStatement[] = [
+      c.env.DB.prepare(
+        `UPDATE admissions SET status = 'discharged', discharge_date = datetime('now'), updated_at = datetime('now') WHERE id = ? AND tenant_id = ?`
+      ).bind(id, tenantId),
+    ];
 
     if (adm?.bed_id) {
-      await c.env.DB.prepare(
-        `UPDATE beds SET status = 'available' WHERE id = ? AND tenant_id = ?`
-      ).bind(adm.bed_id, tenantId).run();
+      batchStmts.push(
+        c.env.DB.prepare(
+          `UPDATE beds SET status = 'available' WHERE id = ? AND tenant_id = ?`
+        ).bind(adm.bed_id, tenantId)
+      );
     }
+
+    await c.env.DB.batch(batchStmts);
   } else {
     await c.env.DB.prepare(
       `UPDATE admissions SET status = ?, updated_at = datetime('now') WHERE id = ? AND tenant_id = ?`
-    ).bind(body.status, id, tenantId).run();
+    ).bind(status, id, tenantId).run();
   }
 
   return c.json({ success: true });

@@ -39,11 +39,11 @@ settlements.get('/pending', async (c) => {
 
   let sql = `
     SELECT b.*, p.name as patient_name, p.patient_code,
-      (b.total_amount - b.paid_amount) as due_amount
+      (b.total - b.paid) as due_amount
     FROM bills b
     JOIN patients p ON b.patient_id = p.id AND p.tenant_id = b.tenant_id
     WHERE b.tenant_id = ? AND b.status IN ('open', 'partially_paid')
-      AND b.total_amount > b.paid_amount
+      AND b.total > b.paid
   `;
   const params: (string | number)[] = [tenantId];
   if (patientId) { sql += ' AND b.patient_id = ?'; params.push(patientId); }
@@ -65,8 +65,8 @@ settlements.get('/patient/:patientId/info', async (c) => {
   if (!patient) throw new HTTPException(404, { message: 'Patient not found' });
 
   const { results: pendingBills } = await c.env.DB.prepare(`
-    SELECT id, invoice_no, total_amount, paid_amount,
-      (total_amount - paid_amount) as due_amount, created_at, status
+    SELECT id, invoice_no, total, paid,
+      (total - paid) as due_amount, created_at, status
     FROM bills WHERE patient_id = ? AND tenant_id = ? AND status IN ('open', 'partially_paid')
     ORDER BY created_at ASC
   `).bind(patientId, tenantId).all();
@@ -107,13 +107,13 @@ settlements.post('/', zValidator('json', z.object({
   // Validate all bills belong to patient
   const placeholders = data.bill_ids.map(() => '?').join(',');
   const { results: bills } = await c.env.DB.prepare(
-    `SELECT id, total_amount, paid_amount, patient_id FROM bills WHERE id IN (${placeholders}) AND tenant_id = ?`
+    `SELECT id, total, paid, patient_id FROM bills WHERE id IN (${placeholders}) AND tenant_id = ?`
   ).bind(...data.bill_ids, tenantId).all<any>();
 
   if (bills.length !== data.bill_ids.length) throw new HTTPException(400, { message: 'Some bills not found' });
   if (bills.some(b => b.patient_id !== data.patient_id)) throw new HTTPException(400, { message: 'Bill does not belong to patient' });
 
-  const totalDue = bills.reduce((sum, b) => sum + (b.total_amount - b.paid_amount), 0);
+  const totalDue = bills.reduce((sum, b) => sum + (b.total - b.paid), 0);
   const totalPayment = data.paid_amount + data.deposit_deducted + data.discount_amount;
   // P1#6: Round to 2 decimals for reliable float comparison
   const roundedPayment = Math.round(totalPayment * 100) / 100;
@@ -150,15 +150,15 @@ settlements.post('/', zValidator('json', z.object({
 
   for (const bill of sorted) {
     if (remaining <= 0.01) break;
-    const due = bill.total_amount - bill.paid_amount;
+    const due = bill.total - bill.paid;
     const payment = Math.min(due, remaining);
-    const newPaid = Math.round((bill.paid_amount + payment) * 100) / 100;
-    const newStatus = newPaid >= bill.total_amount ? 'paid' : 'partially_paid';
+    const newPaid = Math.round((bill.paid + payment) * 100) / 100;
+    const newStatus = newPaid >= bill.total ? 'paid' : 'partially_paid';
     remaining = Math.round((remaining - payment) * 100) / 100;
 
     batchStmts.push(
       c.env.DB.prepare(`
-        UPDATE bills SET paid_amount = ?, status = ?, settlement_id = ? WHERE id = ? AND tenant_id = ?
+        UPDATE bills SET paid = ?, status = ?, settlement_id = ? WHERE id = ? AND tenant_id = ?
       `).bind(newPaid, newStatus, stlId, bill.id, tenantId)
     );
   }

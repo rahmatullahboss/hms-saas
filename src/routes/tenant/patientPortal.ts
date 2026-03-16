@@ -452,9 +452,9 @@ patientPortalRoutes.get('/dashboard', async (c) => {
   ).bind(patientId, tenantId).first<{ cnt: number }>();
 
   const balance = await c.env.DB.prepare(
-    `SELECT COALESCE(SUM(total_amount - paid_amount), 0) as total_due,
-            COALESCE(SUM(paid_amount), 0) as total_paid,
-            COALESCE(SUM(total_amount), 0) as total_billed
+    `SELECT COALESCE(SUM(total - paid), 0) as total_due,
+            COALESCE(SUM(paid), 0) as total_paid,
+            COALESCE(SUM(total), 0) as total_billed
      FROM bills WHERE patient_id = ? AND tenant_id = ?`
   ).bind(patientId, tenantId).first<{ total_due: number; total_paid: number; total_billed: number }>();
 
@@ -606,8 +606,8 @@ patientPortalRoutes.get('/bills', async (c) => {
   ).bind(patientId, tenantId).first<{ total: number }>();
 
   const { results } = await c.env.DB.prepare(
-    `SELECT id, invoice_no, total_amount as total, paid_amount as paid,
-            (total_amount - paid_amount) as due, discount, status,
+    `SELECT id, invoice_no, total, paid,
+            (total - paid) as due, discount, status,
             created_at
      FROM bills WHERE patient_id = ? AND tenant_id = ?
      ORDER BY created_at DESC
@@ -1000,7 +1000,7 @@ patientPortalRoutes.post('/prescriptions/:id/refill', async (c) => {
     throw new HTTPException(409, { message: 'A refill request is already pending for this prescription' });
   }
 
-  const body = await c.req.json().catch(() => ({}));
+  const body = await c.req.json().catch(() => ({})) as Record<string, unknown>;
   const notes = typeof body.notes === 'string' ? body.notes.slice(0, 500) : null;
 
   await c.env.DB.prepare(

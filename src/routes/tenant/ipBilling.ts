@@ -151,7 +151,7 @@ ipBilling.post('/discharge-bill', zValidator('json', z.object({
 
   // Create bill
   const billResult = await c.env.DB.prepare(`
-    INSERT INTO bills (patient_id, visit_id, invoice_no, subtotal, discount, total_amount, paid_amount, status, tenant_id, created_by, created_at)
+    INSERT INTO bills (patient_id, visit_id, invoice_no, subtotal, discount, total, paid, status, tenant_id, created_by, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
   `).bind(admission.patient_id, admission.visit_id || null, invoiceNo, subtotal, discountAmt, totalAmt, data.paid_amount, billStatus, tenantId, userId).run();
 

@@ -1,6 +1,6 @@
-# 🚀 Google Products — Full Potential Strategy for HMS SaaS & Company Growth
+# 🚀 Google Products — Full Potential Strategy for Ozzyl HMS & Company Growth
 
-> **Goal**: আপনার Google Credits সর্বোচ্চ ব্যবহার করে HMS SaaS প্রোডাক্ট এবং পুরো কোম্পানিকে 100x speed-এ গ্রো করা।
+> **Goal**: আপনার Google Credits সর্বোচ্চ ব্যবহার করে Ozzyl HMS প্রোডাক্ট এবং পুরো কোম্পানিকে 100x speed-এ গ্রো করা।
 
 ---
 
@@ -324,7 +324,7 @@ const result = await model.generateContent({
 
 | # | Action | Time | Impact |
 |---|--------|------|--------|
-| 1 | GA4 setup on HMS SaaS + Landing page | 2 hours | Product analytics |
+| 1 | GA4 setup on Ozzyl HMS + Landing page | 2 hours | Product analytics |
 | 2 | Google Workspace setup for team | 1 hour | Professional operations |
 | 3 | Google Business Profile create | 30 min | Local SEO |
 | 4 | Google Ads account + first campaign | 3 hours | Customer acquisition |

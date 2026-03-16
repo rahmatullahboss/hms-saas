@@ -228,7 +228,7 @@ export default function Sidebar({ role, onLogout }: SidebarProps) {
             </svg>
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold gradient-text leading-none">HMS SaaS</p>
+            <p className="text-sm font-bold gradient-text leading-none">Ozzyl HMS</p>
             <p className="text-xs text-[var(--color-text-muted)] mt-0.5 leading-none capitalize">
               {roleLabel.replace(/_/g, ' ')}
             </p>

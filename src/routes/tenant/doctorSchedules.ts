@@ -1,7 +1,9 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
+import { zValidator } from '@hono/zod-validator';
 import type { Env, Variables } from '../../types';
 import { requireTenantId } from '../../lib/context-helpers';
+import { createDoctorScheduleSchema, updateDoctorScheduleSchema } from '../../schemas/clinical';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -42,7 +44,7 @@ app.get('/', async (c) => {
 });
 
 // POST /api/doctor-schedules
-app.post('/', async (c) => {
+app.post('/', zValidator('json', createDoctorScheduleSchema), async (c) => {
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
@@ -52,20 +54,7 @@ app.post('/', async (c) => {
     throw new HTTPException(403, { message: 'Not authorized to modify schedules' });
   }
 
-  const body = await c.req.json<{
-    doctor_id: number;
-    day_of_week: string;
-    start_time: string;
-    end_time: string;
-    session_type?: string;
-    chamber?: string;
-    max_patients?: number;
-    notes?: string;
-  }>();
-
-  if (!body.doctor_id || !body.day_of_week || !body.start_time || !body.end_time) {
-    throw new HTTPException(400, { message: 'doctor_id, day_of_week, start_time, end_time are required' });
-  }
+  const body = c.req.valid('json');
 
   await c.env.DB.prepare(`
     INSERT INTO doctor_schedules (tenant_id, doctor_id, day_of_week, start_time, end_time, session_type, chamber, max_patients, notes)
@@ -81,7 +70,7 @@ app.post('/', async (c) => {
 });
 
 // PUT /api/doctor-schedules/:id
-app.put('/:id', async (c) => {
+app.put('/:id', zValidator('json', updateDoctorScheduleSchema), async (c) => {
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
@@ -92,15 +81,7 @@ app.put('/:id', async (c) => {
   }
 
   const id = c.req.param('id');
-  const body = await c.req.json<{
-    day_of_week?: string;
-    start_time?: string;
-    end_time?: string;
-    session_type?: string;
-    chamber?: string;
-    max_patients?: number;
-    notes?: string;
-  }>();
+  const body = c.req.valid('json');
 
   await c.env.DB.prepare(`
     UPDATE doctor_schedules SET

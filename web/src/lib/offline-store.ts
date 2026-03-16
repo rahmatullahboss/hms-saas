@@ -1,5 +1,5 @@
 /**
- * Offline Store — IndexedDB abstraction for HMS SaaS offline-first capability.
+ * Offline Store — IndexedDB abstraction for Ozzyl HMS offline-first capability.
  *
  * Uses the `idb` library for a clean Promise-based API over IndexedDB.
  *

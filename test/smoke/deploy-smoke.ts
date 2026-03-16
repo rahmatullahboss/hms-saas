@@ -5,7 +5,7 @@
  * Tests critical endpoints with real HTTP requests (no mocks).
  *
  * Usage:
- *   BASE_URL=https://hms-saas.your-subdomain.workers.dev npx tsx test/smoke/deploy-smoke.ts
+ *   BASE_URL=https://ozzyl-hms.your-subdomain.workers.dev npx tsx test/smoke/deploy-smoke.ts
  *   npm run test:smoke:deploy  (uses BASE_URL env var)
  */
 
@@ -69,7 +69,7 @@ async function smoke(
 // ─── Smoke Test Suite ───────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
-  console.log(`\n🔥 HMS SaaS Deploy Smoke Test`);
+  console.log(`\n🔥 Ozzyl HMS Deploy Smoke Test`);
   console.log(`   Target: ${BASE_URL}`);
   console.log(`   Time:   ${new Date().toISOString()}\n`);
 

@@ -19,31 +19,44 @@ const ALLOWED_PDF_ROLES = ['hospital_admin', 'reception', 'doctor', 'nurse'];
 
 const pdfRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-// ─── GET /invoice/:billingId ───────────────────────────────────────────────────
-pdfRoutes.get('/invoice/:billingId', async (c) => {
+// ─── GET /invoice/:billId ─────────────────────────────────────────────────────
+pdfRoutes.get('/invoice/:billId', async (c) => {
   const tenantId = requireTenantId(c);
-  const billingId = c.req.param('billingId');
+  const billId = c.req.param('billId');
   const role = c.get('role');
   if (!role || !ALLOWED_PDF_ROLES.includes(role)) {
     throw new HTTPException(403, { message: 'Insufficient permissions' });
   }
 
   try {
-    // Fetch billing record
-    const billing = await c.env.DB.prepare(`
-      SELECT b.*,
-             p.name      as patient_name,
+    // Fetch bill from the actual 'bills' table (flat category amounts)
+    const bill = await c.env.DB.prepare(`
+      SELECT b.id, b.invoice_no, b.test_bill, b.admission_bill,
+             b.doctor_visit_bill, b.operation_bill, b.medicine_bill,
+             b.discount, b.total, b.paid, b.due,
+             b.created_at,
+             p.name         AS patient_name,
              p.patient_code,
-             p.mobile    as patient_mobile,
-             t.name      as hospital_name,
-             t.address   as hospital_address,
-             t.phone     as hospital_phone
-      FROM billing b
-      JOIN patients p ON b.patient_id  = p.id
-      JOIN tenants  t ON b.tenant_id   = t.id
+             p.mobile       AS patient_mobile,
+             t.name         AS hospital_name,
+             t.address      AS hospital_address,
+             t.phone        AS hospital_phone
+      FROM bills b
+      JOIN patients p ON b.patient_id = p.id AND p.tenant_id = b.tenant_id
+      JOIN tenants  t ON b.tenant_id  = t.id
       WHERE b.id = ? AND b.tenant_id = ?
-    `).bind(billingId, tenantId).first<{
-      invoice_no: string;
+    `).bind(billId, tenantId).first<{
+      id: number;
+      invoice_no: string | null;
+      test_bill: number;
+      admission_bill: number;
+      doctor_visit_bill: number;
+      operation_bill: number;
+      medicine_bill: number;
+      discount: number;
+      total: number;
+      paid: number;
+      due: number;
       created_at: string;
       patient_name: string;
       patient_code: string;
@@ -51,55 +64,47 @@ pdfRoutes.get('/invoice/:billingId', async (c) => {
       hospital_name: string;
       hospital_address?: string;
       hospital_phone?: string;
-      total_amount: number;
-      paid_amount: number;
-      discount?: number;
-      notes?: string;
     }>();
 
-    if (!billing) throw new HTTPException(404, { message: 'Invoice not found' });
+    if (!bill) throw new HTTPException(404, { message: 'Invoice not found' });
 
-    // Fetch billing items
-    const itemsResult = await c.env.DB.prepare(`
-      SELECT description, quantity, unit_price, total_price
-      FROM billing_items
-      WHERE billing_id = ?
-      ORDER BY id ASC
-    `).bind(billingId).all<{
-      description: string;
-      quantity: number;
-      unit_price: number;
-      total_price: number;
-    }>();
+    // Derive line items from the flat category columns (skip zero-amount categories)
+    const categoryLabels: Array<{ key: keyof typeof bill; en: string; bn: string }> = [
+      { key: 'test_bill',         en: 'Lab Tests',       bn: 'ল্যাব পরীক্ষা' },
+      { key: 'admission_bill',    en: 'Admission',       bn: 'ভর্তি ফি' },
+      { key: 'doctor_visit_bill', en: 'Doctor Visit',    bn: 'ডাক্তার ভিজিট' },
+      { key: 'operation_bill',    en: 'Operation / OT',  bn: 'অপারেশন' },
+      { key: 'medicine_bill',     en: 'Medicine',        bn: 'ঔষধ' },
+    ];
 
-    const items = itemsResult.results.map(item => ({
-      description: item.description,
-      quantity: item.quantity,
-      unitPrice: item.unit_price,
-      total: item.total_price,
-    }));
+    const items = categoryLabels
+      .filter(cat => (bill[cat.key] as number) > 0)
+      .map(cat => ({
+        description: cat.en,
+        descriptionBn: cat.bn,
+        quantity: 1,
+        unitPrice: bill[cat.key] as number,
+        total: bill[cat.key] as number,
+      }));
 
-    const totalAmount = billing.total_amount;
-    const discount = billing.discount ?? 0;
-    const paidAmount = billing.paid_amount;
-    const subtotal = totalAmount + discount;
+    const discount = bill.discount ?? 0;
+    const subtotal = bill.total + discount;
 
     const html = renderInvoiceHtml({
-      invoiceNo: billing.invoice_no || billingId,
-      date: billing.created_at.split('T')[0],
-      patientName: billing.patient_name,
-      patientCode: billing.patient_code,
-      patientMobile: billing.patient_mobile,
-      hospitalName: billing.hospital_name,
-      hospitalAddress: billing.hospital_address,
-      hospitalPhone: billing.hospital_phone,
+      invoiceNo: bill.invoice_no || `INV-${bill.id}`,
+      date: bill.created_at?.split('T')[0] ?? new Date().toISOString().split('T')[0],
+      patientName: bill.patient_name,
+      patientCode: bill.patient_code,
+      patientMobile: bill.patient_mobile,
+      hospitalName: bill.hospital_name,
+      hospitalAddress: bill.hospital_address,
+      hospitalPhone: bill.hospital_phone,
       items,
       subtotal,
       discount: discount > 0 ? discount : undefined,
-      totalAmount,
-      paidAmount,
-      dueAmount: totalAmount - paidAmount,
-      notes: billing.notes,
+      totalAmount: bill.total,
+      paidAmount: bill.paid,
+      dueAmount: bill.due,
     });
 
     return new Response(html, {

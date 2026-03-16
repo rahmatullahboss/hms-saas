@@ -101,7 +101,7 @@ export default function HospitalSignup() {
               <Activity className="w-5 h-5 text-white" />
             </div>
             <span className="text-lg font-bold text-slate-800 dark:text-white tracking-tight">
-              HMS SaaS
+              Ozzyl HMS
             </span>
           </div>
         </div>
