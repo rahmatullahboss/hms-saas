@@ -63,50 +63,77 @@ test.describe('🔒 Smoke — Auth', () => {
 // ─── SMOKE: All Core Endpoints (unauthenticated → 401) ───────────────────────
 test.describe('🏥 Smoke — Core Endpoints (401 without auth)', () => {
   const endpoints = [
+    // ─── Patient & Clinical ─────────────────────────────────────
     '/api/patients',
+    '/api/visits',
+    '/api/admissions',
+    '/api/discharge',
+    '/api/emergency',
+    '/api/vitals',
+    '/api/allergies',
+    '/api/prescriptions',
+    '/api/consultations',
+    '/api/nurse-station',
+    // ─── Appointments & Scheduling ──────────────────────────────
+    '/api/appointments',
+    '/api/doctors',
+    '/api/doctor-schedule',
+    // ─── Laboratory ─────────────────────────────────────────────
+    '/api/lab',
+    '/api/lab/orders',
+    '/api/tests',
+    // ─── Pharmacy ───────────────────────────────────────────────
+    '/api/pharmacy',
+    // ─── Billing & Financial ────────────────────────────────────
+    '/api/billing',
+    '/api/billing-cancellation',
+    '/api/billing-handover',
+    '/api/deposits',
+    '/api/credits',
+    '/api/settlements',
+    '/api/ipd-billing',
+    '/api/ipd-charges',
+    // ─── Accounting ─────────────────────────────────────────────
+    '/api/accounting',
+    '/api/accounting/summary',
+    '/api/accounts',
+    '/api/journal',
+    '/api/expenses',
+    '/api/income',
+    '/api/profit',
+    '/api/recurring',
+    // ─── Dashboard & Reports ────────────────────────────────────
     '/api/dashboard',
     '/api/dashboard/stats',
     '/api/dashboard/daily-income',
     '/api/dashboard/daily-expenses',
     '/api/dashboard/monthly-summary',
-    '/api/appointments',
-    '/api/billing',
-    '/api/pharmacy',
-    '/api/lab',
-    '/api/lab/orders',
-    '/api/admissions',
-    '/api/emergency',
-    '/api/deposits',
-    '/api/expenses',
-    '/api/income',
-    '/api/accounts',
-    '/api/accounting',
-    '/api/accounting/summary',
     '/api/reports',
-    '/api/doctors',
+    // ─── HR & Admin ─────────────────────────────────────────────
     '/api/staff',
     '/api/branches',
     '/api/commissions',
     '/api/shareholders',
-    '/api/vitals',
-    '/api/prescriptions',
-    '/api/recurring',
+    '/api/invitations',
+    '/api/settings',
+    '/api/audit',
+    // ─── Insurance & OT ─────────────────────────────────────────
+    '/api/insurance',
+    '/api/ot',
+    // ─── Communication ──────────────────────────────────────────
+    '/api/notifications',
+    '/api/inbox',
+    '/api/push-notifications',
+    // ─── Website ────────────────────────────────────────────────
     '/api/website',
     '/api/website/config',
     '/api/website/services',
     '/api/website/analytics',
-    '/api/allergies',
-    '/api/consultations',
-    '/api/settings',
-    '/api/audit',
-    '/api/ipd-billing',
-    '/api/ot',
-    '/api/insurance',
-    '/api/credits',
-    '/api/settlements',
-    '/api/tests',
-    '/api/notifications',
-    '/api/inbox',
+    // ─── FHIR Interoperability ───────────────────────────────────
+    '/api/fhir/Patient',
+    '/api/fhir/Appointment',
+    '/api/fhir/Observation',
+    '/api/fhir/Practitioner',
   ];
 
   for (const endpoint of endpoints) {
@@ -125,7 +152,7 @@ test.describe('🏥 Smoke — Core Endpoints (401 without auth)', () => {
       // Must respond in under 3s
       expect(latency).toBeLessThan(3000);
 
-      // Auth required endpoints return 401
+      // Auth required endpoints return 401/403/404
       expect([401, 403, 404]).toContain(res.status());
     });
   }
@@ -134,16 +161,29 @@ test.describe('🏥 Smoke — Core Endpoints (401 without auth)', () => {
 // ─── SMOKE: POST endpoints without auth → 401 ─────────────────────────────────
 test.describe('📝 Smoke — POST endpoints (auth required)', () => {
   const postEndpoints: Array<[string, Record<string, unknown>]> = [
+    // Patient & Clinical
     ['/api/patients', { name: 'Test', mobile: '01712345678' }],
+    ['/api/visits', { patientId: 1, visitType: 'OPD' }],
+    ['/api/admissions', { patientId: 1, wardId: 1 }],
+    ['/api/discharge', { admissionId: 1 }],
+    ['/api/vitals', { patientId: 1, temperature: 98.6 }],
+    ['/api/allergies', { patientId: 1, allergen: 'Penicillin' }],
+    // Appointments
     ['/api/appointments', { patient_id: 1, doctor_id: 1 }],
-    ['/api/billing', { patient_id: 1 }],
+    // Lab & Pharmacy
+    ['/api/lab/orders', { patientId: 1, items: [] }],
+    ['/api/prescriptions', { patientId: 1 }],
+    // Billing & Financial
+    ['/api/billing', { patientId: 1 }],
     ['/api/deposits', { patient_id: 1, amount: 100 }],
     ['/api/expenses', { amount: 100, category: 'utility', date: '2025-03-15' }],
     ['/api/income', { amount: 100, source: 'opd', date: '2025-03-15' }],
-    ['/api/lab/orders', { patientId: 1, items: [] }],
-    ['/api/prescriptions', { patientId: 1 }],
+    ['/api/credits', { patientId: 1, amount: 50 }],
+    ['/api/settlements', { patientId: 1 }],
+    // HR & Admin
     ['/api/doctors', { name: 'Dr. Test' }],
     ['/api/staff', { name: 'Nurse Test', role: 'nurse' }],
+    ['/api/invitations', { email: 'test@test.com', role: 'doctor' }],
   ];
 
   for (const [endpoint, body] of postEndpoints) {
@@ -205,11 +245,13 @@ test.describe('📋 Smoke — Response Contract', () => {
     expect(ct).toContain('application/json');
   });
 
-  test('No 500 on any of 10 concurrent requests', async ({ request }) => {
+  test('No 500 on any of 15 concurrent requests', async ({ request }) => {
     const endpoints = [
-      '/api/patients', '/api/dashboard', '/api/appointments',
-      '/api/billing', '/api/pharmacy', '/api/lab',
-      '/api/doctors', '/api/staff', '/api/deposits', '/api/expenses',
+      '/api/patients', '/api/visits', '/api/dashboard',
+      '/api/appointments', '/api/billing', '/api/pharmacy',
+      '/api/lab', '/api/doctors', '/api/staff',
+      '/api/deposits', '/api/expenses', '/api/admissions',
+      '/api/emergency', '/api/accounting', '/api/vitals',
     ];
     const responses = await Promise.all(
       endpoints.map((e) =>
