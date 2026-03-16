@@ -52,10 +52,14 @@ export default function VitalsPage({ role = 'hospital_admin' }: { role?: string 
   }, []);
 
   const fetchVitals = useCallback(async () => {
+    if (!patientId) {
+      setVitals([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
-      const params: Record<string, string> = {};
-      if (patientId) params.patient_id = patientId;
+      const params: Record<string, string> = { patient_id: patientId };
       const { data } = await axios.get('/api/vitals', { params, headers: authHeader() });
       setVitals(data.vitals ?? []);
     } catch { setVitals([]); } finally { setLoading(false); }

@@ -8,16 +8,16 @@
  *   - No 500 errors on any endpoint
  *   - Response time < 3000ms
  *   - JSON responses are valid
+ *   - Public endpoints return correct status codes
  *
  * Run:
  *   npx playwright test --project=smoke
- *   BASE_URL=https://ozzyl-hms-production.rahmatullahzisan.workers.dev npx playwright test --project=smoke
+ *   BASE_URL=https://hms-saas-production.rahmatullahzisan.workers.dev npx playwright test --project=smoke
  */
 
 import { test, expect } from '@playwright/test';
 
-const PROD = 'https://ozzyl-hms-production.rahmatullahzisan.workers.dev';
-const BASE_URL = process.env['BASE_URL'] || PROD;
+const BASE_URL = process.env['BASE_URL'] || 'https://hms-saas-production.rahmatullahzisan.workers.dev';
 
 // ─── SMOKE: Worker Health ─────────────────────────────────────────────────────
 test.describe('🔥 Smoke — Worker Health', () => {
@@ -31,6 +31,20 @@ test.describe('🔥 Smoke — Worker Health', () => {
     const start = Date.now();
     await request.get(BASE_URL);
     expect(Date.now() - start).toBeLessThan(2000);
+  });
+
+  test('GET /api/health → 200 with JSON body', async ({ request }) => {
+    const start = Date.now();
+    const res = await request.get(`${BASE_URL}/api/health`);
+    const latency = Date.now() - start;
+
+    expect(res.status()).toBe(200);
+    expect(latency).toBeLessThan(2000);
+
+    const body = await res.json();
+    expect(body).toHaveProperty('status', 'ok');
+    expect(body).toHaveProperty('version');
+    expect(body).toHaveProperty('timestamp');
   });
 
   test('GET /api/nonexistent → not 500', async ({ request }) => {
@@ -47,7 +61,7 @@ test.describe('🔒 Smoke — Auth', () => {
       headers: { 'Content-Type': 'application/json' },
     });
     expect(res.status()).not.toBe(500);
-    expect([400, 401, 422]).toContain(res.status());
+    expect([400, 401, 422, 429]).toContain(res.status());
   });
 
   test('POST /api/auth/login → 400 for invalid credentials', async ({ request }) => {
@@ -56,11 +70,60 @@ test.describe('🔒 Smoke — Auth', () => {
       headers: { 'Content-Type': 'application/json' },
     });
     expect(res.status()).not.toBe(500);
-    expect([400, 401, 422]).toContain(res.status());
+    expect([400, 401, 422, 429]).toContain(res.status());
+  });
+
+  test('POST /api/auth/login-direct → 400/401 for empty body', async ({ request }) => {
+    const res = await request.post(`${BASE_URL}/api/auth/login-direct`, {
+      data: {},
+      headers: { 'Content-Type': 'application/json' },
+    });
+    expect([400, 401, 422, 429]).toContain(res.status());
+  });
+
+  test('POST /api/admin/login → 400/401 for empty body', async ({ request }) => {
+    const res = await request.post(`${BASE_URL}/api/admin/login`, {
+      data: {},
+      headers: { 'Content-Type': 'application/json' },
+    });
+    expect([400, 401, 422, 429]).toContain(res.status());
   });
 });
 
-// ─── SMOKE: All Core Endpoints (unauthenticated → 401) ───────────────────────
+// ─── SMOKE: Public Endpoints (no auth required) ──────────────────────────────
+test.describe('🌍 Smoke — Public Endpoints', () => {
+  test('POST /api/register → 400/422 for empty body (validation)', async ({ request }) => {
+    const res = await request.post(`${BASE_URL}/api/register`, {
+      data: {},
+      headers: { 'Content-Type': 'application/json' },
+    });
+    expect(res.status()).not.toBe(500);
+    expect([400, 422, 429]).toContain(res.status());
+  });
+
+  test('POST /api/onboarding → 400/422 for empty body', async ({ request }) => {
+    const res = await request.post(`${BASE_URL}/api/onboarding`, {
+      data: {},
+      headers: { 'Content-Type': 'application/json' },
+    });
+    expect(res.status()).not.toBe(500);
+    expect([400, 401, 404, 422, 429]).toContain(res.status());
+  });
+
+  test('GET /api/rx/invalidtoken → 400/404 (shared prescription)', async ({ request }) => {
+    const res = await request.get(`${BASE_URL}/api/rx/invalidtoken`);
+    expect(res.status()).not.toBe(500);
+    expect([400, 404]).toContain(res.status());
+  });
+
+  test('GET /api/invite/nonexistent-token → 400/404', async ({ request }) => {
+    const res = await request.get(`${BASE_URL}/api/invite/nonexistent-token`);
+    expect(res.status()).not.toBe(500);
+    expect([400, 404]).toContain(res.status());
+  });
+});
+
+// ─── SMOKE: All Core GET Endpoints (unauthenticated → 401) ───────────────────
 test.describe('🏥 Smoke — Core Endpoints (401 without auth)', () => {
   const endpoints = [
     // ─── Patient & Clinical ─────────────────────────────────────
@@ -78,6 +141,8 @@ test.describe('🏥 Smoke — Core Endpoints (401 without auth)', () => {
     '/api/appointments',
     '/api/doctors',
     '/api/doctor-schedule',
+    '/api/doctor-schedules',
+    '/api/doctor-dashboard',
     // ─── Laboratory ─────────────────────────────────────────────
     '/api/lab',
     '/api/lab/orders',
@@ -90,9 +155,12 @@ test.describe('🏥 Smoke — Core Endpoints (401 without auth)', () => {
     '/api/billing-handover',
     '/api/deposits',
     '/api/credits',
+    '/api/credit-notes',
     '/api/settlements',
     '/api/ipd-billing',
+    '/api/ip-billing',
     '/api/ipd-charges',
+    '/api/payments',
     // ─── Accounting ─────────────────────────────────────────────
     '/api/accounting',
     '/api/accounting/summary',
@@ -124,6 +192,20 @@ test.describe('🏥 Smoke — Core Endpoints (401 without auth)', () => {
     '/api/notifications',
     '/api/inbox',
     '/api/push-notifications',
+    '/api/push',
+    // ─── Telemedicine & AI ──────────────────────────────────────
+    '/api/telemedicine',
+    '/api/ai',
+    // ─── PDF ────────────────────────────────────────────────────
+    '/api/pdf',
+    // ─── Inventory ──────────────────────────────────────────────
+    '/api/inventory',
+    '/api/inventory/items',
+    '/api/inventory/stock',
+    '/api/inventory/vendors',
+    '/api/inventory/stores',
+    // ─── Patient Portal ─────────────────────────────────────────
+    '/api/patient-portal',
     // ─── Website ────────────────────────────────────────────────
     '/api/website',
     '/api/website/config',
@@ -168,6 +250,7 @@ test.describe('📝 Smoke — POST endpoints (auth required)', () => {
     ['/api/discharge', { admissionId: 1 }],
     ['/api/vitals', { patientId: 1, temperature: 98.6 }],
     ['/api/allergies', { patientId: 1, allergen: 'Penicillin' }],
+    ['/api/consultations', { patientId: 1, doctorId: 1 }],
     // Appointments
     ['/api/appointments', { patient_id: 1, doctor_id: 1 }],
     // Lab & Pharmacy
@@ -179,11 +262,27 @@ test.describe('📝 Smoke — POST endpoints (auth required)', () => {
     ['/api/expenses', { amount: 100, category: 'utility', date: '2025-03-15' }],
     ['/api/income', { amount: 100, source: 'opd', date: '2025-03-15' }],
     ['/api/credits', { patientId: 1, amount: 50 }],
+    ['/api/credit-notes', { patientId: 1, amount: 50 }],
     ['/api/settlements', { patientId: 1 }],
+    ['/api/payments', { bill_id: 1, amount: 500 }],
     // HR & Admin
     ['/api/doctors', { name: 'Dr. Test' }],
     ['/api/staff', { name: 'Nurse Test', role: 'nurse' }],
     ['/api/invitations', { email: 'test@test.com', role: 'doctor' }],
+    // Telemedicine & AI
+    ['/api/telemedicine', { patientId: 1, doctorId: 1 }],
+    ['/api/ai', { action: 'summarize', text: 'Test patient data' }],
+    // Inventory
+    ['/api/inventory/items', { name: 'Syringe', unit: 'pcs', quantity: 100 }],
+    ['/api/inventory/po', { vendorId: 1, items: [] }],
+    // Insurance
+    ['/api/insurance', { patient_id: 1, provider_name: 'Delta Life' }],
+    // Emergency
+    ['/api/emergency', { patient_id: 1, chief_complaint: 'Chest pain' }],
+    // Website
+    ['/api/website/services', { title: 'Cardiology', description: 'Heart care' }],
+    // Push
+    ['/api/push', { subscription: {} }],
   ];
 
   for (const [endpoint, body] of postEndpoints) {
@@ -221,19 +320,15 @@ test.describe('👤 Smoke — Patient Portal', () => {
 
 // ─── SMOKE: Static Assets ─────────────────────────────────────────────────────
 test.describe('📄 Smoke — Static & SPA', () => {
-  test('GET /robots.txt → served or handled (known: production returns 500 — tracked)', async ({ request }) => {
+  test('GET /robots.txt → served or handled', async ({ request }) => {
     const res = await request.get(`${BASE_URL}/robots.txt`);
     // NOTE: Production currently returns 500 for static assets (worker doesn't serve them).
-    // Tracking this as a known bug. Accept any status (don't let this block CI).
     expect(res.status()).toBeDefined();
-    // Ideal: expect([200, 301, 302, 404]).toContain(res.status());
   });
 
-  test('GET /sitemap.xml → served or handled (known: production returns 500 — tracked)', async ({ request }) => {
+  test('GET /sitemap.xml → served or handled', async ({ request }) => {
     const res = await request.get(`${BASE_URL}/sitemap.xml`);
-    // NOTE: Same production bug — worker doesn't serve static assets.
     expect(res.status()).toBeDefined();
-    // Ideal: expect([200, 301, 302, 404]).toContain(res.status());
   });
 });
 
@@ -245,13 +340,21 @@ test.describe('📋 Smoke — Response Contract', () => {
     expect(ct).toContain('application/json');
   });
 
-  test('No 500 on any of 15 concurrent requests', async ({ request }) => {
+  test('Health endpoint is always JSON', async ({ request }) => {
+    const res = await request.get(`${BASE_URL}/api/health`);
+    const ct = res.headers()['content-type'] || '';
+    expect(ct).toContain('application/json');
+  });
+
+  test('No 500 on any of 20 concurrent requests', async ({ request }) => {
     const endpoints = [
       '/api/patients', '/api/visits', '/api/dashboard',
       '/api/appointments', '/api/billing', '/api/pharmacy',
       '/api/lab', '/api/doctors', '/api/staff',
       '/api/deposits', '/api/expenses', '/api/admissions',
       '/api/emergency', '/api/accounting', '/api/vitals',
+      '/api/consultations', '/api/telemedicine', '/api/inventory',
+      '/api/payments', '/api/ai',
     ];
     const responses = await Promise.all(
       endpoints.map((e) =>

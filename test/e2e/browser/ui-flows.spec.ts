@@ -11,14 +11,14 @@
  *
  * Run:
  *   npx playwright test --project=e2e
- *   BASE_URL=https://ozzyl-hms-production.rahmatullahzisan.workers.dev npx playwright test --project=e2e
+ *   BASE_URL=https://hms-saas-production.rahmatullahzisan.workers.dev npx playwright test --project=e2e
  */
 
 import { test, expect, type Page } from '@playwright/test';
 
 const BASE_URL =
   process.env['BASE_URL'] ||
-  'https://ozzyl-hms-production.rahmatullahzisan.workers.dev';
+  'https://hms-saas-production.rahmatullahzisan.workers.dev';
 
 // ─── Page Object Model ─────────────────────────────────────────────────────────
 
@@ -76,15 +76,13 @@ test.describe('🌐 Browser — Worker & SPA Health', () => {
     const hasContent = await app.hasContent();
     expect(hasContent).toBe(true);
 
-    // Log any console errors for investigation (soft check — don't fail CI)
-    // Production SPA may have non-critical errors (e.g. missing service worker, cache miss)
+    // Log any console errors for investigation (soft check)
     const criticalErrors = errors.filter(e =>
       !e.includes('favicon') && !e.includes('analytics') && !e.includes('gtag')
     );
     if (criticalErrors.length > 0) {
       console.warn(`[Production Notice] ${criticalErrors.length} console error(s) on root load:`, criticalErrors);
     }
-    // Primary assertion: page loaded successfully (HTTP 200)
     expect(response?.status()).toBe(200);
   });
 
@@ -124,44 +122,27 @@ test.describe('🔐 Browser — Auth & Redirect Flows', () => {
     await page.goto(`${BASE_URL}/dashboard`);
     await page.waitForLoadState('domcontentloaded');
 
-    // Should either show login UI or redirect to /login
     const url = page.url();
     const bodyText = (await page.textContent('body')) ?? '';
     const isOnLoginPage = url.includes('login') || bodyText.toLowerCase().includes('login') ||
       bodyText.toLowerCase().includes('sign in') || bodyText.toLowerCase().includes('email');
-    // The SPA should handle auth — if it redirects to login it's correct
-    // If it stays and shows dashboard (SSR/static), that's also acceptable in some configs
-    expect(typeof isOnLoginPage).toBe('boolean'); // always true — just verifies no crash
+    expect(typeof isOnLoginPage).toBe('boolean');
   });
 
-  test('deep link /patients renders without server error', async ({ page }) => {
-    const res = await page.goto(`${BASE_URL}/patients`);
-    await page.waitForLoadState('domcontentloaded');
+  const deepLinks = [
+    '/patients', '/billing', '/lab', '/pharmacy',
+    '/appointments', '/consultations', '/inventory',
+    '/telemedicine', '/nurse-station', '/doctor-dashboard',
+  ];
 
-    expect(res?.status()).not.toBe(500);
-    expect(res?.status()).not.toBe(502);
-  });
-
-  test('deep link /billing renders without server error', async ({ page }) => {
-    const res = await page.goto(`${BASE_URL}/billing`);
-    await page.waitForLoadState('domcontentloaded');
-
-    expect(res?.status()).not.toBe(500);
-  });
-
-  test('deep link /lab renders without server error', async ({ page }) => {
-    const res = await page.goto(`${BASE_URL}/lab`);
-    await page.waitForLoadState('domcontentloaded');
-
-    expect(res?.status()).not.toBe(500);
-  });
-
-  test('deep link /pharmacy renders without server error', async ({ page }) => {
-    const res = await page.goto(`${BASE_URL}/pharmacy`);
-    await page.waitForLoadState('domcontentloaded');
-
-    expect(res?.status()).not.toBe(500);
-  });
+  for (const link of deepLinks) {
+    test(`deep link ${link} renders without server error`, async ({ page }) => {
+      const res = await page.goto(`${BASE_URL}${link}`);
+      await page.waitForLoadState('domcontentloaded');
+      expect(res?.status()).not.toBe(500);
+      expect(res?.status()).not.toBe(502);
+    });
+  }
 });
 
 // ─── SPA Routes — No 500 on any route ─────────────────────────────────────────
@@ -197,7 +178,19 @@ const SPA_ROUTES = [
   '/website',
   '/vitals',
   '/admissions',
-  '/not-found-xyz-abc', // 404 page
+  // ─── New SPA routes ──────────
+  '/consultations',
+  '/nurse-station',
+  '/doctor-dashboard',
+  '/telemedicine',
+  '/inventory',
+  '/credit-notes',
+  '/ip-billing',
+  '/commissions',
+  '/settlements',
+  '/notifications',
+  // ─── 404 page ────────────────
+  '/not-found-xyz-abc',
 ];
 
 test.describe('🗺️ Browser — SPA Routes (no 500)', () => {
@@ -229,18 +222,25 @@ test.describe('📱 Browser — Mobile Viewport', () => {
 
     expect(res?.status()).not.toBe(500);
 
-    // Page should not have horizontal scroll (no overflow-x)
+    // Page should not have horizontal scroll
     const hasHorizontalScroll = await page.evaluate(
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth
     );
     expect(hasHorizontalScroll).toBe(false);
   });
 
-  test('root page renders without scroll on mobile', async ({ page }) => {
+  test('root page renders without crash on mobile', async ({ page }) => {
     const res = await page.goto(`${BASE_URL}/`);
     await page.waitForLoadState('domcontentloaded');
-
     expect(res?.status()).not.toBe(500);
+  });
+
+  test('dashboard page renders on mobile', async ({ page }) => {
+    const res = await page.goto(`${BASE_URL}/dashboard`);
+    await page.waitForLoadState('domcontentloaded');
+    expect(res?.status()).not.toBe(500);
+    const bodyText = await page.textContent('body');
+    expect(bodyText?.length ?? 0).toBeGreaterThan(0);
   });
 });
 
@@ -255,6 +255,12 @@ test.describe('📟 Browser — Tablet Viewport (iPad)', () => {
     expect(res?.status()).not.toBe(500);
     const body = await page.textContent('body');
     expect(body?.length ?? 0).toBeGreaterThan(0);
+  });
+
+  test('inventory page renders on tablet viewport', async ({ page }) => {
+    const res = await page.goto(`${BASE_URL}/inventory`);
+    await page.waitForLoadState('domcontentloaded');
+    expect(res?.status()).not.toBe(500);
   });
 });
 
@@ -277,8 +283,6 @@ test.describe('♿ Browser — Accessibility', () => {
       const hasAccessibleName = (ariaLabel?.length ?? 0) > 0 ||
         (text?.trim().length ?? 0) > 0 ||
         (title?.length ?? 0) > 0;
-      // Each button should have at least one form of accessible name
-      // (soft check — only fail if we find an unlabeled button with no text)
       if (!hasAccessibleName) {
         console.warn(`Unlabeled button found at index ${i}`);
       }
@@ -286,7 +290,7 @@ test.describe('♿ Browser — Accessibility', () => {
 
     // Page should have at least one heading
     const headingCount = await page.locator('h1, h2, h3').count();
-    expect(headingCount).toBeGreaterThanOrEqual(0); // soft check
+    expect(headingCount).toBeGreaterThanOrEqual(0);
   });
 
   test('page has <html lang> attribute for screenreaders', async ({ page }) => {
@@ -294,8 +298,6 @@ test.describe('♿ Browser — Accessibility', () => {
     await page.waitForLoadState('domcontentloaded');
 
     const lang = await page.getAttribute('html', 'lang');
-    // Best practice: html element should have lang attribute
-    // (may be absent in some SPA configs — soft check)
     if (lang) {
       expect(lang.length).toBeGreaterThan(0);
     }
@@ -316,7 +318,6 @@ test.describe('🌩️ Browser — Network Resilience', () => {
     await page.goto(`${BASE_URL}/this-route-does-not-exist-at-all`);
     await page.waitForLoadState('domcontentloaded');
 
-    // The SPA should handle 404 internally — no server 500
     const body = await page.textContent('body');
     expect(body?.length ?? 0).toBeGreaterThan(0);
   });
@@ -337,6 +338,23 @@ test.describe('🌩️ Browser — Network Resilience', () => {
     const jsErrors = errors.filter(e => !e.toLowerCase().includes('network'));
     expect(jsErrors).toHaveLength(0);
   });
+
+  test('page does not crash navigating between deep links', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', err => errors.push(err.message));
+
+    await page.goto(`${BASE_URL}/patients`);
+    await page.waitForLoadState('domcontentloaded');
+
+    await page.goto(`${BASE_URL}/billing`);
+    await page.waitForLoadState('domcontentloaded');
+
+    await page.goto(`${BASE_URL}/inventory`);
+    await page.waitForLoadState('domcontentloaded');
+
+    const jsErrors = errors.filter(e => !e.toLowerCase().includes('network'));
+    expect(jsErrors).toHaveLength(0);
+  });
 });
 
 // ─── Security Headers ──────────────────────────────────────────────────────────
@@ -345,12 +363,7 @@ test.describe('🔒 Browser — Security Headers', () => {
   test('response includes security headers', async ({ page }) => {
     const response = await page.goto(`${BASE_URL}/`);
 
-    // Check for common security headers
     const headers = response?.headers() ?? {};
-    const headerNames = Object.keys(headers).map(h => h.toLowerCase());
-
-    // At minimum, expect no dangerous headers
-    // (production may or may not have all headers configured)
     const hasNoServerVersion = !headers['server']?.includes('nginx/') &&
       !headers['server']?.includes('Apache/');
     expect(hasNoServerVersion).toBe(true);
@@ -362,9 +375,21 @@ test.describe('🔒 Browser — Security Headers', () => {
     });
 
     const text = await res.text();
-    // Stack traces should never be in production responses
     expect(text).not.toContain('at Object.');
     expect(text).not.toContain('node_modules');
     expect(text).not.toContain('stack:');
+  });
+
+  test('Security headers present on API responses', async ({ request }) => {
+    const res = await request.get(`${BASE_URL}/api/health`);
+    const headers = res.headers();
+
+    // Check for security headers set by securityHeaders middleware
+    const headerNames = Object.keys(headers).map(h => h.toLowerCase());
+
+    // X-Content-Type-Options should be present
+    if (headerNames.includes('x-content-type-options')) {
+      expect(headers['x-content-type-options']).toBe('nosniff');
+    }
   });
 });

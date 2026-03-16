@@ -36,7 +36,7 @@ export default function BillCancellationPage({ role = 'hospital_admin' }: { role
   const fetchCancellations = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await axios.get('/api/billing/cancellation', { headers: authHeader() });
+      const { data } = await axios.get('/api/billing-cancellation', { headers: authHeader() });
       setCancellations(data.cancellations ?? []);
     } catch { setCancellations([]); } finally { setLoading(false); }
   }, []);
@@ -49,7 +49,7 @@ export default function BillCancellationPage({ role = 'hospital_admin' }: { role
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true);
     try {
-      await axios.post('/api/billing/cancellation', {
+      await axios.post('/api/billing-cancellation', {
         bill_id: parseInt(form.bill_id),
         reason: form.reason,
         remarks: form.remarks || undefined,

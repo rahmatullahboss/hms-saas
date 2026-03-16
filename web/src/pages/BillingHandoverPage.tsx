@@ -42,7 +42,7 @@ export default function BillingHandoverPage({ role = 'hospital_admin' }: { role?
     try {
       const params: Record<string, string> = {};
       if (statusFilter !== 'all') params.status = statusFilter;
-      const { data } = await axios.get('/api/billing/handover', { params, headers: authHeader() });
+      const { data } = await axios.get('/api/billing-handover', { params, headers: authHeader() });
       setHandovers(data.handovers ?? []);
     } catch { setHandovers([]); } finally { setLoading(false); }
   }, [statusFilter]);
@@ -56,7 +56,7 @@ export default function BillingHandoverPage({ role = 'hospital_admin' }: { role?
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true);
     try {
-      await axios.post('/api/billing/handover', {
+      await axios.post('/api/billing-handover', {
         from_user: form.from_user, to_user: form.to_user,
         total_amount: parseFloat(form.total_amount),
         handover_date: form.handover_date, remarks: form.remarks || undefined,
@@ -72,7 +72,7 @@ export default function BillingHandoverPage({ role = 'hospital_admin' }: { role?
 
   const handleVerify = async (id: number) => {
     try {
-      await axios.put(`/api/billing/handover/${id}/verify`, {}, { headers: authHeader() });
+      await axios.put(`/api/billing-handover/${id}/verify`, {}, { headers: authHeader() });
       toast.success('Handover verified');
       fetchHandovers();
     } catch { toast.error('Failed'); }

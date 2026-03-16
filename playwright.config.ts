@@ -17,7 +17,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const BASE_URL =
-  process.env.BASE_URL ||
+  process.env['BASE_URL'] ||
   'https://hms-saas-production.rahmatullahzisan.workers.dev';
 
 export default defineConfig({

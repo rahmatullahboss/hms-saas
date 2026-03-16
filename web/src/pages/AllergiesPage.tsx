@@ -47,10 +47,14 @@ export default function AllergiesPage({ role = 'hospital_admin' }: { role?: stri
   }, []);
 
   const fetchAllergies = useCallback(async () => {
+    if (!patientId) {
+      setAllergies([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
-      const params: Record<string, string> = {};
-      if (patientId) params.patient_id = patientId;
+      const params: Record<string, string> = { patient_id: patientId };
       const { data } = await axios.get('/api/allergies', { params, headers: authHeader() });
       setAllergies(data.allergies ?? []);
     } catch { setAllergies([]); } finally { setLoading(false); }
