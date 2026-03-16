@@ -1,96 +1,619 @@
-import { useState, useEffect } from 'react';
-import { useParams } from 'react-router';
-import { Siren, Plus, Clock, AlertTriangle, CheckCircle, Activity } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
+import { useState, useEffect, useCallback } from 'react';
+import {
+  Siren, Plus, X, Search, AlertTriangle, CheckCircle,
+  Activity, Clock, UserPlus, Tag
+} from 'lucide-react';
 import axios from 'axios';
+import toast from 'react-hot-toast';
+import DashboardLayout from '../components/DashboardLayout';
+import KPICard from '../components/dashboard/KPICard';
+import EmptyState from '../components/dashboard/EmptyState';
 
-export default function EmergencyDashboard({ role: _role }: { role?: string }) {
-  const { slug } = useParams<{ slug: string }>();
-  const { t } = useTranslation('common');
-  
-  const [cases, setCases] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-  useEffect(() => {
-    axios.get('/api/emergency/dashboard', { headers: { Authorization: `Bearer ${localStorage.getItem('hms_token')}` } })
-      
-      .then(({ data: d }: any) => setCases(d.cases ?? d.patients ?? []))
-      .catch(() => setCases([]))
-      .finally(() => setLoading(false));
-  }, []);
+interface ERPatient {
+  id: number;
+  er_patient_number: string;
+  first_name: string;
+  last_name: string;
+  patient_name?: string;
+  gender?: string;
+  age?: string;
+  contact_no?: string;
+  triage_code?: 'red' | 'yellow' | 'green' | null;
+  er_status: 'new' | 'triaged' | 'finalized';
+  finalized_status?: string;
+  mode_of_arrival_name?: string;
+  visit_datetime?: string;
+  created_at: string;
+}
 
-  const stats = {
-    total: cases.length,
-    critical: cases.filter((c: any) => c.triage_category === 'critical' || c.priority === 'critical').length,
-    active: cases.filter((c: any) => c.status === 'treating' || c.status === 'admitted').length,
-    discharged: cases.filter((c: any) => c.status === 'discharged').length,
+interface ERStats {
+  new_patients: number;
+  triaged_patients: number;
+  admitted_today: number;
+  discharged_today: number;
+  lama_count: number;
+  total_today: number;
+}
+
+interface PatientSearchResult {
+  id: number;
+  name: string;
+  patient_code: string;
+  mobile?: string;
+}
+
+const STATUS_TABS = [
+  { key: 'all', label: 'All' },
+  { key: 'new', label: 'New' },
+  { key: 'triaged', label: 'Triaged' },
+  { key: 'admitted', label: 'Admitted' },
+  { key: 'discharged', label: 'Discharged' },
+];
+
+const TRIAGE_CONFIG = {
+  red:    { label: 'Critical',  cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
+  yellow: { label: 'Urgent',    cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
+  green:  { label: 'Standard',  cls: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
+};
+
+const FINALIZE_OPTIONS = [
+  { value: 'admitted',    label: 'Admit to Ward' },
+  { value: 'discharged',  label: 'Discharge' },
+  { value: 'transferred', label: 'Transfer' },
+  { value: 'lama',        label: 'LAMA (Left Against Medical Advice)' },
+  { value: 'dor',         label: 'DOR (Discharge on Request)' },
+  { value: 'death',       label: 'Death' },
+];
+
+import { authHeader } from '../utils/auth';
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
+export default function EmergencyDashboard({ role = 'hospital_admin' }: { role?: string }) {
+  // Data state
+  const [patients, setPatients] = useState<ERPatient[]>([]);
+  const [stats, setStats]       = useState<ERStats | null>(null);
+  const [loading, setLoading]   = useState(true);
+  const [statsLoading, setStatsLoading] = useState(true);
+
+  // Filters
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+
+  // Register patient modal
+  const [showRegister, setShowRegister]       = useState(false);
+  const [saving, setSaving]                   = useState(false);
+  const [patientQuery, setPatientQuery]       = useState('');
+  const [patientResults, setPatientResults]   = useState<PatientSearchResult[]>([]);
+  const [searchingPt, setSearchingPt]         = useState(false);
+  const [selectedPatient, setSelectedPatient] = useState<PatientSearchResult | null>(null);
+  const [isExisting, setIsExisting]           = useState(false);
+  const [registerForm, setRegisterForm] = useState({
+    first_name: '', last_name: '', gender: '', age: '',
+    contact_no: '', address: '', condition_on_arrival: '',
+    case_type: 'medical',
+  });
+
+  // Triage modal
+  const [triageTarget, setTriageTarget] = useState<ERPatient | null>(null);
+
+  // Finalize modal
+  const [finalizeTarget, setFinalizeTarget] = useState<ERPatient | null>(null);
+  const [finalizeForm, setFinalizeForm] = useState({ finalized_status: 'discharged', finalized_remarks: '' });
+  const [finalizing, setFinalizing] = useState(false);
+
+  const resetRegisterForm = () => {
+    setShowRegister(false);
+    setSelectedPatient(null);
+    setPatientQuery('');
+    setRegisterForm({ first_name: '', last_name: '', gender: '', age: '', contact_no: '', address: '', condition_on_arrival: '', case_type: 'medical' });
+    setIsExisting(false);
   };
 
+  const resetFinalizeForm = () => {
+    setFinalizeTarget(null);
+    setFinalizeForm({ finalized_status: 'discharged', finalized_remarks: '' });
+  };
+
+  // ESC to close modals (with form reset)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        resetRegisterForm();
+        setTriageTarget(null);
+        resetFinalizeForm();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  // ── Fetch ER patients ──
+  const fetchPatients = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params: Record<string, string> = {};
+      if (statusFilter !== 'all') params.status = statusFilter;
+      if (search) params.search = search;
+      const { data } = await axios.get('/api/emergency', { params, headers: authHeader() });
+      setPatients(data.er_patients ?? []);
+    } catch {
+      toast.error('Failed to load ER patients');
+      setPatients([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [statusFilter, search]);
+
+  // ── Fetch stats ──
+  const fetchStats = useCallback(async () => {
+    setStatsLoading(true);
+    try {
+      const { data } = await axios.get('/api/emergency/stats', { headers: authHeader() });
+      setStats(data);
+    } catch {
+      setStats(null);
+    } finally {
+      setStatsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchPatients(); }, [fetchPatients]);
+  useEffect(() => { fetchStats(); }, [fetchStats]);
+
+  // ── Patient search (existing patient lookup) ──
+  useEffect(() => {
+    if (patientQuery.length < 2) { setPatientResults([]); return; }
+    setSearchingPt(true);
+    const t = setTimeout(async () => {
+      try {
+        const { data } = await axios.get('/api/emergency/search-patients', {
+          params: { q: patientQuery }, headers: authHeader(),
+        });
+        setPatientResults(data.patients ?? []);
+      } catch { setPatientResults([]); }
+      finally { setSearchingPt(false); }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [patientQuery]);
+
+  // ── Register ER patient ──
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const payload = isExisting && selectedPatient
+        ? { ...registerForm, is_existing_patient: true, patient_id: selectedPatient.id }
+        : { ...registerForm, is_existing_patient: false };
+      await axios.post('/api/emergency', payload, { headers: authHeader() });
+      toast.success('ER patient registered');
+      setShowRegister(false);
+      setSelectedPatient(null);
+      setPatientQuery('');
+      setRegisterForm({ first_name: '', last_name: '', gender: '', age: '', contact_no: '', address: '', condition_on_arrival: '', case_type: 'medical' });
+      fetchPatients();
+      fetchStats();
+    } catch (err) {
+      toast.error(axios.isAxiosError(err) ? err.response?.data?.message ?? 'Failed' : 'Failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ── Triage ──
+  const handleTriage = async (patient: ERPatient, code: 'red' | 'yellow' | 'green') => {
+    try {
+      await axios.put(`/api/emergency/${patient.id}/triage`, { triage_code: code }, { headers: authHeader() });
+      toast.success(`Triage set: ${TRIAGE_CONFIG[code].label}`);
+      setTriageTarget(null);
+      fetchPatients();
+    } catch (err) {
+      toast.error(axios.isAxiosError(err) ? err.response?.data?.message ?? 'Triage failed' : 'Triage failed');
+    }
+  };
+
+  // ── Finalize ──
+  const handleFinalize = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!finalizeTarget) return;
+    setFinalizing(true);
+    try {
+      await axios.put(`/api/emergency/${finalizeTarget.id}/finalize`, finalizeForm, { headers: authHeader() });
+      toast.success(`Patient ${finalizeForm.finalized_status}`);
+      setFinalizeTarget(null);
+      fetchPatients();
+      fetchStats();
+    } catch (err) {
+      toast.error(axios.isAxiosError(err) ? err.response?.data?.message ?? 'Failed' : 'Failed');
+    } finally {
+      setFinalizing(false);
+    }
+  };
+
+  const patientFullName = (p: ERPatient) =>
+    p.patient_name ?? `${p.first_name} ${p.last_name}`.trim();
+
+  // ── Render ──
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center shadow-lg shadow-red-500/20">
-            <Siren className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold">Emergency Department</h1>
-            <p className="text-sm text-[var(--color-text-muted)]">Real-time ER monitoring</p>
-          </div>
-        </div>
-      </div>
+    <DashboardLayout role={role}>
+      <div className="space-y-5 max-w-screen-2xl mx-auto">
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: 'Total Cases', value: stats.total, icon: Activity, color: 'from-blue-500 to-cyan-500' },
-          { label: 'Critical', value: stats.critical, icon: AlertTriangle, color: 'from-red-500 to-pink-500' },
-          { label: 'Active', value: stats.active, icon: Clock, color: 'from-amber-500 to-orange-500' },
-          { label: 'Discharged', value: stats.discharged, icon: CheckCircle, color: 'from-emerald-500 to-green-500' },
-        ].map((s) => (
-          <div key={s.label} className="card p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${s.color} flex items-center justify-center`}>
-                <s.icon className="w-4 h-4 text-white" />
-              </div>
-              <span className="text-sm text-[var(--color-text-muted)]">{s.label}</span>
+        {/* Header */}
+        <div className="page-header">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center shadow-lg shadow-red-500/20">
+              <Siren className="w-5 h-5 text-white" />
             </div>
-            <p className="text-2xl font-bold">{s.value}</p>
+            <div>
+              <h1 className="page-title">Emergency Department</h1>
+              <p className="section-subtitle">Real-time ER patient management</p>
+            </div>
           </div>
-        ))}
-      </div>
-
-      <div className="card">
-        <div className="p-4 border-b border-[var(--color-border)]">
-          <h2 className="font-semibold">Current ER Patients</h2>
+          <button onClick={() => setShowRegister(true)} className="btn-primary">
+            <UserPlus className="w-4 h-4" /> Register ER Patient
+          </button>
         </div>
-        {loading ? (
-          <div className="p-8 text-center text-[var(--color-text-muted)]">Loading...</div>
-        ) : cases.length === 0 ? (
-          <div className="p-8 text-center text-[var(--color-text-muted)]">No active ER cases</div>
-        ) : (
+
+        {/* KPI cards */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          <KPICard title="Total Today"   value={stats?.total_today ?? '—'}       loading={statsLoading} icon={<Activity className="w-5 h-5" />} iconBg="bg-[var(--color-primary-light)] text-[var(--color-primary)]" index={0} />
+          <KPICard title="New"           value={stats?.new_patients ?? '—'}       loading={statsLoading} icon={<Clock className="w-5 h-5" />}    iconBg="bg-blue-50 text-blue-600"   index={1} />
+          <KPICard title="Triaged"       value={stats?.triaged_patients ?? '—'}   loading={statsLoading} icon={<Tag className="w-5 h-5" />}      iconBg="bg-amber-50 text-amber-600" index={2} />
+          <KPICard title="Admitted"      value={stats?.admitted_today ?? '—'}     loading={statsLoading} icon={<Plus className="w-5 h-5" />}     iconBg="bg-purple-50 text-purple-600" index={3} />
+          <KPICard title="Discharged"    value={stats?.discharged_today ?? '—'}   loading={statsLoading} icon={<CheckCircle className="w-5 h-5" />} iconBg="bg-emerald-50 text-emerald-600" index={4} />
+          <KPICard title="LAMA"          value={stats?.lama_count ?? '—'}         loading={statsLoading} icon={<AlertTriangle className="w-5 h-5" />} iconBg="bg-rose-50 text-rose-600" index={5} />
+        </div>
+
+        {/* Filter & Search */}
+        <div className="card p-3 flex flex-wrap items-center gap-3">
+          {/* Status tabs */}
+          <div className="flex gap-1 flex-wrap">
+            {STATUS_TABS.map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setStatusFilter(tab.key)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  statusFilter === tab.key
+                    ? 'bg-[var(--color-primary)] text-white'
+                    : 'hover:bg-[var(--color-border-light)] text-[var(--color-text-secondary)]'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Search */}
+          <div className="relative flex-1 min-w-48">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-muted)]" />
+            <input
+              type="text"
+              placeholder="Search by name, ER number, phone…"
+              value={searchInput}
+              onChange={e => setSearchInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') setSearch(searchInput); }}
+              className="input pl-9"
+            />
+          </div>
+          <button onClick={() => setSearch(searchInput)} className="btn-secondary">Search</button>
+          {search && (
+            <button onClick={() => { setSearch(''); setSearchInput(''); }} className="btn-ghost text-sm">
+              Clear
+            </button>
+          )}
+        </div>
+
+        {/* ER Patient Table */}
+        <div className="card overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead><tr className="border-b border-[var(--color-border)] text-left">
-                <th className="p-3">Patient</th><th className="p-3">Triage</th><th className="p-3">Status</th><th className="p-3">Doctor</th><th className="p-3">Time</th>
-              </tr></thead>
+            <table className="table-base">
+              <thead>
+                <tr>
+                  <th>ER #</th>
+                  <th>Patient</th>
+                  <th>Age / Gender</th>
+                  <th>Arrival</th>
+                  <th>Triage</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
               <tbody>
-                {cases.map((c: any, i: number) => (
-                  <tr key={c.id ?? i} className="border-b border-[var(--color-border)] hover:bg-[var(--color-primary-light)]">
-                    <td className="p-3 font-medium">{c.patient_name ?? c.name}</td>
-                    <td className="p-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                      c.triage_category === 'critical' ? 'bg-red-100 text-red-700' :
-                      c.triage_category === 'urgent' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'
-                    }`}>{c.triage_category ?? 'standard'}</span></td>
-                    <td className="p-3 capitalize">{c.status}</td>
-                    <td className="p-3">{c.doctor_name ?? '—'}</td>
-                    <td className="p-3">{c.arrival_time ?? c.created_at ?? '—'}</td>
-                  </tr>
-                ))}
+                {loading
+                  ? [...Array(5)].map((_, i) => (
+                      <tr key={i}>
+                        {[...Array(7)].map((_, j) => (
+                          <td key={j}><div className="skeleton h-4 w-full rounded" /></td>
+                        ))}
+                      </tr>
+                    ))
+                  : patients.length === 0
+                  ? (
+                      <tr>
+                        <td colSpan={7}>
+                          <EmptyState
+                            icon={<Siren className="w-8 h-8 text-[var(--color-text-muted)]" />}
+                            title="No ER patients"
+                            description="No emergency patients found for the current filters."
+                            action={
+                              <button onClick={() => setShowRegister(true)} className="btn-primary mt-2">
+                                <UserPlus className="w-4 h-4" /> Register First Patient
+                              </button>
+                            }
+                          />
+                        </td>
+                      </tr>
+                    )
+                  : patients.map(p => (
+                      <tr key={p.id}>
+                        <td className="font-data font-medium">{p.er_patient_number}</td>
+                        <td className="font-medium">{patientFullName(p)}</td>
+                        <td className="text-[var(--color-text-secondary)]">
+                          {p.age ? `${p.age}y` : '—'} {p.gender ? `/ ${p.gender}` : ''}
+                        </td>
+                        <td className="font-data text-sm text-[var(--color-text-secondary)]">
+                          {p.visit_datetime ? new Date(p.visit_datetime).toLocaleString('en-GB', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '—'}
+                        </td>
+                        <td>
+                          {p.triage_code
+                            ? <span className={`badge ${TRIAGE_CONFIG[p.triage_code].cls}`}>{TRIAGE_CONFIG[p.triage_code].label}</span>
+                            : <span className="text-[var(--color-text-muted)] text-sm">Not triaged</span>}
+                        </td>
+                        <td>
+                          <span className={`badge ${
+                            p.er_status === 'new'      ? 'badge-info' :
+                            p.er_status === 'triaged'  ? 'badge-warning' :
+                            p.finalized_status === 'admitted'   ? 'badge-primary' :
+                            p.finalized_status === 'discharged' ? 'badge-success' :
+                            'badge-error'
+                          }`}>
+                            {p.er_status === 'finalized' ? (p.finalized_status ?? 'Finalized') : p.er_status}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="flex items-center gap-1">
+                            {p.er_status !== 'finalized' && (
+                              <button
+                                onClick={() => setTriageTarget(p)}
+                                className="btn-ghost p-1.5 text-amber-600 text-xs"
+                                title="Assign Triage"
+                              >
+                                <Tag className="w-4 h-4" />
+                              </button>
+                            )}
+                            {(p.er_status === 'triaged' || p.er_status === 'new') && (
+                              <button
+                                onClick={() => { setFinalizeTarget(p); setFinalizeForm({ finalized_status: 'discharged', finalized_remarks: '' }); }}
+                                className="btn-ghost p-1.5 text-emerald-600 text-xs"
+                                title="Finalize (Admit/Discharge/Transfer…)"
+                              >
+                                <CheckCircle className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                }
               </tbody>
             </table>
           </div>
-        )}
+        </div>
       </div>
-    </div>
+
+      {/* ─────────────── REGISTER PATIENT MODAL ─────────────── */}
+      {showRegister && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-modal w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-5 border-b border-[var(--color-border)] sticky top-0 bg-white dark:bg-slate-800">
+              <h3 className="font-semibold">Register ER Patient</h3>
+              <button onClick={() => setShowRegister(false)} className="btn-ghost p-1.5"><X className="w-5 h-5" /></button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {/* Existing / New toggle */}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setIsExisting(false); setSelectedPatient(null); setPatientQuery(''); }}
+                  className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${!isExisting ? 'bg-[var(--color-primary)] text-white' : 'btn-secondary'}`}
+                >
+                  New Patient
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsExisting(true)}
+                  className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${isExisting ? 'bg-[var(--color-primary)] text-white' : 'btn-secondary'}`}
+                >
+                  Existing Patient
+                </button>
+              </div>
+
+              {/* Existing patient search */}
+              {isExisting && (
+                <div className="relative">
+                  <label className="label">Search Patient</label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-muted)]" />
+                    <input
+                      className="input pl-9"
+                      placeholder="Name, patient code, or phone…"
+                      value={patientQuery}
+                      onChange={e => { setPatientQuery(e.target.value); setSelectedPatient(null); }}
+                    />
+                  </div>
+                  {(searchingPt || patientResults.length > 0) && !selectedPatient && (
+                    <div className="absolute z-10 left-0 right-0 mt-1 bg-white dark:bg-slate-700 border border-[var(--color-border)] rounded-xl shadow-lg overflow-hidden">
+                      {searchingPt && <p className="p-3 text-sm text-[var(--color-text-muted)]">Searching…</p>}
+                      {patientResults.map(pt => (
+                        <button
+                          key={pt.id}
+                          type="button"
+                          onClick={() => { setSelectedPatient(pt); setPatientQuery(pt.name); setRegisterForm(f => ({ ...f, first_name: pt.name.split(' ')[0], last_name: pt.name.split(' ').slice(1).join(' ') })); }}
+                          className="w-full text-left px-4 py-2 hover:bg-[var(--color-border-light)] text-sm"
+                        >
+                          <span className="font-medium">{pt.name}</span>
+                          <span className="ml-2 text-[var(--color-text-muted)]">{pt.patient_code}</span>
+                          {pt.mobile && <span className="ml-2 text-[var(--color-text-muted)]">{pt.mobile}</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {selectedPatient && (
+                    <p className="mt-1 text-sm text-emerald-600 font-medium">✓ Selected: {selectedPatient.name} ({selectedPatient.patient_code})</p>
+                  )}
+                </div>
+              )}
+
+              <form onSubmit={handleRegister} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="label">First Name *</label>
+                    <input className="input" required value={registerForm.first_name} onChange={e => setRegisterForm(f => ({ ...f, first_name: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="label">Last Name *</label>
+                    <input className="input" required value={registerForm.last_name} onChange={e => setRegisterForm(f => ({ ...f, last_name: e.target.value }))} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="label">Age</label>
+                    <input className="input" type="number" min="0" max="150" value={registerForm.age} onChange={e => setRegisterForm(f => ({ ...f, age: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="label">Gender</label>
+                    <select className="input" value={registerForm.gender} onChange={e => setRegisterForm(f => ({ ...f, gender: e.target.value }))}>
+                      <option value="">Select…</option>
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="label">Contact No.</label>
+                    <input className="input" value={registerForm.contact_no} onChange={e => setRegisterForm(f => ({ ...f, contact_no: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="label">Case Type</label>
+                    <select className="input" value={registerForm.case_type} onChange={e => setRegisterForm(f => ({ ...f, case_type: e.target.value }))}>
+                      <option value="medical">Medical</option>
+                      <option value="surgical">Surgical</option>
+                      <option value="obstetric">Obstetric</option>
+                      <option value="trauma">Trauma</option>
+                      <option value="poisoning">Poisoning</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="label">Condition on Arrival</label>
+                  <input className="input" placeholder="e.g. Unconscious, chest pain…" value={registerForm.condition_on_arrival} onChange={e => setRegisterForm(f => ({ ...f, condition_on_arrival: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="label">Address</label>
+                  <input className="input" value={registerForm.address} onChange={e => setRegisterForm(f => ({ ...f, address: e.target.value }))} />
+                </div>
+                <div className="flex justify-end gap-3 pt-2">
+                  <button type="button" onClick={() => setShowRegister(false)} className="btn-secondary">Cancel</button>
+                  <button type="submit" disabled={saving || (isExisting && !selectedPatient)} className="btn-primary">
+                    {saving ? 'Registering…' : 'Register Patient'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─────────────── TRIAGE MODAL ─────────────── */}
+      {triageTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-modal w-full max-w-sm">
+            <div className="flex items-center justify-between p-5 border-b border-[var(--color-border)]">
+              <h3 className="font-semibold">Assign Triage</h3>
+              <button onClick={() => setTriageTarget(null)} className="btn-ghost p-1.5"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-5 space-y-3">
+              <p className="text-sm text-[var(--color-text-secondary)]">
+                Patient: <span className="font-semibold text-[var(--color-text-primary)]">{patientFullName(triageTarget)}</span>
+              </p>
+              <p className="text-sm text-[var(--color-text-muted)] mb-4">Select triage category:</p>
+              <div className="space-y-2">
+                <button
+                  onClick={() => handleTriage(triageTarget, 'red')}
+                  className="w-full py-3 rounded-xl font-medium bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
+                >
+                  🔴 Red — Critical (Immediate)
+                </button>
+                <button
+                  onClick={() => handleTriage(triageTarget, 'yellow')}
+                  className="w-full py-3 rounded-xl font-medium bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors"
+                >
+                  🟡 Yellow — Urgent (Delayed)
+                </button>
+                <button
+                  onClick={() => handleTriage(triageTarget, 'green')}
+                  className="w-full py-3 rounded-xl font-medium bg-green-100 text-green-700 hover:bg-green-200 transition-colors"
+                >
+                  🟢 Green — Standard (Minor)
+                </button>
+              </div>
+              <button onClick={() => setTriageTarget(null)} className="btn-ghost w-full mt-2 text-sm">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─────────────── FINALIZE MODAL ─────────────── */}
+      {finalizeTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-modal w-full max-w-md">
+            <div className="flex items-center justify-between p-5 border-b border-[var(--color-border)]">
+              <h3 className="font-semibold">Finalize Patient</h3>
+              <button onClick={() => setFinalizeTarget(null)} className="btn-ghost p-1.5"><X className="w-5 h-5" /></button>
+            </div>
+            <form onSubmit={handleFinalize} className="p-5 space-y-4">
+              <p className="text-sm text-[var(--color-text-secondary)]">
+                Patient: <span className="font-semibold text-[var(--color-text-primary)]">{patientFullName(finalizeTarget)}</span>
+              </p>
+              <div>
+                <label className="label">Outcome *</label>
+                <select
+                  className="input"
+                  value={finalizeForm.finalized_status}
+                  onChange={e => setFinalizeForm(f => ({ ...f, finalized_status: e.target.value }))}
+                  required
+                >
+                  {FINALIZE_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="label">Remarks</label>
+                <textarea
+                  className="input resize-none"
+                  rows={3}
+                  placeholder="Optional notes…"
+                  value={finalizeForm.finalized_remarks}
+                  onChange={e => setFinalizeForm(f => ({ ...f, finalized_remarks: e.target.value }))}
+                />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setFinalizeTarget(null)} className="btn-secondary">Cancel</button>
+                <button type="submit" disabled={finalizing} className="btn-primary">
+                  {finalizing ? 'Saving…' : 'Finalize Patient'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </DashboardLayout>
   );
 }

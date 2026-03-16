@@ -69,6 +69,7 @@ import pushNotificationRoutes from './routes/tenant/pushNotifications';
 import settlementRoutes from './routes/tenant/settlements';
 import vitalsRoutes from './routes/tenant/vitals';
 import websiteRoutes from './routes/tenant/website';
+import inventoryRoutes from './routes/tenant/inventory';
 import hospitalSiteRoutes from './routes/public/hospitalSite';
 
 import type { Env } from './types';
@@ -283,6 +284,7 @@ app.route('/api/push-notifications', pushNotificationRoutes);
 app.route('/api/settlements', settlementRoutes);
 app.route('/api/vitals', vitalsRoutes);
 app.route('/api/website', websiteRoutes);
+app.route('/api/inventory', inventoryRoutes);
 
 
 // ─── Not Found handler ──────────────────────────────────────────────

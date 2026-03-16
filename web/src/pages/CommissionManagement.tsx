@@ -4,6 +4,7 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
 import KPICard from '../components/dashboard/KPICard';
+import { authHeader } from '../utils/auth';
 import { useTranslation } from 'react-i18next';
 
 interface Commission {
@@ -12,11 +13,6 @@ interface Commission {
   created_at: string; patient_name?: string; patient_code?: string;
 }
 
-const DEMO: Commission[] = [
-  { id: 1, marketing_person: 'আরিফ হোসেন', mobile: '01711000010', commission_amount: 500, paid_status: 'unpaid', created_at: '2026-03-13', patient_name: 'রহিম উদ্দিন', patient_code: 'PT-001234' },
-  { id: 2, marketing_person: 'সোহেল রানা', mobile: '01711000011', commission_amount: 1000, paid_status: 'paid', paid_date: '2026-03-12', created_at: '2026-03-10', patient_name: 'সাবিনা আক্তার', patient_code: 'PT-001235' },
-  { id: 3, marketing_person: 'আরিফ হোসেন', mobile: '01711000010', commission_amount: 800, paid_status: 'unpaid', created_at: '2026-03-12', patient_name: 'মোহাম্মদ করিম', patient_code: 'PT-001236' },
-];
 
 export default function CommissionManagement({ role = 'hospital_admin' }: { role?: string }) {
   const [commissions, setCommissions] = useState<Commission[]>([]);
@@ -30,7 +26,7 @@ export default function CommissionManagement({ role = 'hospital_admin' }: { role
 
   // ESC-to-close modal
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowCreate(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setShowCreate(false); setForm({ marketingPerson: '', mobile: '', patientId: '', billId: '', commissionAmount: '', notes: '' }); } };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
@@ -38,13 +34,12 @@ export default function CommissionManagement({ role = 'hospital_admin' }: { role
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('hms_token');
       const params: Record<string, string> = {};
       if (statusFilter) params.status = statusFilter;
       if (search) params.person = search;
-      const { data } = await axios.get('/api/commissions', { params, headers: { Authorization: `Bearer ${token}` } });
+      const { data } = await axios.get('/api/commissions', { params, headers: authHeader() });
       setCommissions(data.commissions ?? []);
-    } catch { setCommissions(DEMO); } finally { setLoading(false); }
+    } catch { setCommissions([]); } finally { setLoading(false); }
   }, [statusFilter, search]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
@@ -55,13 +50,12 @@ export default function CommissionManagement({ role = 'hospital_admin' }: { role
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true);
     try {
-      const token = localStorage.getItem('hms_token');
       await axios.post('/api/commissions', {
         marketingPerson: form.marketingPerson, mobile: form.mobile || undefined,
         patientId: form.patientId ? parseInt(form.patientId) : undefined,
         billId: form.billId ? parseInt(form.billId) : undefined,
         commissionAmount: Number(form.commissionAmount) || 0, notes: form.notes || undefined,
-      }, { headers: { Authorization: `Bearer ${token}` } });
+      }, { headers: authHeader() });
       toast.success('Commission recorded'); setShowCreate(false); fetchData();
       setForm({ marketingPerson: '', mobile: '', patientId: '', billId: '', commissionAmount: '', notes: '' });
     } catch (err) { toast.error(axios.isAxiosError(err) ? err.response?.data?.message ?? 'Failed' : 'Failed'); } finally { setSaving(false); }
@@ -70,8 +64,7 @@ export default function CommissionManagement({ role = 'hospital_admin' }: { role
   const markPaid = async (id: number) => {
     if (!confirm('Mark this commission as paid?')) return;
     try {
-      const token = localStorage.getItem('hms_token');
-      await axios.post(`/api/commissions/${id}/pay`, {}, { headers: { Authorization: `Bearer ${token}` } });
+      await axios.post(`/api/commissions/${id}/pay`, {}, { headers: authHeader() });
       toast.success('Marked as paid'); fetchData();
     } catch { toast.error('Failed to mark paid'); }
   };

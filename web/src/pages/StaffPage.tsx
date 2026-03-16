@@ -1,8 +1,11 @@
-import { useState, useEffect } from 'react';
-import { Users, DollarSign, UserCheck, Search } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Users, Plus, X, Search, DollarSign, UserCheck } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
+import KPICard from '../components/dashboard/KPICard';
+import EmptyState from '../components/dashboard/EmptyState';
+import { authHeader } from '../utils/auth';
 import { useTranslation } from 'react-i18next';
 
 interface Staff {
@@ -21,21 +24,35 @@ const fmt = (n: number) =>
   new Intl.NumberFormat('en-BD', { style: 'currency', currency: 'BDT', minimumFractionDigits: 0 }).format(n);
 
 export default function StaffPage({ role = 'md' }: { role?: string }) {
-  const [staff, setStaff]   = useState<Staff[]>([]);
+  const [staff, setStaff]     = useState<Staff[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  const [search, setSearch]   = useState('');
   const { t } = useTranslation(['staff', 'common']);
 
-  const fetchStaff = async () => {
+  // Add staff modal
+  const [showCreate, setShowCreate] = useState(false);
+  const [saving, setSaving]         = useState(false);
+  const [form, setForm] = useState({
+    name: '', position: '', mobile: '', salary: '',
+    bank_account: '', address: '', joining_date: new Date().toISOString().split('T')[0],
+  });
+
+  useEffect(() => {
+    const fn = (e: KeyboardEvent) => { if (e.key === 'Escape') { setShowCreate(false); setForm({ name: '', position: '', mobile: '', salary: '', bank_account: '', address: '', joining_date: new Date().toISOString().split('T')[0] }); } };
+    window.addEventListener('keydown', fn);
+    return () => window.removeEventListener('keydown', fn);
+  }, []);
+
+  const fetchStaff = useCallback(async () => {
+    setLoading(true);
     try {
-      const token = localStorage.getItem('hms_token');
-      const res = await axios.get('/api/staff', { headers: { Authorization: `Bearer ${token}` } });
-      setStaff(res.data.staff || []);
+      const { data } = await axios.get('/api/staff', { headers: authHeader() });
+      setStaff(data.staff || []);
     } catch { toast.error('Failed to fetch staff'); }
     finally { setLoading(false); }
-  };
+  }, []);
 
-  useEffect(() => { fetchStaff(); }, []);
+  useEffect(() => { fetchStaff(); }, [fetchStaff]);
 
   const filtered = staff.filter(s =>
     s.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -46,30 +63,55 @@ export default function StaffPage({ role = 'md' }: { role?: string }) {
   const totalSalary  = staff.reduce((sum, s) => sum + (s.salary || 0), 0);
   const activeCount  = staff.filter(s => s.status === 'active').length;
 
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault(); setSaving(true);
+    try {
+      await axios.post('/api/staff', {
+        name: form.name,
+        position: form.position,
+        mobile: form.mobile || undefined,
+        salary: form.salary ? parseFloat(form.salary) : 0,
+        bank_account: form.bank_account || undefined,
+        address: form.address || undefined,
+        joining_date: form.joining_date || undefined,
+      }, { headers: authHeader() });
+      toast.success('Staff member added');
+      setShowCreate(false);
+      setForm({ name: '', position: '', mobile: '', salary: '', bank_account: '', address: '', joining_date: new Date().toISOString().split('T')[0] });
+      fetchStaff();
+    } catch (err) {
+      toast.error(axios.isAxiosError(err) ? err.response?.data?.message ?? 'Failed' : 'Failed');
+    } finally { setSaving(false); }
+  };
+
   return (
     <DashboardLayout role={role}>
       <div className="space-y-5 max-w-screen-2xl mx-auto">
 
-        {/* ── KPI Cards ── */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {[
-            { label: t('totalStaff',   { defaultValue: 'Total Staff' }),   value: staff.length,          icon: Users,     color: 'text-[var(--color-primary)]' },
-            { label: t('monthlySalary',{ defaultValue: 'Monthly Salary' }), value: fmt(totalSalary),      icon: DollarSign, color: 'text-amber-600' },
-            { label: t('activeStaff',  { defaultValue: 'Active Staff' }),   value: activeCount,           icon: UserCheck, color: 'text-emerald-600' },
-          ].map(({ label, value, icon: Icon, color }) => (
-            <div key={label} className="card p-5 flex items-center gap-4">
-              <div className="w-10 h-10 rounded-xl bg-[var(--color-primary)]/10 flex items-center justify-center flex-shrink-0">
-                <Icon className="w-5 h-5 text-[var(--color-primary)]" />
-              </div>
-              <div>
-                <p className="text-xs text-[var(--color-text-muted)] mb-0.5">{label}</p>
-                <p className={`text-2xl font-bold ${color}`}>{value}</p>
-              </div>
+        {/* Header */}
+        <div className="page-header">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+              <Users className="w-5 h-5 text-white" />
             </div>
-          ))}
+            <div>
+              <h1 className="page-title">{t('staffManagement', { defaultValue: 'Staff Management' })}</h1>
+              <p className="section-subtitle">{t('manageHospitalStaff', { defaultValue: 'Manage hospital staff and salaries' })}</p>
+            </div>
+          </div>
+          <button onClick={() => setShowCreate(true)} className="btn-primary">
+            <Plus className="w-4 h-4" /> {t('addStaff', { defaultValue: 'Add Staff' })}
+          </button>
         </div>
 
-        {/* ── Search ── */}
+        {/* KPI Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <KPICard title={t('totalStaff',    { defaultValue: 'Total Staff' })}    value={staff.length}    loading={loading} icon={<Users className="w-5 h-5" />}     iconBg="bg-[var(--color-primary-light)] text-[var(--color-primary)]" index={0} />
+          <KPICard title={t('monthlySalary', { defaultValue: 'Monthly Salary' })} value={fmt(totalSalary)} loading={loading} icon={<DollarSign className="w-5 h-5" />} iconBg="bg-amber-50 text-amber-600"   index={1} />
+          <KPICard title={t('activeStaff',   { defaultValue: 'Active Staff' })}   value={activeCount}      loading={loading} icon={<UserCheck className="w-5 h-5" />}  iconBg="bg-emerald-50 text-emerald-600" index={2} />
+        </div>
+
+        {/* Search */}
         <div className="relative w-full md:w-96">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-muted)]" />
           <input
@@ -81,7 +123,7 @@ export default function StaffPage({ role = 'md' }: { role?: string }) {
           />
         </div>
 
-        {/* ── Table ── */}
+        {/* Table */}
         <div className="card overflow-hidden">
           <div className="overflow-x-auto">
             <table className="table-base">
@@ -102,7 +144,14 @@ export default function StaffPage({ role = 'md' }: { role?: string }) {
                     <tr key={i}>{[...Array(7)].map((_, j) => <td key={j}><div className="skeleton h-4 rounded" /></td>)}</tr>
                   ))
                 ) : filtered.length === 0 ? (
-                  <tr><td colSpan={7} className="py-14 text-center text-[var(--color-text-muted)]">No staff found</td></tr>
+                  <tr><td colSpan={7}>
+                    <EmptyState
+                      icon={<Users className="w-8 h-8 text-[var(--color-text-muted)]" />}
+                      title="No staff found"
+                      description="No staff members match your search."
+                      action={<button onClick={() => setShowCreate(true)} className="btn-primary mt-2"><Plus className="w-4 h-4" /> Add First Staff</button>}
+                    />
+                  </td></tr>
                 ) : (
                   filtered.map(member => (
                     <tr key={member.id}>
@@ -126,8 +175,34 @@ export default function StaffPage({ role = 'md' }: { role?: string }) {
             </table>
           </div>
         </div>
-
       </div>
+
+      {/* Add Staff Modal */}
+      {showCreate && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-modal w-full max-w-md">
+            <div className="flex items-center justify-between p-5 border-b border-[var(--color-border)]">
+              <h3 className="font-semibold">Add Staff Member</h3>
+              <button onClick={() => setShowCreate(false)} className="btn-ghost p-1.5"><X className="w-5 h-5" /></button>
+            </div>
+            <form onSubmit={handleCreate} className="p-5 space-y-4">
+              <div><label className="label">Name *</label><input className="input" required value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Full name" /></div>
+              <div><label className="label">Position *</label><input className="input" required value={form.position} onChange={e => setForm(f => ({ ...f, position: e.target.value }))} placeholder="e.g. Nurse, Receptionist, Lab Tech" /></div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><label className="label">Mobile</label><input className="input" value={form.mobile} onChange={e => setForm(f => ({ ...f, mobile: e.target.value }))} placeholder="01XXXXXXXXX" /></div>
+                <div><label className="label">Salary (৳)</label><input className="input" type="number" value={form.salary} onChange={e => setForm(f => ({ ...f, salary: e.target.value }))} /></div>
+              </div>
+              <div><label className="label">Bank Account</label><input className="input" value={form.bank_account} onChange={e => setForm(f => ({ ...f, bank_account: e.target.value }))} /></div>
+              <div><label className="label">Address</label><input className="input" value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} /></div>
+              <div><label className="label">Joining Date</label><input className="input" type="date" value={form.joining_date} onChange={e => setForm(f => ({ ...f, joining_date: e.target.value }))} /></div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setShowCreate(false)} className="btn-secondary">Cancel</button>
+                <button type="submit" disabled={saving} className="btn-primary">{saving ? 'Adding…' : 'Add Staff'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 }

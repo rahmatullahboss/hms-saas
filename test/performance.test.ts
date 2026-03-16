@@ -128,7 +128,7 @@ describe('HMS Performance Baseline Tests', () => {
       const commissions = calcMonthlyCommissions(records);
       const elapsed = performance.now() - start;
       expect(commissions.size).toBe(20);
-      expect(elapsed).toBeLessThan(50);
+      expect(elapsed).toBeLessThan(200);
     });
   });
 

@@ -1,34 +1,205 @@
-import { useState, useEffect } from 'react';
-import { Heart } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Heart, Plus, X, AlertTriangle } from 'lucide-react';
 import axios from 'axios';
+import toast from 'react-hot-toast';
+import DashboardLayout from '../components/DashboardLayout';
+import EmptyState from '../components/dashboard/EmptyState';
 
-export default function VitalsPage({ role: _role }: { role?: string }) {
-  
-  const [vitals, setVitals] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+interface Vital {
+  id: number;
+  patient_name?: string;
+  patient_code?: string;
+  blood_pressure_systolic?: number;
+  blood_pressure_diastolic?: number;
+  temperature?: number;
+  pulse_rate?: number;
+  respiratory_rate?: number;
+  oxygen_saturation?: number;
+  weight?: number;
+  height?: number;
+  recorded_by?: string;
+  recorded_at?: string;
+  created_at: string;
+}
+
+import { authHeader } from '../utils/auth';
+
+function spo2Class(val?: number) {
+  if (!val) return '';
+  if (val < 90) return 'text-red-600 font-bold';
+  if (val < 95) return 'text-amber-600 font-medium';
+  return 'text-emerald-600';
+}
+
+export default function VitalsPage({ role = 'hospital_admin' }: { role?: string }) {
+  const [vitals, setVitals]         = useState<Vital[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [patientId, setPatientId]   = useState('');
+  const [filterInput, setFilterInput] = useState('');
+
+  const [showRecord, setShowRecord] = useState(false);
+  const [saving, setSaving]         = useState(false);
+  const [form, setForm] = useState({
+    patient_id: '', blood_pressure_systolic: '', blood_pressure_diastolic: '',
+    temperature: '', pulse_rate: '', respiratory_rate: '',
+    oxygen_saturation: '', weight: '', height: '',
+  });
 
   useEffect(() => {
-    axios.get('/api/vitals', { headers: { Authorization: `Bearer ${localStorage.getItem('hms_token')}` } }).then(({ data: d }: any) => setVitals(d.vitals ?? [])).catch(() => setVitals([])).finally(() => setLoading(false));
+    const fn = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowRecord(false); };
+    window.addEventListener('keydown', fn);
+    return () => window.removeEventListener('keydown', fn);
   }, []);
 
+  const fetchVitals = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params: Record<string, string> = {};
+      if (patientId) params.patient_id = patientId;
+      const { data } = await axios.get('/api/vitals', { params, headers: authHeader() });
+      setVitals(data.vitals ?? []);
+    } catch { setVitals([]); } finally { setLoading(false); }
+  }, [patientId]);
+
+  useEffect(() => { fetchVitals(); }, [fetchVitals]);
+
+  const handleRecord = async (e: React.FormEvent) => {
+    e.preventDefault(); setSaving(true);
+    const num = (v: string) => v ? parseFloat(v) : undefined;
+    try {
+      await axios.post('/api/vitals', {
+        patient_id: parseInt(form.patient_id),
+        blood_pressure_systolic: num(form.blood_pressure_systolic),
+        blood_pressure_diastolic: num(form.blood_pressure_diastolic),
+        temperature: num(form.temperature),
+        pulse_rate: num(form.pulse_rate),
+        respiratory_rate: num(form.respiratory_rate),
+        oxygen_saturation: num(form.oxygen_saturation),
+        weight: num(form.weight),
+        height: num(form.height),
+      }, { headers: authHeader() });
+      toast.success('Vitals recorded');
+      setShowRecord(false);
+      setForm({ patient_id: '', blood_pressure_systolic: '', blood_pressure_diastolic: '', temperature: '', pulse_rate: '', respiratory_rate: '', oxygen_saturation: '', weight: '', height: '' });
+      fetchVitals();
+    } catch (err) {
+      toast.error(axios.isAxiosError(err) ? err.response?.data?.message ?? 'Failed' : 'Failed');
+    } finally { setSaving(false); }
+  };
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-pink-500 to-rose-500 flex items-center justify-center shadow-lg shadow-pink-500/20"><Heart className="w-5 h-5 text-white" /></div>
-        <div><h1 className="text-xl font-bold">Vitals</h1><p className="text-sm text-[var(--color-text-muted)]">Patient vital signs records</p></div>
+    <DashboardLayout role={role}>
+      <div className="space-y-5 max-w-screen-2xl mx-auto">
+        <div className="page-header">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-pink-500 to-rose-500 flex items-center justify-center shadow-lg shadow-pink-500/20">
+              <Heart className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h1 className="page-title">Vitals Monitoring</h1>
+              <p className="section-subtitle">Patient vital signs recording &amp; history</p>
+            </div>
+          </div>
+          <button onClick={() => setShowRecord(true)} className="btn-primary"><Plus className="w-4 h-4" /> Record Vitals</button>
+        </div>
+
+        {/* Patient filter */}
+        <div className="card p-3 flex gap-3 items-center">
+          <input
+            type="number"
+            placeholder="Filter by Patient ID…"
+            value={filterInput}
+            onChange={e => setFilterInput(e.target.value)}
+            className="input w-52"
+          />
+          <button onClick={() => setPatientId(filterInput)} className="btn-secondary">Filter</button>
+          {patientId && <button onClick={() => { setPatientId(''); setFilterInput(''); }} className="btn-ghost text-sm">Clear</button>}
+        </div>
+
+        <div className="card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="table-base">
+              <thead>
+                <tr>
+                  <th>Patient</th>
+                  <th>BP (mmHg)</th>
+                  <th>Pulse</th>
+                  <th>Temp (°C)</th>
+                  <th>SpO₂ (%)</th>
+                  <th>Resp Rate</th>
+                  <th>Weight</th>
+                  <th>Recorded At</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading
+                  ? [...Array(5)].map((_, i) => <tr key={i}>{[...Array(8)].map((_, j) => <td key={j}><div className="skeleton h-4 w-full rounded" /></td>)}</tr>)
+                  : vitals.length === 0
+                  ? <tr><td colSpan={8}><EmptyState icon={<Heart className="w-8 h-8 text-[var(--color-text-muted)]" />} title="No vitals recorded" description="No vital signs data found." action={<button onClick={() => setShowRecord(true)} className="btn-primary mt-2"><Plus className="w-4 h-4" /> Record Vitals</button>} /></td></tr>
+                  : vitals.map(v => (
+                      <tr key={v.id}>
+                        <td>
+                          <p className="font-medium">{v.patient_name ?? '—'}</p>
+                          {v.patient_code && <p className="text-xs text-[var(--color-text-muted)]">{v.patient_code}</p>}
+                        </td>
+                        <td className="font-data">
+                          {v.blood_pressure_systolic && v.blood_pressure_diastolic
+                            ? `${v.blood_pressure_systolic}/${v.blood_pressure_diastolic}`
+                            : '—'}
+                        </td>
+                        <td className="font-data">{v.pulse_rate ? `${v.pulse_rate} bpm` : '—'}</td>
+                        <td className="font-data">{v.temperature ?? '—'}</td>
+                        <td className={`font-data ${spo2Class(v.oxygen_saturation)}`}>
+                          {v.oxygen_saturation ? `${v.oxygen_saturation}%` : '—'}
+                          {v.oxygen_saturation && v.oxygen_saturation < 90 && (
+                            <AlertTriangle className="inline w-3 h-3 ml-1" />
+                          )}
+                        </td>
+                        <td className="font-data">{v.respiratory_rate ? `${v.respiratory_rate}/min` : '—'}</td>
+                        <td className="font-data">{v.weight ? `${v.weight} kg` : '—'}</td>
+                        <td className="font-data text-sm">{(v.recorded_at ?? v.created_at)?.split('T')[0]}</td>
+                      </tr>
+                    ))
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
-      <div className="card">
-        <div className="p-4 border-b border-[var(--color-border)]"><h2 className="font-semibold">Recent Vitals</h2></div>
-        {loading ? <div className="p-8 text-center text-[var(--color-text-muted)]">Loading...</div> :
-        vitals.length === 0 ? <div className="p-8 text-center text-[var(--color-text-muted)]">No vitals recorded</div> :
-        <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b border-[var(--color-border)] text-left">
-          <th className="p-3">Patient</th><th className="p-3">BP</th><th className="p-3">Pulse</th><th className="p-3">Temp</th><th className="p-3">SpO2</th><th className="p-3">Date</th>
-        </tr></thead><tbody>{vitals.map((v: any, i: number) => (
-          <tr key={v.id ?? i} className="border-b border-[var(--color-border)] hover:bg-[var(--color-primary-light)]">
-            <td className="p-3 font-medium">{v.patient_name ?? '—'}</td><td className="p-3">{v.blood_pressure ?? '—'}</td><td className="p-3">{v.pulse ?? '—'} bpm</td>
-            <td className="p-3">{v.temperature ?? '—'}°F</td><td className="p-3">{v.spo2 ?? '—'}%</td><td className="p-3">{v.recorded_at?.split('T')[0] ?? v.created_at?.split('T')[0]}</td>
-          </tr>))}</tbody></table></div>}
-      </div>
-    </div>
+
+      {showRecord && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-modal w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-5 border-b border-[var(--color-border)] sticky top-0 bg-white dark:bg-slate-800">
+              <h3 className="font-semibold">Record Patient Vitals</h3>
+              <button onClick={() => setShowRecord(false)} className="btn-ghost p-1.5"><X className="w-5 h-5" /></button>
+            </div>
+            <form onSubmit={handleRecord} className="p-5 space-y-4">
+              <div><label className="label">Patient ID *</label><input className="input" type="number" required value={form.patient_id} onChange={e => setForm(f => ({ ...f, patient_id: e.target.value }))} /></div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><label className="label">BP Systolic (mmHg)</label><input className="input" type="number" value={form.blood_pressure_systolic} onChange={e => setForm(f => ({ ...f, blood_pressure_systolic: e.target.value }))} placeholder="e.g. 120" /></div>
+                <div><label className="label">BP Diastolic (mmHg)</label><input className="input" type="number" value={form.blood_pressure_diastolic} onChange={e => setForm(f => ({ ...f, blood_pressure_diastolic: e.target.value }))} placeholder="e.g. 80" /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><label className="label">Pulse Rate (bpm)</label><input className="input" type="number" value={form.pulse_rate} onChange={e => setForm(f => ({ ...f, pulse_rate: e.target.value }))} /></div>
+                <div><label className="label">Temperature (°C)</label><input className="input" type="number" step="0.1" value={form.temperature} onChange={e => setForm(f => ({ ...f, temperature: e.target.value }))} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><label className="label">SpO₂ (%)</label><input className="input" type="number" min="0" max="100" value={form.oxygen_saturation} onChange={e => setForm(f => ({ ...f, oxygen_saturation: e.target.value }))} /></div>
+                <div><label className="label">Respiratory Rate (/min)</label><input className="input" type="number" value={form.respiratory_rate} onChange={e => setForm(f => ({ ...f, respiratory_rate: e.target.value }))} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><label className="label">Weight (kg)</label><input className="input" type="number" step="0.1" value={form.weight} onChange={e => setForm(f => ({ ...f, weight: e.target.value }))} /></div>
+                <div><label className="label">Height (cm)</label><input className="input" type="number" step="0.1" value={form.height} onChange={e => setForm(f => ({ ...f, height: e.target.value }))} /></div>
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setShowRecord(false)} className="btn-secondary">Cancel</button>
+                <button type="submit" disabled={saving} className="btn-primary">{saving ? 'Saving…' : 'Record Vitals'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </DashboardLayout>
   );
 }

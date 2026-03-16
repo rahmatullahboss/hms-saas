@@ -4,6 +4,7 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
 import KPICard from '../components/dashboard/KPICard';
+import { authHeader } from '../utils/auth';
 import { useTranslation } from 'react-i18next';
 
 interface Test {
@@ -15,12 +16,6 @@ const STATUS_BADGE: Record<string, { l: string; b: string }> = {
   pending: { l: 'Pending', b: 'badge-warning' }, completed: { l: 'Completed', b: 'badge-success' }, cancelled: { l: 'Cancelled', b: 'badge-danger' },
 };
 
-const DEMO: Test[] = [
-  { id: 1, test_name: 'CBC (Complete Blood Count)', status: 'completed', date: '2026-03-13', result: 'Normal ranges', patient_name: 'রহিম উদ্দিন' },
-  { id: 2, test_name: 'Blood Glucose (Fasting)', status: 'pending', date: '2026-03-13', patient_name: 'সাবিনা আক্তার' },
-  { id: 3, test_name: 'Lipid Profile', status: 'pending', date: '2026-03-12', patient_name: 'মোহাম্মদ করিম' },
-  { id: 4, test_name: 'Thyroid Panel (TSH, T3, T4)', status: 'completed', date: '2026-03-11', result: 'TSH elevated', patient_name: 'রহিম উদ্দিন' },
-];
 
 export default function TestCatalog({ role = 'hospital_admin' }: { role?: string }) {
   const [tests, setTests] = useState<Test[]>([]);
@@ -34,7 +29,7 @@ export default function TestCatalog({ role = 'hospital_admin' }: { role?: string
 
   // ESC-to-close modal
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowCreate(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setShowCreate(false); setForm({ patientId: '', testName: '' }); } };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
@@ -42,12 +37,11 @@ export default function TestCatalog({ role = 'hospital_admin' }: { role?: string
   const fetchTests = useCallback(async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('hms_token');
       const params: Record<string, string> = {};
       if (statusFilter) params.status = statusFilter;
-      const { data } = await axios.get('/api/tests', { params, headers: { Authorization: `Bearer ${token}` } });
+      const { data } = await axios.get('/api/tests', { params, headers: authHeader() });
       setTests(data.tests ?? []);
-    } catch { setTests(DEMO); } finally { setLoading(false); }
+    } catch { setTests([]); } finally { setLoading(false); }
   }, [statusFilter]);
 
   useEffect(() => { fetchTests(); }, [fetchTests]);
@@ -59,8 +53,7 @@ export default function TestCatalog({ role = 'hospital_admin' }: { role?: string
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true);
     try {
-      const token = localStorage.getItem('hms_token');
-      await axios.post('/api/tests', { patientId: parseInt(form.patientId), testName: form.testName }, { headers: { Authorization: `Bearer ${token}` } });
+      await axios.post('/api/tests', { patientId: parseInt(form.patientId), testName: form.testName }, { headers: authHeader() });
       toast.success('Test ordered'); setShowCreate(false); setForm({ patientId: '', testName: '' }); fetchTests();
     } catch (err) { toast.error(axios.isAxiosError(err) ? err.response?.data?.error ?? 'Failed' : 'Failed'); } finally { setSaving(false); }
   };

@@ -1,34 +1,175 @@
-import { useState, useEffect } from 'react';
-import { FileText } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { FileText, Plus, X, CheckCircle, XCircle } from 'lucide-react';
 import axios from 'axios';
+import toast from 'react-hot-toast';
+import DashboardLayout from '../components/DashboardLayout';
+import KPICard from '../components/dashboard/KPICard';
+import EmptyState from '../components/dashboard/EmptyState';
 
-export default function CreditNotesPage({ role: _role }: { role?: string }) {
-  
-  const [notes, setNotes] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+interface CreditNote {
+  id: number;
+  credit_note_no?: string;
+  patient_name?: string;
+  amount: number;
+  reason?: string;
+  status?: 'pending' | 'approved' | 'rejected';
+  created_at: string;
+}
+
+import { authHeader } from '../utils/auth';
+
+const STATUS_CFG: Record<string, { label: string; cls: string }> = {
+  pending:  { label: 'Pending',  cls: 'badge-warning' },
+  approved: { label: 'Approved', cls: 'badge-success' },
+  rejected: { label: 'Rejected', cls: 'badge-error' },
+};
+
+export default function CreditNotesPage({ role = 'hospital_admin' }: { role?: string }) {
+  const [notes, setNotes]       = useState<CreditNote[]>([]);
+  const [loading, setLoading]   = useState(true);
+  const [statusFilter, setStatusFilter] = useState('all');
+
+  const [showCreate, setShowCreate] = useState(false);
+  const [saving, setSaving]         = useState(false);
+  const [form, setForm] = useState({ patient_id: '', bill_id: '', amount: '', reason: '' });
 
   useEffect(() => {
-    axios.get('/api/credit-notes', { headers: { Authorization: `Bearer ${localStorage.getItem('hms_token')}` } }).then(({ data: d }: any) => setNotes(d.creditNotes ?? d.credit_notes ?? [])).catch(() => setNotes([])).finally(() => setLoading(false));
+    const fn = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowCreate(false); };
+    window.addEventListener('keydown', fn);
+    return () => window.removeEventListener('keydown', fn);
   }, []);
 
+  const fetchNotes = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params: Record<string, string> = {};
+      if (statusFilter !== 'all') params.status = statusFilter;
+      const { data } = await axios.get('/api/credit-notes', { params, headers: authHeader() });
+      setNotes(data.creditNotes ?? data.credit_notes ?? []);
+    } catch { setNotes([]); } finally { setLoading(false); }
+  }, [statusFilter]);
+
+  useEffect(() => { fetchNotes(); }, [fetchNotes]);
+
+  const total   = notes.reduce((s, n) => s + n.amount, 0);
+  const pending  = notes.filter(n => n.status === 'pending').length;
+  const approved = notes.filter(n => n.status === 'approved').length;
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault(); setSaving(true);
+    try {
+      await axios.post('/api/credit-notes', {
+        patient_id: parseInt(form.patient_id),
+        bill_id: parseInt(form.bill_id),
+        amount: parseFloat(form.amount),
+        reason: form.reason || undefined,
+      }, { headers: authHeader() });
+      toast.success('Credit note created');
+      setShowCreate(false);
+      setForm({ patient_id: '', bill_id: '', amount: '', reason: '' });
+      fetchNotes();
+    } catch (err) {
+      toast.error(axios.isAxiosError(err) ? err.response?.data?.message ?? 'Failed' : 'Failed');
+    } finally { setSaving(false); }
+  };
+
+  const handleAction = async (id: number, action: 'approve' | 'reject') => {
+    try {
+      await axios.put(`/api/credit-notes/${id}/${action}`, {}, { headers: authHeader() });
+      toast.success(`Credit note ${action}d`);
+      fetchNotes();
+    } catch (err) {
+      toast.error(axios.isAxiosError(err) ? err.response?.data?.message ?? 'Failed' : 'Failed');
+    }
+  };
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500 to-pink-500 flex items-center justify-center shadow-lg shadow-rose-500/20"><FileText className="w-5 h-5 text-white" /></div>
-        <div><h1 className="text-xl font-bold">Credit Notes</h1><p className="text-sm text-[var(--color-text-muted)]">Manage refunds & adjustments</p></div>
+    <DashboardLayout role={role}>
+      <div className="space-y-5 max-w-screen-2xl mx-auto">
+
+        <div className="page-header">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500 to-pink-500 flex items-center justify-center shadow-lg shadow-rose-500/20">
+              <FileText className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h1 className="page-title">Credit Notes</h1>
+              <p className="section-subtitle">Manage refunds &amp; billing adjustments</p>
+            </div>
+          </div>
+          <button onClick={() => setShowCreate(true)} className="btn-primary"><Plus className="w-4 h-4" /> New Credit Note</button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <KPICard title="Total Amount"  value={`৳${total.toLocaleString()}`} loading={loading} icon={<FileText className="w-5 h-5" />} iconBg="bg-[var(--color-primary-light)] text-[var(--color-primary)]" index={0} />
+          <KPICard title="Pending"       value={pending}                       loading={loading} icon={<FileText className="w-5 h-5" />} iconBg="bg-amber-50 text-amber-600"  index={1} />
+          <KPICard title="Approved"      value={approved}                      loading={loading} icon={<CheckCircle className="w-5 h-5" />} iconBg="bg-emerald-50 text-emerald-600" index={2} />
+        </div>
+
+        <div className="card p-3 flex gap-2 flex-wrap">
+          {['all', 'pending', 'approved', 'rejected'].map(s => (
+            <button key={s} onClick={() => setStatusFilter(s)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium capitalize transition-colors ${statusFilter === s ? 'bg-[var(--color-primary)] text-white' : 'hover:bg-[var(--color-border-light)] text-[var(--color-text-secondary)]'}`}
+            >{s === 'all' ? 'All' : s}</button>
+          ))}
+        </div>
+
+        <div className="card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="table-base">
+              <thead><tr><th>CN #</th><th>Patient</th><th>Amount (৳)</th><th>Reason</th><th>Status</th><th>Date</th><th>Actions</th></tr></thead>
+              <tbody>
+                {loading
+                  ? [...Array(4)].map((_, i) => <tr key={i}>{[...Array(7)].map((_, j) => <td key={j}><div className="skeleton h-4 w-full rounded" /></td>)}</tr>)
+                  : notes.length === 0
+                  ? <tr><td colSpan={7}><EmptyState icon={<FileText className="w-8 h-8 text-[var(--color-text-muted)]" />} title="No credit notes" description="No credit notes found for the current filter." action={<button onClick={() => setShowCreate(true)} className="btn-primary mt-2"><Plus className="w-4 h-4" /> Create Credit Note</button>} /></td></tr>
+                  : notes.map(n => (
+                      <tr key={n.id}>
+                        <td className="font-data font-medium">{n.credit_note_no ?? `CN-${n.id}`}</td>
+                        <td>{n.patient_name ?? '—'}</td>
+                        <td className="font-data font-medium text-right">৳{n.amount.toLocaleString()}</td>
+                        <td className="text-[var(--color-text-secondary)] max-w-xs truncate">{n.reason ?? '—'}</td>
+                        <td><span className={`badge ${STATUS_CFG[n.status ?? 'pending']?.cls ?? 'badge-info'}`}>{STATUS_CFG[n.status ?? 'pending']?.label}</span></td>
+                        <td className="font-data text-sm">{n.created_at?.split('T')[0]}</td>
+                        <td>
+                          {n.status === 'pending' && (
+                            <div className="flex items-center gap-1">
+                              <button onClick={() => handleAction(n.id, 'approve')} className="btn-ghost p-1.5 text-emerald-600" title="Approve"><CheckCircle className="w-4 h-4" /></button>
+                              <button onClick={() => handleAction(n.id, 'reject')} className="btn-ghost p-1.5 text-red-500" title="Reject"><XCircle className="w-4 h-4" /></button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
-      <div className="card">
-        <div className="p-4 border-b border-[var(--color-border)]"><h2 className="font-semibold">All Credit Notes</h2></div>
-        {loading ? <div className="p-8 text-center text-[var(--color-text-muted)]">Loading...</div> :
-        notes.length === 0 ? <div className="p-8 text-center text-[var(--color-text-muted)]">No credit notes</div> :
-        <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b border-[var(--color-border)] text-left">
-          <th className="p-3">CN #</th><th className="p-3">Patient</th><th className="p-3">Amount</th><th className="p-3">Reason</th><th className="p-3">Date</th>
-        </tr></thead><tbody>{notes.map((n: any, i: number) => (
-          <tr key={n.id ?? i} className="border-b border-[var(--color-border)] hover:bg-[var(--color-primary-light)]">
-            <td className="p-3 font-medium">{n.credit_note_no ?? `CN-${n.id}`}</td><td className="p-3">{n.patient_name}</td><td className="p-3">৳{n.amount}</td>
-            <td className="p-3">{n.reason ?? '—'}</td><td className="p-3">{n.created_at?.split('T')[0]}</td>
-          </tr>))}</tbody></table></div>}
-      </div>
-    </div>
+
+      {showCreate && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-modal w-full max-w-md">
+            <div className="flex items-center justify-between p-5 border-b border-[var(--color-border)]">
+              <h3 className="font-semibold">New Credit Note</h3>
+              <button onClick={() => setShowCreate(false)} className="btn-ghost p-1.5"><X className="w-5 h-5" /></button>
+            </div>
+            <form onSubmit={handleCreate} className="p-5 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div><label className="label">Patient ID *</label><input className="input" type="number" required value={form.patient_id} onChange={e => setForm(f => ({ ...f, patient_id: e.target.value }))} /></div>
+                <div><label className="label">Bill ID *</label><input className="input" type="number" required value={form.bill_id} onChange={e => setForm(f => ({ ...f, bill_id: e.target.value }))} /></div>
+              </div>
+              <div><label className="label">Amount (৳) *</label><input className="input" type="number" required min="0.01" step="0.01" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} /></div>
+              <div><label className="label">Reason</label><textarea className="input resize-none" rows={2} value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))} /></div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setShowCreate(false)} className="btn-secondary">Cancel</button>
+                <button type="submit" disabled={saving} className="btn-primary">{saving ? 'Saving…' : 'Create Credit Note'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </DashboardLayout>
   );
 }

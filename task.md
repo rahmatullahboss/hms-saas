@@ -17,7 +17,7 @@
 ## Verification
 - [x] `pnpm install` — no peer dep errors ✅
 - [x] `pnpm test` — 45 files, 1341 tests pass ✅
-- [x] `cd apps/api && npx vitest run` — 35 files, all pass ✅
+- [/] Emergency Dashboard — KPI stats, register patient, triage, finalize, search/filterl pass ✅
 - [x] `npx tsc --noEmit` — type check passes ✅
 - [x] `pnpm build` — tsc + vite + PWA all succeed ✅
 - [x] **Adversarial review** — caught `@variant` → `@custom-variant` fix, re-verified ✅

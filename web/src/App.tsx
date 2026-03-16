@@ -74,6 +74,18 @@ import BillingHandoverPage from './pages/BillingHandoverPage';
 import BillCancellationPage from './pages/BillCancellationPage';
 import VitalsPage from './pages/VitalsPage';
 import AllergiesPage from './pages/AllergiesPage';
+import InventoryDashboard from './pages/inventory/InventoryDashboard';
+import StockList from './pages/inventory/StockList';
+import PurchaseOrderList from './pages/inventory/PurchaseOrderList';
+import PurchaseOrderForm from './pages/inventory/PurchaseOrderForm';
+import GoodsReceiptList from './pages/inventory/GoodsReceiptList';
+import GoodsReceiptForm from './pages/inventory/GoodsReceiptForm';
+import RequisitionList from './pages/inventory/RequisitionList';
+import RequisitionForm from './pages/inventory/RequisitionForm';
+import DispatchList from './pages/inventory/DispatchList';
+import DispatchForm from './pages/inventory/DispatchForm';
+import StockAdjustment from './pages/inventory/StockAdjustment';
+import InventoryLedger from './pages/inventory/InventoryLedger';
 
 function Unauthorized() {
   const { t } = useTranslation('common');
@@ -188,6 +200,19 @@ function App() {
             <Route path="billing-cancellation" element={<BillCancellationPage role="hospital_admin" />} />
             <Route path="vitals" element={<VitalsPage role="hospital_admin" />} />
             <Route path="allergies" element={<AllergiesPage role="hospital_admin" />} />
+            {/* ─── Inventory ─────────────────────────────── */}
+            <Route path="inventory" element={<InventoryDashboard role="hospital_admin" />} />
+            <Route path="inventory/stock" element={<StockList role="hospital_admin" />} />
+            <Route path="inventory/stock/adjust" element={<StockAdjustment role="hospital_admin" />} />
+            <Route path="inventory/po" element={<PurchaseOrderList role="hospital_admin" />} />
+            <Route path="inventory/po/new" element={<PurchaseOrderForm role="hospital_admin" />} />
+            <Route path="inventory/gr" element={<GoodsReceiptList role="hospital_admin" />} />
+            <Route path="inventory/gr/new" element={<GoodsReceiptForm role="hospital_admin" />} />
+            <Route path="inventory/requisitions" element={<RequisitionList role="hospital_admin" />} />
+            <Route path="inventory/requisitions/new" element={<RequisitionForm role="hospital_admin" />} />
+            <Route path="inventory/dispatches" element={<DispatchList role="hospital_admin" />} />
+            <Route path="inventory/dispatches/new" element={<DispatchForm role="hospital_admin" />} />
+            <Route path="inventory/ledger" element={<InventoryLedger role="hospital_admin" />} />
           </Route>
 
           {/* ─── Laboratory ──────────────────────────────────────────── */}

@@ -3,6 +3,8 @@ import { Plus, X, Users, PieChart, TrendingUp, DollarSign } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
+import KPICard from '../components/dashboard/KPICard';
+import { authHeader } from '../utils/auth';
 import { useTranslation } from 'react-i18next';
 
 interface Shareholder {
@@ -31,10 +33,16 @@ export default function DirectorDashboard({ role = 'director' }: { role?: string
 
   useEffect(() => { fetchData(); }, []);
 
+  // ESC to close modal
+  useEffect(() => {
+    const fn = (e: KeyboardEvent) => { if (e.key === 'Escape') { setShowAdd(false); setNew({ name: '', address: '', phone: '', shareCount: 0, type: 'profit', investment: 0 }); } };
+    window.addEventListener('keydown', fn);
+    return () => window.removeEventListener('keydown', fn);
+  }, []);
+
   const fetchData = async () => {
     try {
-      const token = localStorage.getItem('hms_token');
-      const headers = { Authorization: `Bearer ${token}` };
+      const headers = authHeader();
       const [shRes, calcRes] = await Promise.all([
         axios.get('/api/shareholders', { headers }),
         axios.get('/api/shareholders/calculate', { headers }),
@@ -47,8 +55,7 @@ export default function DirectorDashboard({ role = 'director' }: { role?: string
 
   const handleAddShareholder = async () => {
     try {
-      const token = localStorage.getItem('hms_token');
-      await axios.post('/api/shareholders', newShareholder, { headers: { Authorization: `Bearer ${token}` } });
+      await axios.post('/api/shareholders', newShareholder, { headers: authHeader() });
       toast.success('Shareholder added');
       setShowAdd(false);
       setNew({ name: '', address: '', phone: '', shareCount: 0, type: 'profit', investment: 0 });
@@ -61,8 +68,7 @@ export default function DirectorDashboard({ role = 'director' }: { role?: string
 
   const handleApproveProfit = async () => {
     try {
-      const token = localStorage.getItem('hms_token');
-      await axios.post('/api/shareholders/approve', { month: profitCalc?.month }, { headers: { Authorization: `Bearer ${token}` } });
+      await axios.post('/api/shareholders/approve', { month: profitCalc?.month }, { headers: authHeader() });
       toast.success('Profit distribution approved');
     } catch { toast.error('Failed to approve'); }
   };
@@ -86,22 +92,10 @@ export default function DirectorDashboard({ role = 'director' }: { role?: string
 
         {/* ── Shareholder KPIs ── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            { label: t('totalShares',     { defaultValue: 'Total Shares' }),            value: totalShares,            icon: PieChart,    color: 'text-[var(--color-primary)]' },
-            { label: t('profitPartners',  { defaultValue: 'Profit Partners' }),         value: profitPartners.length,  icon: TrendingUp,  color: 'text-emerald-600' },
-            { label: t('ownerPartners',   { defaultValue: 'Owner Partners' }),          value: ownerPartners.length,   icon: Users,       color: 'text-blue-600' },
-            { label: t('totalInvestment', { defaultValue: 'Total Investment' }),        value: fmt(totalInvest),       icon: DollarSign,  color: 'text-amber-600' },
-          ].map(({ label, value, icon: Icon, color }) => (
-            <div key={label} className="card p-5 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-[var(--color-primary)]/10 flex items-center justify-center flex-shrink-0">
-                <Icon className="w-4 h-4 text-[var(--color-primary)]" />
-              </div>
-              <div>
-                <p className="text-xs text-[var(--color-text-muted)] mb-0.5">{label}</p>
-                <p className={`text-xl font-bold ${color}`}>{value}</p>
-              </div>
-            </div>
-          ))}
+          <KPICard title={t('totalShares',     { defaultValue: 'Total Shares' })}     value={totalShares}           loading={loading} icon={<PieChart className="w-5 h-5" />}   iconBg="bg-[var(--color-primary-light)] text-[var(--color-primary)]" index={0} />
+          <KPICard title={t('profitPartners',  { defaultValue: 'Profit Partners' })}  value={profitPartners.length} loading={loading} icon={<TrendingUp className="w-5 h-5" />} iconBg="bg-emerald-50 text-emerald-600" index={1} />
+          <KPICard title={t('ownerPartners',   { defaultValue: 'Owner Partners' })}   value={ownerPartners.length}  loading={loading} icon={<Users className="w-5 h-5" />}      iconBg="bg-blue-50 text-blue-600"      index={2} />
+          <KPICard title={t('totalInvestment', { defaultValue: 'Total Investment' })} value={fmt(totalInvest)}      loading={loading} icon={<DollarSign className="w-5 h-5" />}  iconBg="bg-amber-50 text-amber-600"    index={3} />
         </div>
 
         {/* ── Monthly Profit Distribution ── */}

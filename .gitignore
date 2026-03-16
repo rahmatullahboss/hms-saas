@@ -24,3 +24,6 @@ landing/.astro/
 
 # Deprecated: dual-architecture removed, single worker only
 apps/
+coverage/
+web/playwright-report/
+test-results/

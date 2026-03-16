@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
@@ -25,9 +26,10 @@ export default defineConfig({
     // { name: 'webkit', use: { ...devices['Desktop Safari'] } },
   ],
   webServer: {
-    command: 'pnpm dev',
+    command: 'npm run dev',
     url: 'http://localhost:5174',
     reuseExistingServer: true,
     timeout: 90000,
+    env: { BROWSER: 'none' },
   },
 });

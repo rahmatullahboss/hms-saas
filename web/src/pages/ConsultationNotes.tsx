@@ -4,6 +4,7 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
 import KPICard from '../components/dashboard/KPICard';
+import { authHeader } from '../utils/auth';
 import { useTranslation } from 'react-i18next';
 
 interface Consultation {
@@ -18,11 +19,7 @@ const STATUS_BADGE: Record<string, { label: string; badge: string }> = {
   completed: { label: 'Completed', badge: 'badge-success' }, cancelled: { label: 'Cancelled', badge: 'badge-danger' },
 };
 
-const DEMO: Consultation[] = [
-  { id: 1, doctor_id: 1, patient_id: 1, scheduled_at: '2026-03-13T10:00:00', duration_min: 30, status: 'scheduled', chief_complaint: 'Chest pain', doctor_name: 'ড. আব্দুল করিম', doctor_specialty: 'Cardiology', patient_name: 'রহিম উদ্দিন', patient_code: 'PT-001234' },
-  { id: 2, doctor_id: 2, patient_id: 2, scheduled_at: '2026-03-13T11:00:00', duration_min: 20, status: 'completed', chief_complaint: 'Follow-up', doctor_name: 'ড. নাসরিন সুলতানা', doctor_specialty: 'General', patient_name: 'সাবিনা আক্তার', patient_code: 'PT-001235', prescription: 'Tab. Omeprazole 20mg 1+0+1 x 14d' },
-  { id: 3, doctor_id: 1, patient_id: 3, scheduled_at: '2026-03-14T09:30:00', duration_min: 15, status: 'scheduled', chief_complaint: 'Headache', doctor_name: 'ড. আব্দুল করিম', doctor_specialty: 'Cardiology', patient_name: 'মোহাম্মদ করিম', patient_code: 'PT-001236' },
-];
+
 
 export default function ConsultationNotes({ role = 'hospital_admin' }: { role?: string }) {
   const [consultations, setConsultations] = useState<Consultation[]>([]);
@@ -38,7 +35,7 @@ export default function ConsultationNotes({ role = 'hospital_admin' }: { role?: 
 
   // ESC-to-close modals
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setShowCreate(false); setShowDetail(false); } };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setShowCreate(false); setShowDetail(false); setForm({ doctorId: '', patientId: '', scheduledAt: '', durationMin: '30', chiefComplaint: '', notes: '' }); } };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
@@ -46,12 +43,11 @@ export default function ConsultationNotes({ role = 'hospital_admin' }: { role?: 
   const fetch = useCallback(async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('hms_token');
       const params: Record<string, string> = {};
       if (statusFilter) params.status = statusFilter;
-      const { data } = await axios.get('/api/consultations', { params, headers: { Authorization: `Bearer ${token}` } });
+      const { data } = await axios.get('/api/consultations', { params, headers: authHeader() });
       setConsultations(data.consultations ?? []);
-    } catch { setConsultations(DEMO); } finally { setLoading(false); }
+    } catch { setConsultations([]); } finally { setLoading(false); }
   }, [statusFilter]);
 
   useEffect(() => { fetch(); }, [fetch]);
@@ -63,16 +59,15 @@ export default function ConsultationNotes({ role = 'hospital_admin' }: { role?: 
   );
 
   const viewDetail = async (con: Consultation) => {
-    try { const token = localStorage.getItem('hms_token'); const { data } = await axios.get(`/api/consultations/${con.id}`, { headers: { Authorization: `Bearer ${token}` } }); setSelected(data.consultation ?? con); } catch { setSelected(con); }
+    try { const { data } = await axios.get(`/api/consultations/${con.id}`, { headers: authHeader() }); setSelected(data.consultation ?? con); } catch { setSelected(con); }
     setShowDetail(true);
   };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true);
     try {
-      const token = localStorage.getItem('hms_token');
-      await axios.post('/api/consultations', { doctorId: Number(form.doctorId), patientId: Number(form.patientId), scheduledAt: form.scheduledAt, durationMin: Number(form.durationMin) || 30, chiefComplaint: form.chiefComplaint || undefined, notes: form.notes || undefined }, { headers: { Authorization: `Bearer ${token}` } });
-      toast.success('Consultation booked'); setShowCreate(false); fetch();
+      await axios.post('/api/consultations', { doctorId: Number(form.doctorId), patientId: Number(form.patientId), scheduledAt: form.scheduledAt, durationMin: Number(form.durationMin) || 30, chiefComplaint: form.chiefComplaint || undefined, notes: form.notes || undefined }, { headers: authHeader() });
+      toast.success('Consultation booked'); setShowCreate(false); setForm({ doctorId: '', patientId: '', scheduledAt: '', durationMin: '30', chiefComplaint: '', notes: '' }); fetch();
     } catch (err) { toast.error(axios.isAxiosError(err) ? err.response?.data?.message ?? 'Failed' : 'Failed'); } finally { setSaving(false); }
   };
 

@@ -1,0 +1,63 @@
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router';
+import { Truck, Plus, Trash2, Save } from 'lucide-react';
+import axios from 'axios';
+import toast from 'react-hot-toast';
+import DashboardLayout from '../../components/DashboardLayout';
+
+interface Store { StoreId: number; StoreName: string; }
+interface Item { ItemId: number; ItemName: string; }
+interface DispItem { ItemId: number; DispatchedQuantity: number; BatchNo: string; }
+
+export default function DispatchForm({ role = 'hospital_admin' }: { role?: string }) {
+  const navigate = useNavigate();
+  const [saving, setSaving] = useState(false);
+  const [stores, setStores] = useState<Store[]>([]);
+  const [items, setItems] = useState<Item[]>([]);
+  const [form, setForm] = useState({ SourceStoreId: '', DestinationStoreId: '', Remarks: '' });
+  const [dispItems, setDispItems] = useState<DispItem[]>([{ ItemId: 0, DispatchedQuantity: 1, BatchNo: '' }]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('hms_token');
+    const h = { Authorization: `Bearer ${token}` };
+    axios.get('/api/inventory/stores', { params: { page: 1, limit: 50 }, headers: h }).then(r => setStores(r.data.data ?? [])).catch(() => { toast.error('Failed to load stores'); });
+    axios.get('/api/inventory/items', { params: { page: 1, limit: 200 }, headers: h }).then(r => setItems(r.data.data ?? [])).catch(() => { toast.error('Failed to load items'); });
+  }, []);
+
+  const addRow = () => setDispItems(prev => [...prev, { ItemId: 0, DispatchedQuantity: 1, BatchNo: '' }]);
+  const removeRow = (idx: number) => setDispItems(prev => prev.filter((_, i) => i !== idx));
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault(); setSaving(true);
+    try {
+      const token = localStorage.getItem('hms_token');
+      await axios.post('/api/inventory/dispatches', { ...form, SourceStoreId: Number(form.SourceStoreId), DestinationStoreId: Number(form.DestinationStoreId), Items: dispItems }, { headers: { Authorization: `Bearer ${token}` } });
+      toast.success('Dispatch created'); navigate('/inventory/dispatches');
+    } catch (err: any) { toast.error(err?.response?.data?.error || 'Failed to create dispatch'); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <DashboardLayout role={role}>
+      <div className="space-y-5 max-w-screen-xl mx-auto">
+        <div className="page-header"><h1 className="page-title"><Truck className="w-6 h-6 inline mr-2" />New Dispatch</h1></div>
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="card p-5 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div><label className="label">Source Store *</label><select className="input" required value={form.SourceStoreId} onChange={e => setForm({...form, SourceStoreId: e.target.value})}><option value="">Select…</option>{stores.map(s => <option key={s.StoreId} value={s.StoreId}>{s.StoreName}</option>)}</select></div>
+            <div><label className="label">Destination Store *</label><select className="input" required value={form.DestinationStoreId} onChange={e => setForm({...form, DestinationStoreId: e.target.value})}><option value="">Select…</option>{stores.map(s => <option key={s.StoreId} value={s.StoreId}>{s.StoreName}</option>)}</select></div>
+            <div><label className="label">Remarks</label><input className="input" value={form.Remarks} onChange={e => setForm({...form, Remarks: e.target.value})} /></div>
+          </div>
+          <div className="card overflow-hidden">
+            <div className="p-4 border-b border-[var(--color-border)] flex justify-between"><h3 className="font-semibold">Items to Dispatch</h3><button type="button" onClick={addRow} className="btn-secondary text-sm"><Plus className="w-4 h-4 mr-1 inline" /> Add</button></div>
+            <div className="overflow-x-auto"><table className="table-base"><thead><tr><th>Item *</th><th>Qty *</th><th>Batch</th><th></th></tr></thead><tbody>{dispItems.map((item, idx) => (
+              <tr key={idx}><td><select className="input" value={item.ItemId} onChange={e => setDispItems(prev => prev.map((d,i) => i===idx ? {...d, ItemId: Number(e.target.value)} : d))} required><option value="">Select…</option>{items.map(it => <option key={it.ItemId} value={it.ItemId}>{it.ItemName}</option>)}</select></td>
+              <td><input className="input w-24" type="number" min="1" value={item.DispatchedQuantity} onChange={e => setDispItems(prev => prev.map((d,i) => i===idx ? {...d, DispatchedQuantity: parseInt(e.target.value)||0} : d))} /></td>
+              <td><input className="input w-28" value={item.BatchNo} onChange={e => setDispItems(prev => prev.map((d,i) => i===idx ? {...d, BatchNo: e.target.value} : d))} /></td>
+              <td>{dispItems.length > 1 && <button type="button" onClick={() => removeRow(idx)} className="btn-ghost p-1 text-red-500"><Trash2 className="w-4 h-4" /></button>}</td></tr>))}</tbody></table></div>
+          </div>
+          <div className="flex justify-end gap-3"><button type="button" onClick={() => navigate('/inventory/dispatches')} className="btn-secondary">Cancel</button><button type="submit" disabled={saving} className="btn-primary"><Save className="w-4 h-4 mr-1 inline" /> {saving ? 'Saving…' : 'Dispatch Items'}</button></div>
+        </form>
+      </div>
+    </DashboardLayout>
+  );
+}

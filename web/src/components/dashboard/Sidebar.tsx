@@ -1,6 +1,6 @@
 import { Link, useLocation, useParams } from 'react-router';
 import {
-  LayoutDashboard, Users, FlaskConical, Receipt, Pill,
+  LayoutDashboard, Users, FlaskConical, Receipt, Pill, Package,
   UserCog, PieChart, Settings, LogOut, Menu, X,
   Building2, Wallet, TrendingUp, TrendingDown, Repeat,
   BookOpen, FileText, Video, ChevronRight,
@@ -78,6 +78,7 @@ export default function Sidebar({ role, onLogout }: SidebarProps) {
         items: [
           { labelKey: 'labTests',      path: 'tests',             icon: <FlaskConical    className="w-4.5 h-4.5" /> },
           { labelKey: 'pharmacy',      path: 'pharmacy',          icon: <Pill            className="w-4.5 h-4.5" /> },
+          { labelKey: 'inventory',     path: 'inventory',         icon: <Package         className="w-4.5 h-4.5" /> },
           { labelKey: 'vitals',        path: 'vitals',            icon: <Heart           className="w-4.5 h-4.5" /> },
           { labelKey: 'allergies',     path: 'allergies',         icon: <ShieldAlert     className="w-4.5 h-4.5" /> },
         ],
