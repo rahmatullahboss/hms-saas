@@ -31,7 +31,7 @@ test/
 
 ## 🔴 Priority 1 — Money & Stock (write first)
 
-### Billing ([billing.test.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/ozzyl-hms/apps/api/tests/billing.test.ts))
+### Billing ([billing.test.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/apps/api/tests/billing.test.ts))
 | # | Test Case | Type |
 |---|-----------|------|
 | 1 | Create bill with multiple line items → correct subtotal/total | Happy path |
@@ -46,7 +46,7 @@ test/
 | 10 | Receipt number auto-increments (RCP-000001) | Sequence |
 | 11 | Tenant isolation — can't access other tenant's bills | Security |
 
-### Pharmacy — Purchases ([pharmacy.test.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/ozzyl-hms/apps/api/tests/pharmacy.test.ts))
+### Pharmacy — Purchases ([pharmacy.test.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/apps/api/tests/pharmacy.test.ts))
 | # | Test Case | Type |
 |---|-----------|------|
 | 1 | Purchase creates stock batches with correct quantities | Happy path |
@@ -56,7 +56,7 @@ test/
 | 5 | Purchase with discount → correct total_amount | Edge case |
 | 6 | Multiple items in one purchase → all batches created | Happy path |
 
-### Pharmacy — Sales ([pharmacy.test.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/ozzyl-hms/apps/api/tests/pharmacy.test.ts))
+### Pharmacy — Sales ([pharmacy.test.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/apps/api/tests/pharmacy.test.ts))
 | # | Test Case | Type |
 |---|-----------|------|
 | 7 | FEFO: earliest-expiry batch deducted first | Core logic |
@@ -77,7 +77,7 @@ test/
 
 ## 🟠 Priority 2 — Core CRUD
 
-### Patients ([patients.test.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/ozzyl-hms/apps/api/tests/patients.test.ts))
+### Patients ([patients.test.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/apps/api/tests/patients.test.ts))
 | # | Test Case | Type |
 |---|-----------|------|
 | 1 | Create patient → patient_code generated (P-000001) | Happy path |
@@ -120,18 +120,18 @@ test/
 
 ## 🟡 Priority 3 — Staff & Finance
 
-### Staff ([staff.test.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/ozzyl-hms/apps/api/tests/staff.test.ts))
+### Staff ([staff.test.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/apps/api/tests/staff.test.ts))
 | # | Test Case | Type |
 |---|-----------|------|
 | 1 | Pay salary with bonus + deduction → correct net_salary | Happy path |
 | 2 | **Duplicate month payment → 409** | Guard |
 | 3 | Expense record created for salary | Side effect |
 | 4 | Salary report shows paid/unpaid per staff | Report |
-| 5 | `/salary-report` route accessible (not shadowed by [/:id](file:///Users/rahmatullahzisan/Desktop/Dev/hms/ozzyl-hms/apps/api/src/schemas/commission.ts#18-19)) | Routing |
+| 5 | `/salary-report` route accessible (not shadowed by [/:id](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/apps/api/src/schemas/commission.ts#18-19)) | Routing |
 | 6 | Soft deactivate staff | Happy path |
 | 7 | Inactive staff can't receive salary → 404 | Guard |
 
-### Shareholders ([shareholders.test.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/ozzyl-hms/apps/api/tests/shareholders.test.ts))
+### Shareholders ([shareholders.test.ts](file:///Users/rahmatullahzisan/Desktop/Dev/hms/hms-saas/apps/api/tests/shareholders.test.ts))
 | # | Test Case | Type |
 |---|-----------|------|
 | 1 | Calculate per-person distribution | Calculation |

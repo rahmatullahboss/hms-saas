@@ -11,7 +11,7 @@ A comprehensive, multi-tenant Hospital Management System built on **Cloudflare W
 
 ## 🚀 Live Demo
 
-**URL:** `https://ozzyl-hms.rahmatullahzisan.workers.dev`
+**URL:** `https://hms-saas.rahmatullahzisan.workers.dev`
 
 **Direct login (no slug needed):** `/login`  
 **Tenant login:** `/h/demo-hospital/login`
