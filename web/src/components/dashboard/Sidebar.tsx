@@ -192,10 +192,12 @@ export default function Sidebar({ role, onLogout }: SidebarProps) {
       {/* ── Mobile hamburger ── */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        aria-label="Toggle sidebar"
-        className="no-print lg:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-white border border-[var(--color-border)] shadow-card cursor-pointer"
+        aria-label={isOpen ? "Close sidebar" : "Open sidebar"}
+        aria-expanded={isOpen}
+        aria-controls="mobile-sidebar"
+        className="no-print lg:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-white border border-[var(--color-border)] shadow-card cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
       >
-        {isOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+        {isOpen ? <X className="w-5 h-5" aria-hidden="true" /> : <Menu className="w-5 h-5" aria-hidden="true" />}
       </button>
 
       {/* ── Mobile backdrop ── */}
@@ -207,7 +209,9 @@ export default function Sidebar({ role, onLogout }: SidebarProps) {
       )}
 
       {/* ── Sidebar ── */}
-      <aside className={`
+      <aside
+        id="mobile-sidebar"
+        className={`
         no-print
         fixed lg:static inset-y-0 left-0 z-40
         w-64 bg-white dark:bg-slate-900
