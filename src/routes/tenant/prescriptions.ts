@@ -114,7 +114,9 @@ app.post('/', zValidator('json', createPrescriptionSchema), async (c) => {
   // ✅ Use sequence-based rx_no (no more COUNT(*) race condition)
   const rxNo = await getNextSequence(c.env.DB, tenantId, 'prescription', 'RX');
 
-  const prescriptionStmt = c.env.DB.prepare(`
+  // ─── Step 1: Insert prescription first to get real ID ───────────────────
+  // D1 batch does NOT propagate last_insert_rowid() across statements.
+  const rxResult = await c.env.DB.prepare(`
     INSERT INTO prescriptions (rx_no, patient_id, doctor_id, appointment_id, bp, temperature, weight, spo2,
       chief_complaint, diagnosis, examination_notes, advice, lab_tests, follow_up_date, status, created_by, tenant_id)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -124,28 +126,24 @@ app.post('/', zValidator('json', createPrescriptionSchema), async (c) => {
     body.chiefComplaint ?? null, body.diagnosis ?? null, body.examinationNotes ?? null,
     body.advice ?? null, body.labTests ? JSON.stringify(body.labTests) : null,
     body.followUpDate ?? null, body.status ?? 'draft', userId ?? 0, tenantId
-  );
+  ).run();
 
-  // ✅ Atomic batch: prescription + items all succeed or all fail
-  const batchStmts: D1PreparedStatement[] = [prescriptionStmt];
+  const rxId = rxResult.meta.last_row_id;
 
+  // ─── Step 2: Batch insert items using the real prescription ID ─────────
   if (body.items?.length) {
-    for (const item of body.items) {
-      batchStmts.push(
-        c.env.DB.prepare(`
-          INSERT INTO prescription_items (prescription_id, medicine_name, dosage, frequency, duration, instructions, sort_order)
-          VALUES (last_insert_rowid(), ?, ?, ?, ?, ?, ?)
-        `).bind(
-          item.medicine_name, item.dosage ?? null,
-          item.frequency ?? null, item.duration ?? null,
-          item.instructions ?? null, item.sort_order ?? 0
-        )
-      );
-    }
+    const itemStmts = body.items.map((item) =>
+      c.env.DB.prepare(`
+        INSERT INTO prescription_items (prescription_id, medicine_name, dosage, frequency, duration, instructions, sort_order)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        rxId, item.medicine_name, item.dosage ?? null,
+        item.frequency ?? null, item.duration ?? null,
+        item.instructions ?? null, item.sort_order ?? 0
+      )
+    );
+    await c.env.DB.batch(itemStmts);
   }
-
-  const batchResults = await c.env.DB.batch(batchStmts);
-  const rxId = batchResults[0].meta.last_row_id;
 
   return c.json({ id: rxId, rxNo }, 201);
 });
@@ -187,7 +185,9 @@ app.put('/:id', zValidator('json', updatePrescriptionSchema), async (c) => {
 
   // Replace items if provided
   if (body.items) {
-    await c.env.DB.prepare('DELETE FROM prescription_items WHERE prescription_id = ?').bind(id).run();
+    await c.env.DB.prepare(
+      'DELETE FROM prescription_items WHERE prescription_id = ? AND prescription_id IN (SELECT id FROM prescriptions WHERE tenant_id = ?)'
+    ).bind(id, tenantId).run();
     for (const item of body.items) {
       await c.env.DB.prepare(`
         INSERT INTO prescription_items (prescription_id, medicine_name, dosage, frequency, duration, instructions, sort_order)

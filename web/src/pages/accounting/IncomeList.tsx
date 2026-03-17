@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Plus, X } from 'lucide-react';
 import axios from 'axios';
 import DashboardLayout from '../../components/DashboardLayout';
+import { useTranslation } from 'react-i18next';
 
 interface Income {
   id: number;
@@ -32,6 +33,7 @@ export default function IncomeList({ role = 'md' }: { role?: string }) {
   const [showModal, setShowModal]       = useState(false);
   const [editingIncome, setEditing]     = useState<Income | null>(null);
   const [formData, setFormData]         = useState({ date: '', source: 'other', amount: '', description: '' });
+  const { t } = useTranslation(['accounting', 'common']);
 
   const fetchIncomes = async () => {
     setLoading(true);

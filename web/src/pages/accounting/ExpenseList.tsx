@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Plus, X } from 'lucide-react';
 import axios from 'axios';
 import DashboardLayout from '../../components/DashboardLayout';
+import { useTranslation } from 'react-i18next';
 
 interface Expense {
   id: number;
@@ -36,6 +37,7 @@ export default function ExpenseList({ role = 'md' }: { role?: string }) {
   const [editingExpense, setEditing]    = useState<Expense | null>(null);
   const [formData, setFormData]         = useState({ date: new Date().toISOString().split('T')[0], category: 'MISC', amount: '', description: '' });
   const isDirector = role === 'director';
+  const { t } = useTranslation(['accounting', 'common']);
 
   const fetchExpenses = async () => {
     setLoading(true);

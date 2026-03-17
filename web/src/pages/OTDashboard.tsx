@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 import DashboardLayout from '../components/DashboardLayout';
 import KPICard from '../components/dashboard/KPICard';
 import EmptyState from '../components/dashboard/EmptyState';
@@ -43,6 +44,7 @@ const SURGERY_TYPES = [
 ];
 
 export default function OTDashboard({ role = 'hospital_admin' }: { role?: string }) {
+  const { t } = useTranslation(['ot', 'common']);
   const [bookings, setBookings]       = useState<OTBooking[]>([]);
   const [stats, setStats]             = useState<OTStats | null>(null);
   const [loading, setLoading]         = useState(true);
@@ -183,10 +185,10 @@ export default function OTDashboard({ role = 'hospital_admin' }: { role?: string
 
         {/* KPI cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <KPICard title="Today"    value={stats?.today_bookings ?? '—'} loading={statsLoading} icon={<Calendar className="w-5 h-5" />} iconBg="bg-[var(--color-primary-light)] text-[var(--color-primary)]" index={0} />
-          <KPICard title="This Week" value={stats?.this_week ?? '—'}     loading={statsLoading} icon={<Clock className="w-5 h-5" />}    iconBg="bg-blue-50 text-blue-600"    index={1} />
-          <KPICard title="Upcoming" value={stats?.total_upcoming ?? '—'} loading={statsLoading} icon={<CheckCircle className="w-5 h-5" />} iconBg="bg-emerald-50 text-emerald-600" index={2} />
-          <KPICard title="Cancelled" value={stats?.cancelled ?? '—'}     loading={statsLoading} icon={<XCircle className="w-5 h-5" />}   iconBg="bg-rose-50 text-rose-600"    index={3} />
+          <KPICard title={t('today', { ns: 'ot' })}    value={stats?.today_bookings ?? '—'} loading={statsLoading} icon={<Calendar className="w-5 h-5" />} iconBg="bg-[var(--color-primary-light)] text-[var(--color-primary)]" index={0} />
+          <KPICard title={t('thisWeek', { ns: 'ot' })} value={stats?.this_week ?? '—'}     loading={statsLoading} icon={<Clock className="w-5 h-5" />}    iconBg="bg-blue-50 text-blue-600"    index={1} />
+          <KPICard title={t('upcoming', { ns: 'ot' })} value={stats?.total_upcoming ?? '—'} loading={statsLoading} icon={<CheckCircle className="w-5 h-5" />} iconBg="bg-emerald-50 text-emerald-600" index={2} />
+          <KPICard title={t('cancelled', { ns: 'ot' })} value={stats?.cancelled ?? '—'}     loading={statsLoading} icon={<XCircle className="w-5 h-5" />}   iconBg="bg-rose-50 text-rose-600"    index={3} />
         </div>
 
         {/* Filters */}
@@ -204,13 +206,13 @@ export default function OTDashboard({ role = 'hospital_admin' }: { role?: string
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-muted)]" />
             <input
               type="text"
-              placeholder="Search patient or surgery type…"
+              placeholder={t('searchPlaceholder', { ns: 'ot' })}
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="input pl-9"
             />
           </div>
-          <button onClick={() => setDateFilter(today())} className="btn-ghost text-sm">Today</button>
+          <button onClick={() => setDateFilter(today())} className="btn-ghost text-sm">{t('today', { ns: 'ot' })}</button>
         </div>
 
         {/* Bookings Table */}
@@ -219,13 +221,13 @@ export default function OTDashboard({ role = 'hospital_admin' }: { role?: string
             <table className="table-base">
               <thead>
                 <tr>
-                  <th>Patient</th>
-                  <th>Surgery</th>
-                  <th>Date</th>
-                  <th>Anesthesia</th>
-                  <th>Diagnosis</th>
-                  <th>Status</th>
-                  <th>Actions</th>
+                  <th>{t('patient', { ns: 'ot' })}</th>
+                  <th>{t('surgery', { ns: 'ot' })}</th>
+                  <th>{t('date', { ns: 'ot' })}</th>
+                  <th>{t('anesthesia', { ns: 'ot' })}</th>
+                  <th>{t('diagnosis', { ns: 'ot' })}</th>
+                  <th>{t('status', { ns: 'common' })}</th>
+                  <th>{t('actions', { ns: 'common' })}</th>
                 </tr>
               </thead>
               <tbody>
@@ -243,11 +245,11 @@ export default function OTDashboard({ role = 'hospital_admin' }: { role?: string
                         <td colSpan={7}>
                           <EmptyState
                             icon={<Scissors className="w-8 h-8 text-[var(--color-text-muted)]" />}
-                            title="No OT bookings"
-                            description={`No bookings scheduled for ${dateFilter}.`}
+                            title={t('noBookings', { ns: 'ot' })}
+                            description={t('noBookingsDesc', { ns: 'ot' })}
                             action={
                               <button onClick={() => setShowCreate(true)} className="btn-primary mt-2">
-                                <Plus className="w-4 h-4" /> Schedule First Booking
+                                <Plus className="w-4 h-4" /> {t('scheduleFirst', { ns: 'ot' })}
                               </button>
                             }
                           />
@@ -267,7 +269,7 @@ export default function OTDashboard({ role = 'hospital_admin' }: { role?: string
                           <td className="max-w-xs truncate">{b.diagnosis ?? '—'}</td>
                           <td>
                             <span className={`badge ${b.is_active === 0 ? 'badge-error' : 'badge-success'}`}>
-                              {b.is_active === 0 ? 'Cancelled' : 'Scheduled'}
+                              {b.is_active === 0 ? t('cancelled', { ns: 'ot' }) : t('scheduled', { ns: 'ot' })}
                             </span>
                           </td>
                           <td>
@@ -275,7 +277,7 @@ export default function OTDashboard({ role = 'hospital_admin' }: { role?: string
                               <button
                                 onClick={() => setExpandedId(expandedId === b.id ? null : b.id)}
                                 className="btn-ghost p-1.5 text-[var(--color-text-secondary)]"
-                                title="View details"
+                                title={t('viewDetails', { ns: 'ot' })}
                               >
                                 {expandedId === b.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                               </button>
@@ -283,7 +285,7 @@ export default function OTDashboard({ role = 'hospital_admin' }: { role?: string
                                 <button
                                   onClick={() => { setCancelTarget(b); setCancelRemarks(''); }}
                                   className="btn-ghost p-1.5 text-red-500"
-                                  title="Cancel booking"
+                                  title={t('cancelBooking', { ns: 'ot' })}
                                 >
                                   <XCircle className="w-4 h-4" />
                                 </button>
@@ -327,30 +329,30 @@ export default function OTDashboard({ role = 'hospital_admin' }: { role?: string
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-modal w-full max-w-md max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-5 border-b border-[var(--color-border)] sticky top-0 bg-white dark:bg-slate-800">
-              <h3 className="font-semibold">Schedule OT Booking</h3>
+              <h3 className="font-semibold">{t('scheduleBooking', { ns: 'ot' })}</h3>
               <button onClick={() => setShowCreate(false)} className="btn-ghost p-1.5"><X className="w-5 h-5" /></button>
             </div>
             <form onSubmit={handleCreate} className="p-5 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="label">Patient ID *</label>
+                  <label className="label">{t('patientId', { ns: 'ot' })} *</label>
                   <input className="input" type="number" required value={form.patient_id} onChange={e => setForm(f => ({ ...f, patient_id: e.target.value }))} placeholder="e.g. 42" />
                 </div>
                 <div>
-                  <label className="label">Date *</label>
+                  <label className="label">{t('date', { ns: 'ot' })} *</label>
                   <input className="input" type="date" required value={form.booked_for_date} onChange={e => setForm(f => ({ ...f, booked_for_date: e.target.value }))} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="label">Surgery Type</label>
+                  <label className="label">{t('surgeryType', { ns: 'ot' })}</label>
                   <select className="input" value={form.surgery_type} onChange={e => setForm(f => ({ ...f, surgery_type: e.target.value }))}>
                     <option value="">Select…</option>
                     {SURGERY_TYPES.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="label">Anesthesia</label>
+                  <label className="label">{t('anesthesia', { ns: 'ot' })}</label>
                   <select className="input" value={form.anesthesia_type} onChange={e => setForm(f => ({ ...f, anesthesia_type: e.target.value }))}>
                     <option value="">Select…</option>
                     {ANESTHESIA_TYPES.map(a => <option key={a} value={a}>{a}</option>)}
@@ -358,16 +360,16 @@ export default function OTDashboard({ role = 'hospital_admin' }: { role?: string
                 </div>
               </div>
               <div>
-                <label className="label">Diagnosis</label>
+                <label className="label">{t('diagnosis', { ns: 'ot' })}</label>
                 <input className="input" value={form.diagnosis} onChange={e => setForm(f => ({ ...f, diagnosis: e.target.value }))} placeholder="e.g. Acute appendicitis" />
               </div>
               <div>
-                <label className="label">Remarks</label>
+                <label className="label">{t('remarks', { ns: 'ot' })}</label>
                 <textarea className="input resize-none" rows={2} value={form.remarks} onChange={e => setForm(f => ({ ...f, remarks: e.target.value }))} />
               </div>
               <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setShowCreate(false)} className="btn-secondary">Cancel</button>
-                <button type="submit" disabled={saving} className="btn-primary">{saving ? 'Saving…' : 'Create Booking'}</button>
+                <button type="button" onClick={() => setShowCreate(false)} className="btn-secondary">{t('cancel', { ns: 'common' })}</button>
+                <button type="submit" disabled={saving} className="btn-primary">{saving ? t('saving', { ns: 'ot' }) : t('createBooking', { ns: 'ot' })}</button>
               </div>
             </form>
           </div>
@@ -379,7 +381,7 @@ export default function OTDashboard({ role = 'hospital_admin' }: { role?: string
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-modal w-full max-w-sm">
             <div className="flex items-center justify-between p-5 border-b border-[var(--color-border)]">
-              <h3 className="font-semibold flex items-center gap-2 text-red-600"><AlertCircle className="w-5 h-5" /> Cancel Booking</h3>
+              <h3 className="font-semibold flex items-center gap-2 text-red-600"><AlertCircle className="w-5 h-5" /> {t('cancelBooking', { ns: 'ot' })}</h3>
               <button onClick={() => setCancelTarget(null)} className="btn-ghost p-1.5"><X className="w-5 h-5" /></button>
             </div>
             <form onSubmit={handleCancel} className="p-5 space-y-4">
@@ -387,13 +389,13 @@ export default function OTDashboard({ role = 'hospital_admin' }: { role?: string
                 Cancel OT booking for <span className="font-semibold">{cancelTarget.patient_name}</span> on {cancelTarget.booked_for_date}?
               </p>
               <div>
-                <label className="label">Cancellation Reason</label>
+                <label className="label">{t('cancellationReason', { ns: 'ot' })}</label>
                 <textarea className="input resize-none" rows={2} value={cancelRemarks} onChange={e => setCancelRemarks(e.target.value)} placeholder="Optional reason…" />
               </div>
               <div className="flex justify-end gap-3">
                 <button type="button" onClick={() => setCancelTarget(null)} className="btn-secondary">Back</button>
                 <button type="submit" disabled={cancelling} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50">
-                  {cancelling ? 'Cancelling…' : 'Confirm Cancel'}
+                  {cancelling ? t('cancelling', { ns: 'ot' }) : t('confirmCancel', { ns: 'ot' })}
                 </button>
               </div>
             </form>

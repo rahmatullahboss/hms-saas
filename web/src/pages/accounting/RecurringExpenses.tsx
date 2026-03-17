@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Plus, X } from 'lucide-react';
 import axios from 'axios';
 import DashboardLayout from '../../components/DashboardLayout';
+import { useTranslation } from 'react-i18next';
 
 interface RecurringExpense {
   id: number;
@@ -35,6 +36,7 @@ export default function RecurringExpenses({ role = 'md' }: { role?: string }) {
     category_id: '', amount: '', description: '', frequency: 'monthly',
     next_run_date: new Date().toISOString().split('T')[0], end_date: '',
   });
+  const { t } = useTranslation(['accounting', 'common']);
 
   const fetchExpenses = async () => {
     setLoading(true);

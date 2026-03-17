@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 import { saveToken } from '../hooks/useAuth';
 
 interface HospitalDetail {
@@ -33,6 +34,7 @@ interface HospitalDetail {
 }
 
 export default function SuperAdminHospitalDetail() {
+  const { t } = useTranslation(['super-admin', 'common']);
   const { id } = useParams<{ id: string }>();
   const [data, setData] = useState<HospitalDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -112,7 +114,7 @@ export default function SuperAdminHospitalDetail() {
   if (!data) {
     return (
       <div className="flex items-center justify-center py-20">
-        <p className="text-[var(--color-text-muted)]">Hospital not found</p>
+        <p className="text-[var(--color-text-muted)]">{t('super-admin:hospitalList')}</p>
       </div>
     );
   }
@@ -138,15 +140,15 @@ export default function SuperAdminHospitalDetail() {
           </div>
           <div className="flex gap-2">
             <button onClick={handleImpersonate} className="btn-secondary">
-              <Eye className="w-4 h-4" /> Impersonate
+              <Eye className="w-4 h-4" /> {t('common:view')}
             </button>
             {!editing ? (
               <button onClick={() => setEditing(true)} className="btn-ghost">
-                <Edit2 className="w-4 h-4" /> Edit
+                <Edit2 className="w-4 h-4" /> {t('common:edit')}
               </button>
             ) : (
               <button onClick={handleSave} className="btn-primary">
-                <Save className="w-4 h-4" /> Save
+                <Save className="w-4 h-4" /> {t('common:save')}
               </button>
             )}
           </div>
@@ -159,7 +161,7 @@ export default function SuperAdminHospitalDetail() {
               <Activity className="w-5 h-5 text-blue-600" />
             </div>
             <div>
-              <p className="text-xs text-[var(--color-text-muted)]">Patients</p>
+              <p className="text-xs text-[var(--color-text-muted)]">{t('super-admin:totalPatientsLabel')}</p>
               <p className="text-xl font-bold text-[var(--color-text-primary)]">{stats.patients.toLocaleString()}</p>
             </div>
           </div>
@@ -168,7 +170,7 @@ export default function SuperAdminHospitalDetail() {
               <TrendingUp className="w-5 h-5 text-emerald-600" />
             </div>
             <div>
-              <p className="text-xs text-[var(--color-text-muted)]">Total Billed</p>
+              <p className="text-xs text-[var(--color-text-muted)]">{t('super-admin:revenue')}</p>
               <p className="text-xl font-bold text-[var(--color-text-primary)]">৳{stats.totalBilled.toLocaleString()}</p>
             </div>
           </div>
@@ -177,7 +179,7 @@ export default function SuperAdminHospitalDetail() {
               <Users className="w-5 h-5 text-indigo-600" />
             </div>
             <div>
-              <p className="text-xs text-[var(--color-text-muted)]">Staff</p>
+              <p className="text-xs text-[var(--color-text-muted)]">{t('super-admin:hospitalUsers')}</p>
               <p className="text-xl font-bold text-[var(--color-text-primary)]">{users.length}</p>
             </div>
           </div>
@@ -185,11 +187,11 @@ export default function SuperAdminHospitalDetail() {
 
         {/* Hospital Info */}
         <div className="card p-5 mb-6">
-          <h3 className="text-sm font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide mb-4">Hospital Info</h3>
+          <h3 className="text-sm font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide mb-4">{t('super-admin:hospitalInfo')}</h3>
           {editing ? (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1">Name</label>
+                <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1">{t('super-admin:hospitalName')}</label>
                 <input
                   className="input-field w-full"
                   value={editForm.name}
@@ -197,59 +199,59 @@ export default function SuperAdminHospitalDetail() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1">Status</label>
+                <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1">{t('common:status')}</label>
                 <select
                   className="input-field w-full"
                   value={editForm.status}
                   onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
                 >
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                  <option value="suspended">Suspended</option>
+                  <option value="active">{t('super-admin:activeStatus')}</option>
+                  <option value="inactive">{t('super-admin:inactiveStatus')}</option>
+                  <option value="suspended">{t('super-admin:suspendedStatus')}</option>
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1">Plan</label>
+                <label className="block text-sm font-medium text-[var(--color-text-muted)] mb-1">{t('super-admin:planType')}</label>
                 <select
                   className="input-field w-full"
                   value={editForm.plan}
                   onChange={(e) => setEditForm({ ...editForm, plan: e.target.value })}
                 >
-                  <option value="basic">Basic</option>
-                  <option value="professional">Professional</option>
-                  <option value="enterprise">Enterprise</option>
+                  <option value="basic">{t('super-admin:basic')}</option>
+                  <option value="professional">{t('super-admin:professional')}</option>
+                  <option value="enterprise">{t('super-admin:enterprise')}</option>
                 </select>
               </div>
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
               <div>
-                <p className="text-[var(--color-text-muted)]">Subdomain</p>
+                <p className="text-[var(--color-text-muted)]">{t('super-admin:subdomain')}</p>
                 <p className="font-medium font-data">{hospital.subdomain}</p>
               </div>
               <div>
-                <p className="text-[var(--color-text-muted)]">Plan</p>
+                <p className="text-[var(--color-text-muted)]">{t('super-admin:plan')}</p>
                 <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
                   hospital.plan === 'enterprise' ? 'bg-purple-100 text-purple-700' :
                   hospital.plan === 'professional' ? 'bg-blue-100 text-blue-700' :
                   'bg-slate-100 text-slate-700'
                 }`}>
-                  {hospital.plan}
+                  {t(`super-admin:${hospital.plan}`)}
                 </span>
               </div>
               <div>
-                <p className="text-[var(--color-text-muted)]">Status</p>
+                <p className="text-[var(--color-text-muted)]">{t('common:status')}</p>
                 <span className={`inline-flex items-center gap-1 text-xs font-medium ${
                   hospital.status === 'active' ? 'text-emerald-600' : 'text-slate-400'
                 }`}>
                   <span className={`w-1.5 h-1.5 rounded-full ${
                     hospital.status === 'active' ? 'bg-emerald-500' : 'bg-slate-400'
                   }`} />
-                  {hospital.status}
+                  {t(`super-admin:${hospital.status}Status`) || hospital.status}
                 </span>
               </div>
               <div>
-                <p className="text-[var(--color-text-muted)]">Created</p>
+                <p className="text-[var(--color-text-muted)]">{t('common:date')}</p>
                 <p className="font-medium text-sm">{new Date(hospital.created_at).toLocaleDateString('en-GB')}</p>
               </div>
             </div>
@@ -260,23 +262,23 @@ export default function SuperAdminHospitalDetail() {
         <div className="card overflow-hidden">
           <div className="px-5 py-4 border-b border-[var(--color-border)]">
             <h3 className="text-sm font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">
-              Users ({users.length})
+              {t('super-admin:hospitalUsers')} ({users.length})
             </h3>
           </div>
           <div className="overflow-x-auto">
             <table className="table-base">
               <thead>
                 <tr>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Role</th>
-                  <th>Joined</th>
+                  <th>{t('common:name')}</th>
+                  <th>{t('common:email')}</th>
+                  <th>{t('common:status')}</th>
+                  <th>{t('common:date')}</th>
                 </tr>
               </thead>
               <tbody>
                 {users.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="py-8 text-center text-[var(--color-text-muted)]">No users</td>
+                    <td colSpan={4} className="py-8 text-center text-[var(--color-text-muted)]">{t('common:noData')}</td>
                   </tr>
                 ) : (
                   users.map((u) => (

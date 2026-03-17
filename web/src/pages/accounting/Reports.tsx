@@ -3,6 +3,7 @@ import { FileText, Printer, RefreshCw } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../../components/DashboardLayout';
+import { useTranslation } from 'react-i18next';
 
 const fmt = (n: number) =>
   new Intl.NumberFormat('en-BD', { style: 'currency', currency: 'BDT', minimumFractionDigits: 0 }).format(n);
@@ -14,6 +15,7 @@ export default function Reports({ role = 'md' }: { role?: string }) {
   const [endDate,    setEndDate]    = useState(today);
   const [data,       setData]       = useState<Record<string, unknown> | null>(null);
   const [loading,    setLoading]    = useState(false);
+  const { t } = useTranslation(['accounting', 'common']);
 
   const generateReport = async () => {
     setLoading(true);

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Heart, Plus, X, AlertTriangle } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 import DashboardLayout from '../components/DashboardLayout';
 import EmptyState from '../components/dashboard/EmptyState';
 
@@ -32,6 +33,7 @@ function spo2Class(val?: number) {
 }
 
 export default function VitalsPage({ role = 'hospital_admin' }: { role?: string }) {
+  const { t } = useTranslation(['vitals', 'common']);
   const [vitals, setVitals]         = useState<Vital[]>([]);
   const [loading, setLoading]       = useState(true);
   const [patientId, setPatientId]   = useState('');
@@ -100,11 +102,11 @@ export default function VitalsPage({ role = 'hospital_admin' }: { role?: string 
               <Heart className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="page-title">Vitals Monitoring</h1>
-              <p className="section-subtitle">Patient vital signs recording &amp; history</p>
+              <h1 className="page-title">{t('title', { ns: 'vitals' })}</h1>
+              <p className="section-subtitle">{t('recordedAt', { ns: 'vitals' })}</p>
             </div>
           </div>
-          <button onClick={() => setShowRecord(true)} className="btn-primary"><Plus className="w-4 h-4" /> Record Vitals</button>
+          <button onClick={() => setShowRecord(true)} className="btn-primary"><Plus className="w-4 h-4" /> {t('newVital', { ns: 'vitals' })}</button>
         </div>
 
         {/* Patient filter */}
@@ -116,8 +118,8 @@ export default function VitalsPage({ role = 'hospital_admin' }: { role?: string 
             onChange={e => setFilterInput(e.target.value)}
             className="input w-52"
           />
-          <button onClick={() => setPatientId(filterInput)} className="btn-secondary">Filter</button>
-          {patientId && <button onClick={() => { setPatientId(''); setFilterInput(''); }} className="btn-ghost text-sm">Clear</button>}
+          <button onClick={() => setPatientId(filterInput)} className="btn-secondary">{t('filter', { ns: 'common' })}</button>
+          {patientId && <button onClick={() => { setPatientId(''); setFilterInput(''); }} className="btn-ghost text-sm">{t('clear', { ns: 'common' })}</button>}
         </div>
 
         <div className="card overflow-hidden">
@@ -125,21 +127,21 @@ export default function VitalsPage({ role = 'hospital_admin' }: { role?: string 
             <table className="table-base">
               <thead>
                 <tr>
-                  <th>Patient</th>
-                  <th>BP (mmHg)</th>
-                  <th>Pulse</th>
-                  <th>Temp (°C)</th>
+                  <th>{t('patient', { ns: 'vitals' })}</th>
+                  <th>{t('bloodPressure', { ns: 'vitals' })} (mmHg)</th>
+                  <th>{t('pulse', { ns: 'vitals' })}</th>
+                  <th>{t('temperature', { ns: 'vitals' })} (°C)</th>
                   <th>SpO₂ (%)</th>
-                  <th>Resp Rate</th>
-                  <th>Weight</th>
-                  <th>Recorded At</th>
+                  <th>{t('respiratoryRate', { ns: 'vitals' })}</th>
+                  <th>{t('weight', { ns: 'vitals' })}</th>
+                  <th>{t('recordedAt', { ns: 'vitals' })}</th>
                 </tr>
               </thead>
               <tbody>
                 {loading
                   ? [...Array(5)].map((_, i) => <tr key={i}>{[...Array(8)].map((_, j) => <td key={j}><div className="skeleton h-4 w-full rounded" /></td>)}</tr>)
                   : vitals.length === 0
-                  ? <tr><td colSpan={8}><EmptyState icon={<Heart className="w-8 h-8 text-[var(--color-text-muted)]" />} title="No vitals recorded" description="No vital signs data found." action={<button onClick={() => setShowRecord(true)} className="btn-primary mt-2"><Plus className="w-4 h-4" /> Record Vitals</button>} /></td></tr>
+                  ? <tr><td colSpan={8}><EmptyState icon={<Heart className="w-8 h-8 text-[var(--color-text-muted)]" />} title={t('noVitals', { ns: 'vitals' })} description="No vital signs data found." action={<button onClick={() => setShowRecord(true)} className="btn-primary mt-2"><Plus className="w-4 h-4" /> {t('newVital', { ns: 'vitals' })}</button>} /></td></tr>
                   : vitals.map(v => (
                       <tr key={v.id}>
                         <td>
@@ -175,30 +177,30 @@ export default function VitalsPage({ role = 'hospital_admin' }: { role?: string 
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-modal w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-5 border-b border-[var(--color-border)] sticky top-0 bg-white dark:bg-slate-800">
-              <h3 className="font-semibold">Record Patient Vitals</h3>
+              <h3 className="font-semibold">{t('newVital', { ns: 'vitals' })}</h3>
               <button onClick={() => setShowRecord(false)} className="btn-ghost p-1.5"><X className="w-5 h-5" /></button>
             </div>
             <form onSubmit={handleRecord} className="p-5 space-y-4">
-              <div><label className="label">Patient ID *</label><input className="input" type="number" required value={form.patient_id} onChange={e => setForm(f => ({ ...f, patient_id: e.target.value }))} /></div>
+              <div><label className="label">{t('patientId', { ns: 'billing' })} *</label><input className="input" type="number" required value={form.patient_id} onChange={e => setForm(f => ({ ...f, patient_id: e.target.value }))} /></div>
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="label">BP Systolic (mmHg)</label><input className="input" type="number" value={form.blood_pressure_systolic} onChange={e => setForm(f => ({ ...f, blood_pressure_systolic: e.target.value }))} placeholder="e.g. 120" /></div>
-                <div><label className="label">BP Diastolic (mmHg)</label><input className="input" type="number" value={form.blood_pressure_diastolic} onChange={e => setForm(f => ({ ...f, blood_pressure_diastolic: e.target.value }))} placeholder="e.g. 80" /></div>
+                <div><label className="label">{t('systolic', { ns: 'vitals' })} (mmHg)</label><input className="input" type="number" value={form.blood_pressure_systolic} onChange={e => setForm(f => ({ ...f, blood_pressure_systolic: e.target.value }))} placeholder="e.g. 120" /></div>
+                <div><label className="label">{t('diastolic', { ns: 'vitals' })} (mmHg)</label><input className="input" type="number" value={form.blood_pressure_diastolic} onChange={e => setForm(f => ({ ...f, blood_pressure_diastolic: e.target.value }))} placeholder="e.g. 80" /></div>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="label">Pulse Rate (bpm)</label><input className="input" type="number" value={form.pulse_rate} onChange={e => setForm(f => ({ ...f, pulse_rate: e.target.value }))} /></div>
-                <div><label className="label">Temperature (°C)</label><input className="input" type="number" step="0.1" value={form.temperature} onChange={e => setForm(f => ({ ...f, temperature: e.target.value }))} /></div>
+                <div><label className="label">{t('pulse', { ns: 'vitals' })} (bpm)</label><input className="input" type="number" value={form.pulse_rate} onChange={e => setForm(f => ({ ...f, pulse_rate: e.target.value }))} /></div>
+                <div><label className="label">{t('temperature', { ns: 'vitals' })} (°C)</label><input className="input" type="number" step="0.1" value={form.temperature} onChange={e => setForm(f => ({ ...f, temperature: e.target.value }))} /></div>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="label">SpO₂ (%)</label><input className="input" type="number" min="0" max="100" value={form.oxygen_saturation} onChange={e => setForm(f => ({ ...f, oxygen_saturation: e.target.value }))} /></div>
-                <div><label className="label">Respiratory Rate (/min)</label><input className="input" type="number" value={form.respiratory_rate} onChange={e => setForm(f => ({ ...f, respiratory_rate: e.target.value }))} /></div>
+                <div><label className="label">{t('oxygenSaturation', { ns: 'vitals' })} (%)</label><input className="input" type="number" min="0" max="100" value={form.oxygen_saturation} onChange={e => setForm(f => ({ ...f, oxygen_saturation: e.target.value }))} /></div>
+                <div><label className="label">{t('respiratoryRate', { ns: 'vitals' })} (/min)</label><input className="input" type="number" value={form.respiratory_rate} onChange={e => setForm(f => ({ ...f, respiratory_rate: e.target.value }))} /></div>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="label">Weight (kg)</label><input className="input" type="number" step="0.1" value={form.weight} onChange={e => setForm(f => ({ ...f, weight: e.target.value }))} /></div>
-                <div><label className="label">Height (cm)</label><input className="input" type="number" step="0.1" value={form.height} onChange={e => setForm(f => ({ ...f, height: e.target.value }))} /></div>
+                <div><label className="label">{t('weight', { ns: 'vitals' })} (kg)</label><input className="input" type="number" step="0.1" value={form.weight} onChange={e => setForm(f => ({ ...f, weight: e.target.value }))} /></div>
+                <div><label className="label">{t('height', { ns: 'vitals' })} (cm)</label><input className="input" type="number" step="0.1" value={form.height} onChange={e => setForm(f => ({ ...f, height: e.target.value }))} /></div>
               </div>
               <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setShowRecord(false)} className="btn-secondary">Cancel</button>
-                <button type="submit" disabled={saving} className="btn-primary">{saving ? 'Saving…' : 'Record Vitals'}</button>
+                <button type="button" onClick={() => setShowRecord(false)} className="btn-secondary">{t('cancel', { ns: 'common' })}</button>
+                <button type="submit" disabled={saving} className="btn-primary">{saving ? t('saving', { ns: 'vitals' }) : t('save', { ns: 'vitals' })}</button>
               </div>
             </form>
           </div>

@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
 import KPICard from '../components/dashboard/KPICard';
 import EmptyState from '../components/dashboard/EmptyState';
+import { useTranslation } from 'react-i18next';
 
 interface Handover {
   id: number;
@@ -30,6 +31,7 @@ export default function BillingHandoverPage({ role = 'hospital_admin' }: { role?
     from_user: '', to_user: '', total_amount: '',
     handover_date: new Date().toISOString().split('T')[0], remarks: '',
   });
+  const { t } = useTranslation(['billing', 'common']);
 
   useEffect(() => {
     const fn = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowCreate(false); };

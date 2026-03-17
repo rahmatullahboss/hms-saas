@@ -5,6 +5,7 @@ import {
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
+import { useTranslation } from 'react-i18next';
 
 // ── Types ──
 interface WebsiteConfig {
@@ -90,6 +91,7 @@ export default function WebsiteSettings({ role = 'hospital_admin' }: { role?: st
   const [newService, setNewService] = useState<WebsiteService>({
     name: '', name_bn: '', description: '', icon: '🏥', category: 'general', is_active: 1, sort_order: 0,
   });
+  const { t } = useTranslation(['settings', 'common']);
 
   const token = () => localStorage.getItem('hms_token');
   const headers = () => ({ Authorization: `Bearer ${token()}` });

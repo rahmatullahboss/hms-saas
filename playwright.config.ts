@@ -23,6 +23,9 @@ const BASE_URL =
 export default defineConfig({
   testDir: './test/e2e',
   outputDir: './test/e2e/results',
+
+  // Global setup: login once before all workers → writes .auth-state.json
+  globalSetup: process.env['E2E_EMAIL'] ? './test/e2e/global-setup.ts' : undefined,
   timeout: 30_000,
   expect: { timeout: 10_000 },
   fullyParallel: true,
@@ -49,19 +52,61 @@ export default defineConfig({
     // ─── API Smoke — pure fetch, no browser needed ───
     {
       name: 'smoke',
-      testMatch: '**/smoke/**/*.spec.ts',
+      testMatch: '**/smoke/api-smoke.spec.ts',
       use: { ...devices['Desktop Chrome'] },
     },
     // ─── Full API E2E — tests every endpoint ──────────
     {
       name: 'api',
-      testMatch: '**/api/**/*.spec.ts',
+      testMatch: '**/api/modules.spec.ts',
       use: { ...devices['Desktop Chrome'] },
     },
     // ─── Browser E2E — UI flows ──────────────────────
     {
       name: 'e2e',
-      testMatch: '**/browser/**/*.spec.ts',
+      testMatch: '**/browser/ui-flows.spec.ts',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    // ─── Authenticated API Smoke (login + all GETs) ──
+    {
+      name: 'auth-smoke',
+      testMatch: '**/smoke/auth-smoke.spec.ts',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    // ─── Authenticated API CRUD tests ────────────────
+    {
+      name: 'auth-api',
+      testMatch: '**/api/auth-modules.spec.ts',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    // ─── Extended write coverage (20 additional modules) ─
+    {
+      name: 'auth-extended',
+      testMatch: '**/api/auth-modules-extended.spec.ts',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    // ─── Extended write coverage 2 (30+ additional modules) ─
+    {
+      name: 'auth-extended2',
+      testMatch: '**/api/auth-modules-extended2.spec.ts',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    // ─── Deep write coverage 3 (75+ deep write endpoint tests) ─
+    {
+      name: 'auth-extended3',
+      testMatch: '**/api/auth-modules-extended3.spec.ts',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    // ─── Patient Portal E2E (OTP auth + all portal writes) ─
+    {
+      name: 'patient-portal',
+      testMatch: '**/api/patient-portal.spec.ts',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    // ─── Authenticated Browser E2E ──────────────────
+    {
+      name: 'auth-e2e',
+      testMatch: '**/browser/auth-ui-flows.spec.ts',
       use: { ...devices['Desktop Chrome'] },
     },
   ],

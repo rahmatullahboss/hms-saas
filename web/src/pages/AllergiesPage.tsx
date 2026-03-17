@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { ShieldAlert, Plus, X, Trash2 } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 import DashboardLayout from '../components/DashboardLayout';
 import EmptyState from '../components/dashboard/EmptyState';
 
@@ -28,6 +29,7 @@ const SEVERITY_CFG = {
 const ALLERGY_TYPES = ['Drug', 'Food', 'Environmental', 'Contact', 'Insect', 'Latex', 'Other'];
 
 export default function AllergiesPage({ role = 'hospital_admin' }: { role?: string }) {
+  const { t } = useTranslation(['nursing', 'common']);
   const [allergies, setAllergies]   = useState<Allergy[]>([]);
   const [loading, setLoading]       = useState(true);
   const [patientId, setPatientId]   = useState('');
@@ -103,11 +105,11 @@ export default function AllergiesPage({ role = 'hospital_admin' }: { role?: stri
               <ShieldAlert className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="page-title">Allergies</h1>
+              <h1 className="page-title">{t('allergies', { ns: 'nursing' })}</h1>
               <p className="section-subtitle">Patient allergy records &amp; alerts</p>
             </div>
           </div>
-          <button onClick={() => setShowAdd(true)} className="btn-primary"><Plus className="w-4 h-4" /> Add Allergy</button>
+          <button onClick={() => setShowAdd(true)} className="btn-primary"><Plus className="w-4 h-4" /> {t('addAllergy', { ns: 'nursing' })}</button>
         </div>
 
         {/* Summary badges */}
@@ -120,12 +122,12 @@ export default function AllergiesPage({ role = 'hospital_admin' }: { role?: stri
             {severeCount > 0 && (
               <div className={`card p-3 flex items-center gap-2 text-sm ${SEVERITY_CFG.severe}`}>
                 <ShieldAlert className="w-4 h-4" />
-                <span className="font-bold">{severeCount} Severe</span>
+                <span className="font-bold">{severeCount} {t('severe', { ns: 'nursing' })}</span>
               </div>
             )}
             {moderateCount > 0 && (
               <div className={`card p-3 flex items-center gap-2 text-sm ${SEVERITY_CFG.moderate}`}>
-                <span className="font-bold">{moderateCount} Moderate</span>
+                <span className="font-bold">{moderateCount} {t('moderate', { ns: 'nursing' })}</span>
               </div>
             )}
           </div>
@@ -140,8 +142,8 @@ export default function AllergiesPage({ role = 'hospital_admin' }: { role?: stri
             onChange={e => setFilterInput(e.target.value)}
             className="input w-52"
           />
-          <button onClick={() => setPatientId(filterInput)} className="btn-secondary">Filter</button>
-          {patientId && <button onClick={() => { setPatientId(''); setFilterInput(''); }} className="btn-ghost text-sm">Clear</button>}
+          <button onClick={() => setPatientId(filterInput)} className="btn-secondary">{t('filter', { ns: 'common' })}</button>
+          {patientId && <button onClick={() => { setPatientId(''); setFilterInput(''); }} className="btn-ghost text-sm">{t('clear', { ns: 'common' })}</button>}
         </div>
 
         <div className="card overflow-hidden">
@@ -152,7 +154,7 @@ export default function AllergiesPage({ role = 'hospital_admin' }: { role?: stri
                 {loading
                   ? [...Array(5)].map((_, i) => <tr key={i}>{[...Array(7)].map((_, j) => <td key={j}><div className="skeleton h-4 w-full rounded" /></td>)}</tr>)
                   : allergies.length === 0
-                  ? <tr><td colSpan={7}><EmptyState icon={<ShieldAlert className="w-8 h-8 text-[var(--color-text-muted)]" />} title="No allergy records" description="No allergies found for the current filter." action={<button onClick={() => setShowAdd(true)} className="btn-primary mt-2"><Plus className="w-4 h-4" /> Add Allergy</button>} /></td></tr>
+                  ? <tr><td colSpan={7}><EmptyState icon={<ShieldAlert className="w-8 h-8 text-[var(--color-text-muted)]" />} title={t('noAllergies', { ns: 'nursing' })} description="No allergies found for the current filter." action={<button onClick={() => setShowAdd(true)} className="btn-primary mt-2"><Plus className="w-4 h-4" /> {t('addAllergy', { ns: 'nursing' })}</button>} /></td></tr>
                   : allergies.map(a => (
                       <tr key={a.id}>
                         <td>
@@ -202,17 +204,17 @@ export default function AllergiesPage({ role = 'hospital_admin' }: { role?: stri
                 <div>
                   <label className="label">Severity</label>
                   <select className="input" value={form.severity} onChange={e => setForm(f => ({ ...f, severity: e.target.value }))}>
-                    <option value="mild">Mild</option>
-                    <option value="moderate">Moderate</option>
-                    <option value="severe">Severe</option>
+                    <option value="mild">{t('mild', { ns: 'nursing' })}</option>
+                    <option value="moderate">{t('moderate', { ns: 'nursing' })}</option>
+                    <option value="severe">{t('severe', { ns: 'nursing' })}</option>
                   </select>
                 </div>
               </div>
               <div><label className="label">Reaction / Symptoms</label><input className="input" placeholder="e.g. Hives, anaphylaxis" value={form.reaction} onChange={e => setForm(f => ({ ...f, reaction: e.target.value }))} /></div>
               <div><label className="label">Notes</label><textarea className="input resize-none" rows={2} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
               <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setShowAdd(false)} className="btn-secondary">Cancel</button>
-                <button type="submit" disabled={saving} className="btn-primary">{saving ? 'Saving…' : 'Add Allergy'}</button>
+                <button type="button" onClick={() => setShowAdd(false)} className="btn-secondary">{t('cancel', { ns: 'common' })}</button>
+                <button type="submit" disabled={saving} className="btn-primary">{saving ? t('saving', { ns: 'nursing' }) : t('addAllergy', { ns: 'nursing' })}</button>
               </div>
             </form>
           </div>

@@ -16,9 +16,14 @@ export type AppEnv = {
 };
 
 export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
+  const rawUrl = c.req.url;
   const path = c.req.path;
-  // Public auth routes — skip token check
-  if (path.startsWith('/api/auth/')) {
+  // Public routes — skip token check
+  if (
+    path.startsWith('/api/auth/') ||
+    rawUrl.includes('/patient-portal/request-otp') ||
+    rawUrl.includes('/patient-portal/verify-otp')
+  ) {
     await next();
     return;
   }
@@ -70,6 +75,12 @@ export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
     c.set('userId', decoded.userId);
     c.set('role', decoded.role);
     if (decoded.tenantId) {
+      // 🛡️ Cross-validate: JWT tenant must match middleware-resolved tenant
+      // Prevents cross-tenant access via crafted/stolen JWT
+      const middlewareTenant = c.get('tenantId');
+      if (middlewareTenant && decoded.tenantId !== middlewareTenant) {
+        return c.json({ error: 'Token tenant mismatch' }, 403);
+      }
       c.set('tenantId', decoded.tenantId);
     }
 

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { BookOpen, Search, Filter } from 'lucide-react';
 import axios from 'axios';
 import DashboardLayout from '../../components/DashboardLayout';
+import { useTranslation } from 'react-i18next';
 
 interface Transaction {
   TransactionId: number; ItemName: string; ItemCode: string; StoreName: string;
@@ -19,6 +20,7 @@ export default function InventoryLedger({ role = 'hospital_admin' }: { role?: st
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const limit = 25;
+  const { t } = useTranslation(['inventory', 'common']);
 
   const fetch = useCallback(async () => {
     setLoading(true);
@@ -45,21 +47,21 @@ export default function InventoryLedger({ role = 'hospital_admin' }: { role?: st
     <DashboardLayout role={role}>
       <div className="space-y-5 max-w-screen-2xl mx-auto">
         <div className="page-header">
-          <div><h1 className="page-title"><BookOpen className="w-6 h-6 inline mr-2" />Inventory Ledger</h1><p className="section-subtitle mt-1">Complete audit trail of all stock movements</p></div>
+          <div><h1 className="page-title"><BookOpen className="w-6 h-6 inline mr-2" />{t('inventoryLedger', { ns: 'inventory' })}</h1><p className="section-subtitle mt-1">{t('stockMovement', { ns: 'inventory' })}</p></div>
         </div>
 
         <div className="card p-4 flex flex-wrap gap-3 items-center">
           <div className="relative flex-1 min-w-48">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-muted)]" />
-            <input type="text" placeholder="Search item name or reference…" value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} className="input pl-9" />
+            <input type="text" placeholder={t('searchPlaceholder', { ns: 'inventory' })} value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} className="input pl-9" />
           </div>
           <select value={typeFilter} onChange={e => { setTypeFilter(e.target.value); setPage(1); }} className="input w-40">
-            <option value="">All Types</option>
-            <option value="purchase">Purchase</option>
-            <option value="requisition">Requisition</option>
-            <option value="transfer">Transfer</option>
-            <option value="writeoff">Write-off</option>
-            <option value="adjustment">Adjustment</option>
+            <option value="">{t('all', { ns: 'common' })}</option>
+            <option value="purchase">{t('purchase', { ns: 'inventory' })}</option>
+            <option value="requisition">{t('requisitions', { ns: 'inventory' })}</option>
+            <option value="transfer">{t('transfer', { ns: 'inventory' })}</option>
+            <option value="writeoff">{t('writeOff', { ns: 'inventory' })}</option>
+            <option value="adjustment">{t('adjustStock', { ns: 'inventory' })}</option>
           </select>
         </div>
 
@@ -67,13 +69,13 @@ export default function InventoryLedger({ role = 'hospital_admin' }: { role?: st
           <div className="overflow-x-auto">
             <table className="table-base">
               <thead><tr>
-                <th>Date</th><th>Item</th><th>Store</th><th>Type</th><th>Ref #</th>
-                <th className="text-right text-green-600">In</th><th className="text-right text-red-600">Out</th>
-                <th className="text-right">Balance</th><th>Remarks</th>
+                <th>{t('date', { ns: 'inventory' })}</th><th>{t('item', { ns: 'inventory' })}</th><th>{t('storeName', { ns: 'inventory' })}</th><th>{t('transactionType', { ns: 'inventory' })}</th><th>{t('referenceNo', { ns: 'inventory' })}</th>
+                <th className="text-right text-green-600">{t('inQuantity', { ns: 'inventory' })}</th><th className="text-right text-red-600">{t('outQuantity', { ns: 'inventory' })}</th>
+                <th className="text-right">{t('balanceQuantity', { ns: 'inventory' })}</th><th>{t('remarks', { ns: 'inventory' })}</th>
               </tr></thead>
               <tbody>
                 {loading ? [...Array(5)].map((_, i) => <tr key={i}>{[...Array(9)].map((_, j) => <td key={j}><div className="skeleton h-4 w-full rounded" /></td>)}</tr>) :
-                transactions.length === 0 ? <tr><td colSpan={9} className="py-16 text-center text-[var(--color-text-muted)]">No transactions found</td></tr> :
+                transactions.length === 0 ? <tr><td colSpan={9} className="py-16 text-center text-[var(--color-text-muted)]">{t('noData', { ns: 'common' })}</td></tr> :
                 transactions.map(tx => (
                   <tr key={tx.TransactionId}>
                     <td className="text-sm text-[var(--color-text-secondary)] whitespace-nowrap">{tx.TransactionDate ? new Date(tx.TransactionDate).toLocaleDateString() : '—'}</td>

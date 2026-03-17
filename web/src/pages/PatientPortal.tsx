@@ -9,6 +9,7 @@ import {
   Plus, RefreshCw, ExternalLink, ChevronRight,
   TrendingUp, User
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function authHeaders() {
@@ -40,6 +41,7 @@ export default function PatientPortal() {
   const [tab, setTab] = useState<Tab>('overview');
   const role = localStorage.getItem('hms_role') ?? 'patient';
   const qc = useQueryClient();
+  const { t } = useTranslation(['patients', 'common']);
 
   // Appointment form
   const [apptDate,   setApptDate]   = useState('');

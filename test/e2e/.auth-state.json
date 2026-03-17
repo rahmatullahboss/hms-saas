@@ -1,0 +1,15 @@
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIxMDEiLCJyb2xlIjoiaG9zcGl0YWxfYWRtaW4iLCJ0ZW5hbnRJZCI6IjEwMCIsInBlcm1pc3Npb25zIjpbInBhdGllbnRzOnJlYWQiLCJwYXRpZW50czp3cml0ZSIsInBhdGllbnRzOmRlbGV0ZSIsInRlc3RzOnJlYWQiLCJ0ZXN0czp3cml0ZSIsInRlc3RzOmRlbGV0ZSIsImJpbGxpbmc6cmVhZCIsImJpbGxpbmc6d3JpdGUiLCJiaWxsaW5nOmRlbGV0ZSIsInBoYXJtYWN5OnJlYWQiLCJwaGFybWFjeTp3cml0ZSIsInBoYXJtYWN5OmRlbGV0ZSIsInN0YWZmOnJlYWQiLCJzdGFmZjp3cml0ZSIsInN0YWZmOmRlbGV0ZSIsInJlcG9ydHM6cmVhZCIsInJlcG9ydHM6d3JpdGUiLCJzaGFyZWhvbGRlcnM6cmVhZCIsInNoYXJlaG9sZGVyczp3cml0ZSIsInNoYXJlaG9sZGVyczpkZWxldGUiLCJzZXR0aW5nczpyZWFkIiwic2V0dGluZ3M6d3JpdGUiLCJpbmNvbWU6cmVhZCIsImluY29tZTp3cml0ZSIsImV4cGVuc2VzOnJlYWQiLCJleHBlbnNlczp3cml0ZSJdLCJpYXQiOjE3NzM3MTAwNDEsImV4cCI6MTc3MzczODg0MX0.j4AiuCrjr-fjpgYXrf9_bwE6ZSBJahMv4PY6M5RISeE",
+  "slug": "demo-hospital",
+  "user": {
+    "id": 101,
+    "email": "admin@demo-hospital.com",
+    "name": "Dr. Aminul Islam",
+    "role": "hospital_admin"
+  },
+  "hospital": {
+    "id": 100,
+    "name": "City Care General Hospital",
+    "slug": "demo-hospital"
+  }
+}

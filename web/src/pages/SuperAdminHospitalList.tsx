@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 import { saveToken } from '../hooks/useAuth';
 
 interface Hospital {
@@ -20,6 +21,7 @@ interface Hospital {
 }
 
 export default function SuperAdminHospitalList() {
+  const { t } = useTranslation(['super-admin', 'common']);
   const [hospitals, setHospitals] = useState<Hospital[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -129,21 +131,21 @@ export default function SuperAdminHospitalList() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <button onClick={() => navigate('/super-admin/dashboard')} className="btn-ghost p-2">
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            <div>
-              <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">Hospitals</h1>
-              <p className="text-sm text-[var(--color-text-muted)]">{hospitals.length} total hospitals</p>
-            </div>
-          </div>
-          <button onClick={() => setShowCreate(true)} className="btn-primary">
-            <Plus className="w-4 h-4" /> Add Hospital
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <button onClick={() => navigate('/super-admin/dashboard')} className="btn-ghost p-2">
+            <ChevronLeft className="w-5 h-5" />
           </button>
+          <div>
+            <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">{t('super-admin:hospitals')}</h1>
+            <p className="text-sm text-[var(--color-text-muted)]">{hospitals.length} {t('super-admin:totalHospitals')}</p>
+          </div>
         </div>
+        <button onClick={() => setShowCreate(true)} className="btn-primary">
+          <Plus className="w-4 h-4" /> {t('super-admin:addHospital')}
+        </button>
+      </div>
 
         {/* Filters */}
         <div className="card p-4 mb-6">
@@ -152,7 +154,7 @@ export default function SuperAdminHospitalList() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-muted)]" />
               <input
                 type="text"
-                placeholder="Search hospitals..."
+                placeholder={t('super-admin:searchHospital')}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="input-field pl-9 w-full"
@@ -169,7 +171,7 @@ export default function SuperAdminHospitalList() {
                       : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'
                   }`}
                 >
-                  {f.charAt(0).toUpperCase() + f.slice(1)}
+                  {t(`super-admin:${f}Status`) || f.charAt(0).toUpperCase() + f.slice(1)}
                 </button>
               ))}
             </div>
@@ -182,14 +184,14 @@ export default function SuperAdminHospitalList() {
             <table className="table-base">
               <thead>
                 <tr>
-                  <th>Hospital</th>
-                  <th>Slug</th>
-                  <th>Plan</th>
-                  <th>Status</th>
-                  <th>Users</th>
-                  <th>Patients</th>
-                  <th>Created</th>
-                  <th>Actions</th>
+                  <th>{t('super-admin:hospital')}</th>
+                  <th>{t('super-admin:slug')}</th>
+                  <th>{t('super-admin:plan')}</th>
+                  <th>{t('common:status')}</th>
+                  <th>{t('super-admin:hospitalUsers')}</th>
+                  <th>{t('super-admin:totalPatientsLabel')}</th>
+                  <th>{t('common:date')}</th>
+                  <th>{t('common:actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -204,7 +206,7 @@ export default function SuperAdminHospitalList() {
                 ) : filtered.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="py-10 text-center text-[var(--color-text-muted)]">
-                      No hospitals found
+                      {t('super-admin:noHospitalsFound')}
                     </td>
                   </tr>
                 ) : (
@@ -218,7 +220,7 @@ export default function SuperAdminHospitalList() {
                           h.plan === 'professional' ? 'bg-blue-100 text-blue-700' :
                           'bg-slate-100 text-slate-700'
                         }`}>
-                          {h.plan}
+                          {t(`super-admin:${h.plan}`)}
                         </span>
                       </td>
                       <td>
@@ -232,7 +234,7 @@ export default function SuperAdminHospitalList() {
                             h.status === 'suspended' ? 'bg-red-500' :
                             'bg-slate-400'
                           }`} />
-                          {h.status}
+                          {t(`super-admin:${h.status}Status`) || h.status}
                         </span>
                       </td>
                       <td className="font-data text-sm">{h.user_count}</td>
@@ -244,20 +246,20 @@ export default function SuperAdminHospitalList() {
                         <div className="flex items-center gap-1">
                           <button
                             onClick={() => navigate(`/super-admin/hospitals/${h.id}`)}
-                            className="btn-ghost p-1.5" title="View Details"
+                            className="btn-ghost p-1.5" title={t('super-admin:hospitalDetails')}
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => handleImpersonate(h.id)}
-                            className="btn-ghost p-1.5 text-indigo-600" title="Impersonate"
+                            className="btn-ghost p-1.5 text-indigo-600" title={t('common:view')}
                           >
                             <Eye className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => handleToggleStatus(h)}
                             className={`btn-ghost p-1.5 ${h.status === 'active' ? 'text-amber-600' : 'text-emerald-600'}`}
-                            title={h.status === 'active' ? 'Deactivate' : 'Activate'}
+                            title={h.status === 'active' ? t('super-admin:inactiveStatus') : t('super-admin:activeStatus')}
                           >
                             <Power className="w-3.5 h-3.5" />
                           </button>
@@ -276,36 +278,36 @@ export default function SuperAdminHospitalList() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
             <div className="card max-w-md w-full mx-4 p-6">
               <div className="flex items-center justify-between mb-5">
-                <h2 className="text-lg font-bold text-[var(--color-text-primary)]">Create Hospital</h2>
+                <h2 className="text-lg font-bold text-[var(--color-text-primary)]">{t('super-admin:createHospital')}</h2>
                 <button onClick={() => setShowCreate(false)} className="btn-ghost p-1">
                   <X className="w-5 h-5" />
                 </button>
               </div>
               <form onSubmit={handleCreate} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">Hospital Name</label>
+                  <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">{t('super-admin:hospitalName')}</label>
                   <input name="name" required className="input-field w-full" placeholder="e.g. City General Hospital" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">Subdomain (Slug)</label>
+                  <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">{t('super-admin:subdomain')}</label>
                   <input name="subdomain" required className="input-field w-full" placeholder="e.g. city-general" pattern="^[a-z0-9][a-z0-9-]*[a-z0-9]$" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">Admin Name</label>
+                  <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">{t('super-admin:adminName')}</label>
                   <input name="adminName" required className="input-field w-full" placeholder="Admin full name" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">Admin Email</label>
+                  <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">{t('super-admin:adminEmail')}</label>
                   <input name="adminEmail" type="email" required className="input-field w-full" placeholder="admin@hospital.com" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">Admin Password</label>
-                  <input name="adminPassword" type="password" required minLength={8} className="input-field w-full" placeholder="Min 8 characters" />
+                  <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1">{t('common:password')}</label>
+                  <input name="adminPassword" type="password" required minLength={8} className="input-field w-full" placeholder={t('common:password')} />
                 </div>
                 <div className="flex gap-3 pt-2">
-                  <button type="button" onClick={() => setShowCreate(false)} className="btn-ghost flex-1">Cancel</button>
+                  <button type="button" onClick={() => setShowCreate(false)} className="btn-ghost flex-1">{t('common:cancel')}</button>
                   <button type="submit" disabled={creating} className="btn-primary flex-1">
-                    {creating ? 'Creating...' : 'Create Hospital'}
+                    {creating ? t('common:loading') : t('super-admin:createHospital')}
                   </button>
                 </div>
               </form>

@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 import DashboardLayout from '../components/DashboardLayout';
 import KPICard from '../components/dashboard/KPICard';
 import EmptyState from '../components/dashboard/EmptyState';
@@ -44,27 +45,27 @@ interface PatientSearchResult {
   mobile?: string;
 }
 
-const STATUS_TABS = [
-  { key: 'all', label: 'All' },
-  { key: 'new', label: 'New' },
-  { key: 'triaged', label: 'Triaged' },
-  { key: 'admitted', label: 'Admitted' },
-  { key: 'discharged', label: 'Discharged' },
+const STATUS_TAB_KEYS = [
+  { key: 'all',       tKey: 'filterAll' },
+  { key: 'new',       tKey: 'filterNew' },
+  { key: 'triaged',   tKey: 'filterTriaged' },
+  { key: 'admitted',  tKey: 'filterAdmitted' },
+  { key: 'discharged',tKey: 'filterDischarged' },
 ];
 
 const TRIAGE_CONFIG = {
-  red:    { label: 'Critical',  cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
-  yellow: { label: 'Urgent',    cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
-  green:  { label: 'Standard',  cls: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
+  red:    { labelKey: 'redCritical',    cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
+  yellow: { labelKey: 'yellowUrgent',   cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
+  green:  { labelKey: 'greenStandard',  cls: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
 };
 
-const FINALIZE_OPTIONS = [
-  { value: 'admitted',    label: 'Admit to Ward' },
-  { value: 'discharged',  label: 'Discharge' },
-  { value: 'transferred', label: 'Transfer' },
-  { value: 'lama',        label: 'LAMA (Left Against Medical Advice)' },
-  { value: 'dor',         label: 'DOR (Discharge on Request)' },
-  { value: 'death',       label: 'Death' },
+const FINALIZE_OPTION_KEYS = [
+  { value: 'admitted',    tKey: 'admitToWard' },
+  { value: 'discharged',  tKey: 'discharge' },
+  { value: 'transferred', tKey: 'transfer' },
+  { value: 'lama',        tKey: 'lamaFull' },
+  { value: 'dor',         tKey: 'dor' },
+  { value: 'death',       tKey: 'death' },
 ];
 
 import { authHeader } from '../utils/auth';
@@ -72,6 +73,7 @@ import { authHeader } from '../utils/auth';
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function EmergencyDashboard({ role = 'hospital_admin' }: { role?: string }) {
+  const { t } = useTranslation(['emergency', 'common']);
   // Data state
   const [patients, setPatients] = useState<ERPatient[]>([]);
   const [stats, setStats]       = useState<ERStats | null>(null);
@@ -207,7 +209,7 @@ export default function EmergencyDashboard({ role = 'hospital_admin' }: { role?:
   const handleTriage = async (patient: ERPatient, code: 'red' | 'yellow' | 'green') => {
     try {
       await axios.put(`/api/emergency/${patient.id}/triage`, { triage_code: code }, { headers: authHeader() });
-      toast.success(`Triage set: ${TRIAGE_CONFIG[code].label}`);
+      toast.success(`Triage set: ${TRIAGE_CONFIG[code].labelKey}`);
       setTriageTarget(null);
       fetchPatients();
     } catch (err) {
@@ -248,30 +250,30 @@ export default function EmergencyDashboard({ role = 'hospital_admin' }: { role?:
               <Siren className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="page-title">Emergency Department</h1>
-              <p className="section-subtitle">Real-time ER patient management</p>
+              <h1 className="page-title">{t('title', { ns: 'emergency' })}</h1>
+              <p className="section-subtitle">{t('subtitle', { ns: 'emergency' })}</p>
             </div>
           </div>
           <button onClick={() => setShowRegister(true)} className="btn-primary">
-            <UserPlus className="w-4 h-4" /> Register ER Patient
+            <UserPlus className="w-4 h-4" /> {t('registerPatient', { ns: 'emergency' })}
           </button>
         </div>
 
         {/* KPI cards */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          <KPICard title="Total Today"   value={stats?.total_today ?? '—'}       loading={statsLoading} icon={<Activity className="w-5 h-5" />} iconBg="bg-[var(--color-primary-light)] text-[var(--color-primary)]" index={0} />
-          <KPICard title="New"           value={stats?.new_patients ?? '—'}       loading={statsLoading} icon={<Clock className="w-5 h-5" />}    iconBg="bg-blue-50 text-blue-600"   index={1} />
-          <KPICard title="Triaged"       value={stats?.triaged_patients ?? '—'}   loading={statsLoading} icon={<Tag className="w-5 h-5" />}      iconBg="bg-amber-50 text-amber-600" index={2} />
-          <KPICard title="Admitted"      value={stats?.admitted_today ?? '—'}     loading={statsLoading} icon={<Plus className="w-5 h-5" />}     iconBg="bg-purple-50 text-purple-600" index={3} />
-          <KPICard title="Discharged"    value={stats?.discharged_today ?? '—'}   loading={statsLoading} icon={<CheckCircle className="w-5 h-5" />} iconBg="bg-emerald-50 text-emerald-600" index={4} />
-          <KPICard title="LAMA"          value={stats?.lama_count ?? '—'}         loading={statsLoading} icon={<AlertTriangle className="w-5 h-5" />} iconBg="bg-rose-50 text-rose-600" index={5} />
+          <KPICard title={t('totalToday', { ns: 'emergency' })}  value={stats?.total_today ?? '—'}       loading={statsLoading} icon={<Activity className="w-5 h-5" />} iconBg="bg-[var(--color-primary-light)] text-[var(--color-primary)]" index={0} />
+          <KPICard title={t('new', { ns: 'emergency' })}          value={stats?.new_patients ?? '—'}       loading={statsLoading} icon={<Clock className="w-5 h-5" />}    iconBg="bg-blue-50 text-blue-600"   index={1} />
+          <KPICard title={t('triaged', { ns: 'emergency' })}      value={stats?.triaged_patients ?? '—'}   loading={statsLoading} icon={<Tag className="w-5 h-5" />}      iconBg="bg-amber-50 text-amber-600" index={2} />
+          <KPICard title={t('admitted', { ns: 'emergency' })}     value={stats?.admitted_today ?? '—'}     loading={statsLoading} icon={<Plus className="w-5 h-5" />}     iconBg="bg-purple-50 text-purple-600" index={3} />
+          <KPICard title={t('discharged', { ns: 'emergency' })}   value={stats?.discharged_today ?? '—'}   loading={statsLoading} icon={<CheckCircle className="w-5 h-5" />} iconBg="bg-emerald-50 text-emerald-600" index={4} />
+          <KPICard title={t('lama', { ns: 'emergency' })}         value={stats?.lama_count ?? '—'}         loading={statsLoading} icon={<AlertTriangle className="w-5 h-5" />} iconBg="bg-rose-50 text-rose-600" index={5} />
         </div>
 
         {/* Filter & Search */}
         <div className="card p-3 flex flex-wrap items-center gap-3">
           {/* Status tabs */}
           <div className="flex gap-1 flex-wrap">
-            {STATUS_TABS.map(tab => (
+            {STATUS_TAB_KEYS.map(tab => (
               <button
                 key={tab.key}
                 onClick={() => setStatusFilter(tab.key)}
@@ -281,7 +283,7 @@ export default function EmergencyDashboard({ role = 'hospital_admin' }: { role?:
                     : 'hover:bg-[var(--color-border-light)] text-[var(--color-text-secondary)]'
                 }`}
               >
-                {tab.label}
+                {t(tab.tKey, { ns: 'emergency' })}
               </button>
             ))}
           </div>
@@ -291,17 +293,17 @@ export default function EmergencyDashboard({ role = 'hospital_admin' }: { role?:
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-muted)]" />
             <input
               type="text"
-              placeholder="Search by name, ER number, phone…"
+              placeholder={t('searchByName', { ns: 'emergency' })}
               value={searchInput}
               onChange={e => setSearchInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') setSearch(searchInput); }}
               className="input pl-9"
             />
           </div>
-          <button onClick={() => setSearch(searchInput)} className="btn-secondary">Search</button>
+          <button onClick={() => setSearch(searchInput)} className="btn-secondary">{t('search', { ns: 'common' })}</button>
           {search && (
             <button onClick={() => { setSearch(''); setSearchInput(''); }} className="btn-ghost text-sm">
-              Clear
+              {t('close', { ns: 'common' })}
             </button>
           )}
         </div>
@@ -359,8 +361,8 @@ export default function EmergencyDashboard({ role = 'hospital_admin' }: { role?:
                         </td>
                         <td>
                           {p.triage_code
-                            ? <span className={`badge ${TRIAGE_CONFIG[p.triage_code].cls}`}>{TRIAGE_CONFIG[p.triage_code].label}</span>
-                            : <span className="text-[var(--color-text-muted)] text-sm">Not triaged</span>}
+                            ? <span className={`badge ${TRIAGE_CONFIG[p.triage_code].cls}`}>{t(TRIAGE_CONFIG[p.triage_code].labelKey, { ns: 'emergency' })}</span>
+                            : <span className="text-[var(--color-text-muted)] text-sm">{t('notTriaged', { ns: 'emergency' })}</span>}
                         </td>
                         <td>
                           <span className={`badge ${
@@ -409,7 +411,7 @@ export default function EmergencyDashboard({ role = 'hospital_admin' }: { role?:
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-modal w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-5 border-b border-[var(--color-border)] sticky top-0 bg-white dark:bg-slate-800">
-              <h3 className="font-semibold">Register ER Patient</h3>
+              <h3 className="font-semibold">{t('registerPatient', { ns: 'emergency' })}</h3>
               <button onClick={() => setShowRegister(false)} className="btn-ghost p-1.5"><X className="w-5 h-5" /></button>
             </div>
 
@@ -421,26 +423,26 @@ export default function EmergencyDashboard({ role = 'hospital_admin' }: { role?:
                   onClick={() => { setIsExisting(false); setSelectedPatient(null); setPatientQuery(''); }}
                   className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${!isExisting ? 'bg-[var(--color-primary)] text-white' : 'btn-secondary'}`}
                 >
-                  New Patient
+                  {t('newPatient', { ns: 'emergency' })}
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsExisting(true)}
                   className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${isExisting ? 'bg-[var(--color-primary)] text-white' : 'btn-secondary'}`}
                 >
-                  Existing Patient
+                  {t('existingPatient', { ns: 'emergency' })}
                 </button>
               </div>
 
               {/* Existing patient search */}
               {isExisting && (
                 <div className="relative">
-                  <label className="label">Search Patient</label>
+                  <label className="label">{t('searchPatient', { ns: 'emergency' })}</label>
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-muted)]" />
                     <input
                       className="input pl-9"
-                      placeholder="Name, patient code, or phone…"
+                      placeholder={t('searchPlaceholder', { ns: 'emergency' })}
                       value={patientQuery}
                       onChange={e => { setPatientQuery(e.target.value); setSelectedPatient(null); }}
                     />
@@ -535,14 +537,14 @@ export default function EmergencyDashboard({ role = 'hospital_admin' }: { role?:
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-modal w-full max-w-sm">
             <div className="flex items-center justify-between p-5 border-b border-[var(--color-border)]">
-              <h3 className="font-semibold">Assign Triage</h3>
+              <h3 className="font-semibold">{t('assignTriage', { ns: 'emergency' })}</h3>
               <button onClick={() => setTriageTarget(null)} className="btn-ghost p-1.5"><X className="w-5 h-5" /></button>
             </div>
             <div className="p-5 space-y-3">
               <p className="text-sm text-[var(--color-text-secondary)]">
                 Patient: <span className="font-semibold text-[var(--color-text-primary)]">{patientFullName(triageTarget)}</span>
               </p>
-              <p className="text-sm text-[var(--color-text-muted)] mb-4">Select triage category:</p>
+              <p className="text-sm text-[var(--color-text-muted)] mb-4">{t('selectTriage', { ns: 'emergency' })}</p>
               <div className="space-y-2">
                 <button
                   onClick={() => handleTriage(triageTarget, 'red')}
@@ -563,7 +565,7 @@ export default function EmergencyDashboard({ role = 'hospital_admin' }: { role?:
                   🟢 Green — Standard (Minor)
                 </button>
               </div>
-              <button onClick={() => setTriageTarget(null)} className="btn-ghost w-full mt-2 text-sm">Cancel</button>
+              <button onClick={() => setTriageTarget(null)} className="btn-ghost w-full mt-2 text-sm">{t('cancel', { ns: 'common' })}</button>
             </div>
           </div>
         </div>
@@ -574,7 +576,7 @@ export default function EmergencyDashboard({ role = 'hospital_admin' }: { role?:
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-modal w-full max-w-md">
             <div className="flex items-center justify-between p-5 border-b border-[var(--color-border)]">
-              <h3 className="font-semibold">Finalize Patient</h3>
+              <h3 className="font-semibold">{t('finalizePatient', { ns: 'emergency' })}</h3>
               <button onClick={() => setFinalizeTarget(null)} className="btn-ghost p-1.5"><X className="w-5 h-5" /></button>
             </div>
             <form onSubmit={handleFinalize} className="p-5 space-y-4">
@@ -582,20 +584,20 @@ export default function EmergencyDashboard({ role = 'hospital_admin' }: { role?:
                 Patient: <span className="font-semibold text-[var(--color-text-primary)]">{patientFullName(finalizeTarget)}</span>
               </p>
               <div>
-                <label className="label">Outcome *</label>
+                <label className="label">{t('outcome', { ns: 'emergency' })} *</label>
                 <select
                   className="input"
                   value={finalizeForm.finalized_status}
                   onChange={e => setFinalizeForm(f => ({ ...f, finalized_status: e.target.value }))}
                   required
                 >
-                  {FINALIZE_OPTIONS.map(opt => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  {FINALIZE_OPTION_KEYS.map(opt => (
+                    <option key={opt.value} value={opt.value}>{t(opt.tKey, { ns: 'emergency' })}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="label">Remarks</label>
+                <label className="label">{t('remarks', { ns: 'emergency' })}</label>
                 <textarea
                   className="input resize-none"
                   rows={3}

@@ -282,95 +282,101 @@ emergency.post('/', zValidator('json', createERPatientSchema), async (c) => {
   const userId = requireUserId(c);
   const data = c.req.valid('json');
   const now = new Date().toISOString();
-  const erNumber = await nextERNumber(c.env.DB, tenantId);
 
-  let patientId = data.patient_id || null;
-  let visitId = data.visit_id || null;
+  try {
+    const erNumber = await nextERNumber(c.env.DB, tenantId);
 
-  // If new patient (not existing), create patient record first
-  if (!data.is_existing_patient && !patientId) {
-    const lastPatient = await c.env.DB.prepare(
-      'SELECT COALESCE(MAX(id), 0) as max_id FROM patients WHERE tenant_id = ?'
-    ).bind(tenantId).first<{ max_id: number }>();
-    const nextId = (lastPatient?.max_id ?? 0) + 1;
-    const patientCode = `P-${String(nextId).padStart(6, '0')}`;
+    let patientId = data.patient_id || null;
+    let visitId = data.visit_id || null;
 
-    const pResult = await c.env.DB.prepare(`
-      INSERT INTO patients (tenant_id, patient_code, name, father_husband, gender, mobile, address, date_of_birth, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    // If new patient (not existing), create patient record first
+    if (!data.is_existing_patient && !patientId) {
+      const lastPatient = await c.env.DB.prepare(
+        'SELECT COALESCE(MAX(id), 0) as max_id FROM patients WHERE tenant_id = ?'
+      ).bind(tenantId).first<{ max_id: number }>();
+      const nextId = (lastPatient?.max_id ?? 0) + 1;
+      const patientCode = `P-${String(nextId).padStart(6, '0')}`;
+
+      const pResult = await c.env.DB.prepare(`
+        INSERT INTO patients (tenant_id, patient_code, name, father_husband, gender, mobile, address, date_of_birth, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        tenantId, patientCode,
+        `${data.first_name} ${data.last_name}`.trim(),
+        '', data.gender?.toLowerCase() || null, data.contact_no || '',
+        data.address || '', data.date_of_birth || null, now
+      ).run();
+
+      patientId = pResult.meta.last_row_id as number;
+    }
+
+    // Create visit record for emergency
+    if (!visitId && patientId) {
+      const vResult = await c.env.DB.prepare(`
+        INSERT INTO visits (tenant_id, patient_id, visit_date, visit_type, status, created_at)
+        VALUES (?, ?, ?, 'emergency', 'initiated', ?)
+      `).bind(tenantId, patientId, now.split('T')[0], now).run();
+      visitId = vResult.meta.last_row_id as number;
+    }
+
+    // Create ER patient record
+    const erResult = await c.env.DB.prepare(`
+      INSERT INTO er_patients (
+        tenant_id, er_patient_number, patient_id, visit_id, visit_datetime,
+        first_name, middle_name, last_name, gender, age, date_of_birth,
+        contact_no, care_of_person_contact, address, referred_by, referred_to,
+        case_type, condition_on_arrival, brought_by, relation_with_patient,
+        mode_of_arrival_id, care_of_person, er_status, performer_id, performer_name,
+        is_police_case, is_existing_patient, ward_no, created_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?, ?, ?, ?)
     `).bind(
-      tenantId, patientCode,
-      `${data.first_name} ${data.last_name}`.trim(),
-      '', data.gender || null, data.contact_no || '',
-      data.address || '', data.date_of_birth || null, now
+      tenantId, erNumber, patientId, visitId,
+      data.visit_datetime || now,
+      data.first_name, data.middle_name || null, data.last_name,
+      data.gender || null, data.age || null, data.date_of_birth || null,
+      data.contact_no || null, data.care_of_person_contact || null,
+      data.address || null, data.referred_by || null, data.referred_to || null,
+      data.case_type || null, data.condition_on_arrival || null,
+      data.brought_by || null, data.relation_with_patient || null,
+      data.mode_of_arrival_id || null, data.care_of_person || null,
+      data.performer_id || null, data.performer_name || null,
+      data.is_police_case ? 1 : 0, data.is_existing_patient ? 1 : 0,
+      data.ward_no || null, userId
     ).run();
 
-    patientId = pResult.meta.last_row_id as number;
+    const erPatientId = erResult.meta.last_row_id as number;
+
+    // Create patient cases if provided
+    if (data.patient_cases) {
+      const pc = data.patient_cases;
+      await c.env.DB.prepare(`
+        INSERT INTO er_patient_cases (
+          tenant_id, er_patient_id, main_case, sub_case, other_case_details,
+          biting_site, datetime_of_bite, biting_animal, first_aid,
+          first_aid_others, biting_animal_others, biting_site_others,
+          biting_address, biting_animal_name, created_by
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        tenantId, erPatientId,
+        pc.main_case || null, pc.sub_case || null, pc.other_case_details || null,
+        pc.biting_site || null, pc.datetime_of_bite || null,
+        pc.biting_animal || null, pc.first_aid || null,
+        pc.first_aid_others || null, pc.biting_animal_others || null,
+        pc.biting_site_others || null, pc.biting_address || null,
+        pc.biting_animal_name || null, userId
+      ).run();
+    }
+
+    return c.json({
+      id: erPatientId,
+      er_patient_number: erNumber,
+      patient_id: patientId,
+      visit_id: visitId,
+    }, 201);
+  } catch (err) {
+    console.error('[EMERGENCY_POST]', err instanceof Error ? err.message : err);
+    throw new HTTPException(500, { message: `ER registration failed: ${err instanceof Error ? err.message : 'Unknown error'}` });
   }
-
-  // Create visit record for emergency
-  if (!visitId && patientId) {
-    const vResult = await c.env.DB.prepare(`
-      INSERT INTO visits (tenant_id, patient_id, visit_date, visit_type, status, created_at)
-      VALUES (?, ?, ?, 'emergency', 'initiated', ?)
-    `).bind(tenantId, patientId, now.split('T')[0], now).run();
-    visitId = vResult.meta.last_row_id as number;
-  }
-
-  // Create ER patient record
-  const erResult = await c.env.DB.prepare(`
-    INSERT INTO er_patients (
-      tenant_id, er_patient_number, patient_id, visit_id, visit_datetime,
-      first_name, middle_name, last_name, gender, age, date_of_birth,
-      contact_no, care_of_person_contact, address, referred_by, referred_to,
-      case_type, condition_on_arrival, brought_by, relation_with_patient,
-      mode_of_arrival_id, care_of_person, er_status, performer_id, performer_name,
-      is_police_case, is_existing_patient, ward_no, created_by
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?, ?, ?, ?)
-  `).bind(
-    tenantId, erNumber, patientId, visitId,
-    data.visit_datetime || now,
-    data.first_name, data.middle_name || null, data.last_name,
-    data.gender || null, data.age || null, data.date_of_birth || null,
-    data.contact_no || null, data.care_of_person_contact || null,
-    data.address || null, data.referred_by || null, data.referred_to || null,
-    data.case_type || null, data.condition_on_arrival || null,
-    data.brought_by || null, data.relation_with_patient || null,
-    data.mode_of_arrival_id || null, data.care_of_person || null,
-    data.performer_id || null, data.performer_name || null,
-    data.is_police_case ? 1 : 0, data.is_existing_patient ? 1 : 0,
-    data.ward_no || null, userId
-  ).run();
-
-  const erPatientId = erResult.meta.last_row_id as number;
-
-  // Create patient cases if provided
-  if (data.patient_cases) {
-    const pc = data.patient_cases;
-    await c.env.DB.prepare(`
-      INSERT INTO er_patient_cases (
-        tenant_id, er_patient_id, main_case, sub_case, other_case_details,
-        biting_site, datetime_of_bite, biting_animal, first_aid,
-        first_aid_others, biting_animal_others, biting_site_others,
-        biting_address, biting_animal_name, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(
-      tenantId, erPatientId,
-      pc.main_case || null, pc.sub_case || null, pc.other_case_details || null,
-      pc.biting_site || null, pc.datetime_of_bite || null,
-      pc.biting_animal || null, pc.first_aid || null,
-      pc.first_aid_others || null, pc.biting_animal_others || null,
-      pc.biting_site_others || null, pc.biting_address || null,
-      pc.biting_animal_name || null, userId
-    ).run();
-  }
-
-  return c.json({
-    id: erPatientId,
-    er_patient_number: erNumber,
-    patient_id: patientId,
-    visit_id: visitId,
-  }, 201);
 });
 
 // ─── PUT /:id/triage — assign triage code ────────────────────────────────────

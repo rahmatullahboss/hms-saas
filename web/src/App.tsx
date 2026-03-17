@@ -56,6 +56,7 @@ import SystemAuditLog from './pages/SystemAuditLog';
 import LabReportPrint from './pages/LabReportPrint';
 import PatientTimeline from './pages/PatientTimeline';
 import InsuranceClaims from './pages/InsuranceClaims';
+import InsuranceBillingPage from './pages/InsuranceBillingPage';
 import MultiBranchDashboard from './pages/MultiBranchDashboard';
 import PatientPortal from './pages/PatientPortal';
 import TelemedicineDashboard from './pages/TelemedicineDashboard';
@@ -86,6 +87,15 @@ import DispatchList from './pages/inventory/DispatchList';
 import DispatchForm from './pages/inventory/DispatchForm';
 import StockAdjustment from './pages/inventory/StockAdjustment';
 import InventoryLedger from './pages/inventory/InventoryLedger';
+import BillingMasterPage from './pages/BillingMasterPage';
+import ProvisionalBillingPage from './pages/ProvisionalBillingPage';
+import LabSettingsPage from './pages/LabSettingsPage';
+import ReportLabPage from './pages/ReportLabPage';
+import ReportPharmacyPage from './pages/ReportPharmacyPage';
+import ReportAppointmentPage from './pages/ReportAppointmentPage';
+import IPBillingPage from './pages/IPBillingPage';
+import PaymentsPage from './pages/PaymentsPage';
+import InboxPage from './pages/InboxPage';
 
 function Unauthorized() {
   const { t } = useTranslation('common');
@@ -186,6 +196,7 @@ function App() {
             <Route path="lab/:labId/report" element={<LabReportPrint role="hospital_admin" />} />
             <Route path="patients/:id/timeline" element={<PatientTimeline role="hospital_admin" />} />
             <Route path="insurance-claims" element={<InsuranceClaims role="hospital_admin" />} />
+            <Route path="insurance-billing" element={<InsuranceBillingPage role="hospital_admin" />} />
             <Route path="multi-branch" element={<MultiBranchDashboard role="hospital_admin" />} />
             <Route path="patient-portal" element={<PatientPortal />} />
             <Route path="telemedicine" element={<TelemedicineDashboard role="hospital_admin" />} />
@@ -198,6 +209,9 @@ function App() {
             <Route path="settlements" element={<SettlementsPage role="hospital_admin" />} />
             <Route path="billing-handover" element={<BillingHandoverPage role="hospital_admin" />} />
             <Route path="billing-cancellation" element={<BillCancellationPage role="hospital_admin" />} />
+            <Route path="ip-billing" element={<IPBillingPage role="hospital_admin" />} />
+            <Route path="payments" element={<PaymentsPage role="hospital_admin" />} />
+            <Route path="inbox" element={<InboxPage role="hospital_admin" />} />
             <Route path="vitals" element={<VitalsPage role="hospital_admin" />} />
             <Route path="allergies" element={<AllergiesPage role="hospital_admin" />} />
             {/* ─── Inventory ─────────────────────────────── */}
@@ -213,6 +227,15 @@ function App() {
             <Route path="inventory/dispatches" element={<DispatchList role="hospital_admin" />} />
             <Route path="inventory/dispatches/new" element={<DispatchForm role="hospital_admin" />} />
             <Route path="inventory/ledger" element={<InventoryLedger role="hospital_admin" />} />
+            {/* ─── Billing Master & Provisional ─────────────────── */}
+            <Route path="billing-master" element={<BillingMasterPage role="hospital_admin" />} />
+            <Route path="billing-provisional" element={<ProvisionalBillingPage role="hospital_admin" />} />
+            {/* ─── Lab Settings ─────────────────────────────────── */}
+            <Route path="lab-settings" element={<LabSettingsPage role="hospital_admin" />} />
+            {/* ─── Reports ──────────────────────────────────────── */}
+            <Route path="reports/lab" element={<ReportLabPage role="hospital_admin" />} />
+            <Route path="reports/pharmacy" element={<ReportPharmacyPage role="hospital_admin" />} />
+            <Route path="reports/appointments" element={<ReportAppointmentPage role="hospital_admin" />} />
           </Route>
 
           {/* ─── Laboratory ──────────────────────────────────────────── */}

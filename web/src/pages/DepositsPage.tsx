@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Wallet, Plus, X, Search, ArrowDownCircle, ArrowUpCircle, RefreshCw } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 import DashboardLayout from '../components/DashboardLayout';
 import KPICard from '../components/dashboard/KPICard';
 import EmptyState from '../components/dashboard/EmptyState';
@@ -28,6 +29,7 @@ const TYPE_CFG = {
 };
 
 export default function DepositsPage({ role = 'hospital_admin' }: { role?: string }) {
+  const { t } = useTranslation(['billing', 'common']);
   const [deposits, setDeposits]   = useState<Deposit[]>([]);
   const [loading, setLoading]     = useState(true);
   const [typeFilter, setTypeFilter] = useState('all');
@@ -131,25 +133,25 @@ export default function DepositsPage({ role = 'hospital_admin' }: { role?: strin
               <Wallet className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="page-title">Patient Deposits</h1>
+              <h1 className="page-title">{t('deposits', { ns: 'billing' })}</h1>
               <p className="section-subtitle">Advance payments, refunds &amp; adjustments</p>
             </div>
           </div>
           <div className="flex gap-2">
             <button onClick={() => setShowRefund(true)} className="btn-secondary">
-              <ArrowUpCircle className="w-4 h-4" /> Refund
+              <ArrowUpCircle className="w-4 h-4" /> {t('refunded', { ns: 'billing' })}
             </button>
             <button onClick={() => setShowCollect(true)} className="btn-primary">
-              <Plus className="w-4 h-4" /> Collect Deposit
+              <Plus className="w-4 h-4" /> {t('newDeposit', { ns: 'billing' })}
             </button>
           </div>
         </div>
 
         {/* KPI */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <KPICard title="Total Deposits"    value={`৳${totalDeposits.toLocaleString()}`}    loading={loading} icon={<ArrowDownCircle className="w-5 h-5" />} iconBg="bg-emerald-50 text-emerald-600" index={0} />
-          <KPICard title="Total Refunds"     value={`৳${totalRefunds.toLocaleString()}`}     loading={loading} icon={<ArrowUpCircle className="w-5 h-5" />}   iconBg="bg-amber-50 text-amber-600"   index={1} />
-          <KPICard title="Net Balance"       value={`৳${(totalDeposits - totalRefunds - totalAdjustments).toLocaleString()}`} loading={loading} icon={<Wallet className="w-5 h-5" />} iconBg="bg-[var(--color-primary-light)] text-[var(--color-primary)]" index={2} />
+          <KPICard title={t('totalDeposits', { ns: 'billing' })} value={`৳${totalDeposits.toLocaleString()}`}    loading={loading} icon={<ArrowDownCircle className="w-5 h-5" />} iconBg="bg-emerald-50 text-emerald-600" index={0} />
+          <KPICard title={t('refunded', { ns: 'billing' })}      value={`৳${totalRefunds.toLocaleString()}`}     loading={loading} icon={<ArrowUpCircle className="w-5 h-5" />}   iconBg="bg-amber-50 text-amber-600"   index={1} />
+          <KPICard title={t('remainingBalance', { ns: 'billing' })} value={`৳${(totalDeposits - totalRefunds - totalAdjustments).toLocaleString()}`} loading={loading} icon={<Wallet className="w-5 h-5" />} iconBg="bg-[var(--color-primary-light)] text-[var(--color-primary)]" index={2} />
         </div>
 
         {/* Balance Checker */}
@@ -167,7 +169,7 @@ export default function DepositsPage({ role = 'hospital_admin' }: { role?: strin
               />
             </div>
             <button onClick={handleCheckBalance} disabled={checkingBalance || !balancePatientId} className="btn-secondary">
-              <RefreshCw className={`w-4 h-4 ${checkingBalance ? 'animate-spin' : ''}`} /> Check
+              <RefreshCw className={`w-4 h-4 ${checkingBalance ? 'animate-spin' : ''}`} /> {t('check', { ns: 'common' })}
             </button>
             {balance !== null && (
               <span className={`font-bold font-data text-lg ml-2 ${balance < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
@@ -195,7 +197,7 @@ export default function DepositsPage({ role = 'hospital_admin' }: { role?: strin
                 {loading
                   ? [...Array(4)].map((_, i) => <tr key={i}>{[...Array(7)].map((_, j) => <td key={j}><div className="skeleton h-4 w-full rounded" /></td>)}</tr>)
                   : deposits.length === 0
-                  ? <tr><td colSpan={7}><EmptyState icon={<Wallet className="w-8 h-8 text-[var(--color-text-muted)]" />} title="No deposits" description="No transactions match the current filter." action={<button onClick={() => setShowCollect(true)} className="btn-primary mt-2"><Plus className="w-4 h-4" /> Collect Deposit</button>} /></td></tr>
+                  ? <tr><td colSpan={7}><EmptyState icon={<Wallet className="w-8 h-8 text-[var(--color-text-muted)]" />} title={t('noDeposits', { ns: 'billing' })} description="No transactions match the current filter." action={<button onClick={() => setShowCollect(true)} className="btn-primary mt-2"><Plus className="w-4 h-4" /> {t('newDeposit', { ns: 'billing' })}</button>} /></td></tr>
                   : deposits.map(d => (
                       <tr key={d.id}>
                         <td className="font-data">{d.deposit_receipt_no ?? `DEP-${d.id}`}</td>
@@ -219,7 +221,7 @@ export default function DepositsPage({ role = 'hospital_admin' }: { role?: strin
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-modal w-full max-w-md">
             <div className="flex items-center justify-between p-5 border-b border-[var(--color-border)]">
-              <h3 className="font-semibold">Collect Deposit</h3>
+              <h3 className="font-semibold">{t('newDeposit', { ns: 'billing' })}</h3>
               <button onClick={() => setShowCollect(false)} className="btn-ghost p-1.5"><X className="w-5 h-5" /></button>
             </div>
             <form onSubmit={handleCollect} className="p-5 space-y-4">
@@ -230,8 +232,8 @@ export default function DepositsPage({ role = 'hospital_admin' }: { role?: strin
               <div><label className="label">Payment Method</label><select className="input" value={collectForm.payment_method} onChange={e => setCollectForm(f => ({ ...f, payment_method: e.target.value }))}><option>Cash</option><option>Card</option><option>Mobile Banking</option><option>Cheque</option></select></div>
               <div><label className="label">Remarks</label><input className="input" value={collectForm.remarks} onChange={e => setCollectForm(f => ({ ...f, remarks: e.target.value }))} /></div>
               <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setShowCollect(false)} className="btn-secondary">Cancel</button>
-                <button type="submit" disabled={saving} className="btn-primary">{saving ? 'Saving…' : 'Collect Deposit'}</button>
+                <button type="button" onClick={() => setShowCollect(false)} className="btn-secondary">{t('cancel', { ns: 'common' })}</button>
+                <button type="submit" disabled={saving} className="btn-primary">{saving ? t('saving', { ns: 'billing' }) : t('newDeposit', { ns: 'billing' })}</button>
               </div>
             </form>
           </div>

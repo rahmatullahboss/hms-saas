@@ -196,30 +196,33 @@ billingRoutes.post('/', zValidator('json', createBillSchema), async (c) => {
     const invoiceNo = await getNextSequence(c.env.DB, tenantId!, 'invoice', 'INV');
     const today = new Date().toISOString().split('T')[0];
 
-    // ─── Atomic batch: bill + items + income all succeed or all fail ──────
-    // Uses production column names: total, paid, due, discount
-    const billStatement = c.env.DB.prepare(`
+    // ─── Step 1: Insert bill (need billId before items can reference it) ─────
+    // D1 batch does NOT propagate last_insert_rowid() across statements,
+    // so we must insert the bill separately to get the real ID.
+    const billResult = await c.env.DB.prepare(`
       INSERT INTO bills
         (patient_id, visit_id, invoice_no, discount, total, paid, due, status, tenant_id, created_at)
       VALUES (?, ?, ?, ?, ?, 0, ?, 'open', ?, datetime('now'))
-    `).bind(data.patientId, data.visitId ?? null, invoiceNo, discount, total, total, tenantId);
+    `).bind(data.patientId, data.visitId ?? null, invoiceNo, discount, total, total, tenantId).run();
 
+    const billId = billResult.meta.last_row_id;
+
+    // ─── Step 2: Batch insert items + income using the real billId ───────────
     const itemStatements = data.items.map((item) => {
       const lineTotal = item.quantity * item.unitPrice;
       return c.env.DB.prepare(`
         INSERT INTO invoice_items
           (bill_id, item_category, description, quantity, unit_price, line_total, reference_id, tenant_id)
-        VALUES (last_insert_rowid(), ?, ?, ?, ?, ?, ?, ?)
-      `).bind(item.itemCategory, item.description ?? null, item.quantity, item.unitPrice, lineTotal, item.referenceId ?? null, tenantId);
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(billId, item.itemCategory, item.description ?? null, item.quantity, item.unitPrice, lineTotal, item.referenceId ?? null, tenantId);
     });
 
     const incomeStatement = c.env.DB.prepare(`
-      INSERT INTO income (date, source, amount, description, ref_id, tenant_id) VALUES (?, 'billing', ?, ?, last_insert_rowid(), ?)
-    `).bind(today, total, `Invoice ${invoiceNo}`, tenantId);
+      INSERT INTO income (date, source, amount, description, bill_id, tenant_id)
+      VALUES (?, 'billing', ?, ?, ?, ?)
+    `).bind(today, total, `Invoice ${invoiceNo}`, billId, tenantId);
 
-    // Execute all statements atomically
-    const batchResults = await c.env.DB.batch([billStatement, ...itemStatements, incomeStatement]);
-    const billId = batchResults[0].meta.last_row_id;
+    await c.env.DB.batch([...itemStatements, incomeStatement]);
 
     // Audit log (fire-and-forget — non-critical path)
     void createAuditLog(c.env, tenantId!, userId!, 'create', 'bills', billId, null, { patientId: data.patientId, invoiceNo, total });

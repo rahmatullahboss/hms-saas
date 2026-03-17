@@ -21,7 +21,7 @@ export const tenantMiddleware: MiddlewareHandler<{
   if (hostname === 'localhost' || hostname.includes('localhost')) {
     // Check for tenant query param, header, or subdomain header
     const tenantId = c.req.query('tenant') || c.req.header('X-Tenant-ID');
-    const tenantSubdomain = c.req.header('X-Tenant-Subdomain');
+    const tenantSubdomain = c.req.header('X-Tenant-Subdomain') || c.req.header('X-Tenant-Slug');
     
     if (tenantSubdomain) {
       // Look up tenant by subdomain
@@ -44,7 +44,7 @@ export const tenantMiddleware: MiddlewareHandler<{
   // have 4+ parts but are NOT tenant subdomains — use header-based resolution
   if (parts.length <= 2 || hostname.endsWith('.workers.dev') || hostname.endsWith('.pages.dev')) {
     const tenantId = c.req.query('tenant') || c.req.header('X-Tenant-ID');
-    const tenantSubdomain = c.req.header('X-Tenant-Subdomain');
+    const tenantSubdomain = c.req.header('X-Tenant-Subdomain') || c.req.header('X-Tenant-Slug');
 
     if (tenantSubdomain) {
       // Look up tenant by subdomain header
@@ -94,9 +94,10 @@ export const tenantMiddleware: MiddlewareHandler<{
     }
     
     c.set('tenantId', result.id);
-    await next();
   } catch (error) {
     console.error('Tenant lookup error:', error);
     return c.json({ error: 'Internal server error' }, 500);
   }
+  // Route handler runs OUTSIDE the try-catch so its errors propagate to global onError
+  await next();
 };

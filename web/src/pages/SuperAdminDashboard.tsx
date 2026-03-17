@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import KPICard from '../components/dashboard/KPICard';
 import axios from 'axios';
+import { useTranslation } from 'react-i18next';
 
 interface PlatformStats {
   hospitals: { total: number; active: number; inactive: number; suspended: number };
@@ -23,6 +24,7 @@ export default function SuperAdminDashboard() {
   const [stats, setStats] = useState<PlatformStats | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const { t } = useTranslation(['super-admin', 'common']);
 
   useEffect(() => { fetchStats(); }, []);
 
@@ -44,26 +46,26 @@ export default function SuperAdminDashboard() {
 
   const kpiCards = [
     {
-      title: 'Total Hospitals',
+      title: t('totalHospitals'),
       value: stats?.hospitals.total ?? 0,
       icon: <Building2 className="w-5 h-5" />,
       iconBg: 'bg-indigo-50 text-indigo-600',
-      trend: { value: stats?.hospitals.active ?? 0, isPositive: true, label: 'active' },
+      trend: { value: stats?.hospitals.active ?? 0, isPositive: true, label: t('active') },
     },
     {
-      title: 'Total Users',
+      title: t('totalUsers'),
       value: stats?.users ?? 0,
       icon: <Users className="w-5 h-5" />,
       iconBg: 'bg-blue-50 text-blue-600',
     },
     {
-      title: 'Total Patients',
+      title: t('totalPatients'),
       value: (stats?.patients ?? 0).toLocaleString(),
       icon: <Activity className="w-5 h-5" />,
       iconBg: 'bg-emerald-50 text-emerald-600',
     },
     {
-      title: 'Platform Revenue',
+      title: t('platformRevenue'),
       value: `৳${((stats?.revenue.totalPaid ?? 0) / 1000).toFixed(0)}k`,
       icon: <TrendingUp className="w-5 h-5" />,
       iconBg: 'bg-amber-50 text-amber-600',
@@ -78,14 +80,14 @@ export default function SuperAdminDashboard() {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <ShieldCheck className="w-6 h-6 text-[var(--color-primary)]" />
-              <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">Super Admin Dashboard</h1>
+              <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">{t('dashboardTitle')}</h1>
             </div>
             <p className="text-sm text-[var(--color-text-muted)] flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5" />
               {new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
             </p>
           </div>
-          <button onClick={fetchStats} className="btn-ghost" title="Refresh">
+          <button onClick={fetchStats} className="btn-ghost" title={t('refresh', { ns: 'common' })}>
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
         </div>
@@ -111,7 +113,7 @@ export default function SuperAdminDashboard() {
                   <Inbox className="w-5 h-5 text-amber-600" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-[var(--color-text-secondary)]">Pending Applications</p>
+                  <p className="text-sm font-medium text-[var(--color-text-secondary)]">{t('pendingApplications')}</p>
                   <p className="text-2xl font-bold text-amber-600">{stats?.pendingOnboarding}</p>
                 </div>
                 <ChevronRight className="w-5 h-5 text-[var(--color-text-muted)]" />
@@ -121,16 +123,16 @@ export default function SuperAdminDashboard() {
 
           {/* Quick Actions */}
           <div className={`card p-5 ${(stats?.pendingOnboarding ?? 0) > 0 ? 'lg:col-span-2' : 'lg:col-span-3'}`}>
-            <h3 className="text-sm font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide mb-4">Quick Actions</h3>
+            <h3 className="text-sm font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide mb-4">{t('quickActions')}</h3>
             <div className="flex flex-wrap gap-3">
               <button onClick={() => navigate('/super-admin/hospitals')} className="btn-primary">
-                <Building2 className="w-4 h-4" /> View Hospitals
+                <Building2 className="w-4 h-4" /> {t('viewHospitals')}
               </button>
               <button onClick={() => navigate('/super-admin/onboarding')} className="btn-secondary">
-                <Inbox className="w-4 h-4" /> Onboarding Queue
+                <Inbox className="w-4 h-4" /> {t('onboardingQueue')}
               </button>
               <button onClick={() => navigate('/super-admin/hospitals?action=create')} className="btn-secondary">
-                <UserPlus className="w-4 h-4" /> Add Hospital
+                <UserPlus className="w-4 h-4" /> {t('addHospital')}
               </button>
             </div>
           </div>
@@ -141,12 +143,12 @@ export default function SuperAdminDashboard() {
 
           {/* Hospital Status Breakdown */}
           <div className="card p-6 lg:col-span-2">
-            <h3 className="text-sm font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide mb-5">Hospital Status</h3>
+            <h3 className="text-sm font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide mb-5">{t('hospitalStatus')}</h3>
             <div className="space-y-4">
               {[
-                { label: 'Active', count: stats?.hospitals.active ?? 0, color: 'bg-emerald-500', bg: 'bg-emerald-50' },
-                { label: 'Inactive', count: stats?.hospitals.inactive ?? 0, color: 'bg-slate-400', bg: 'bg-slate-50' },
-                { label: 'Suspended', count: stats?.hospitals.suspended ?? 0, color: 'bg-red-500', bg: 'bg-red-50' },
+                { label: t('activeStatus'), count: stats?.hospitals.active ?? 0, color: 'bg-emerald-500', bg: 'bg-emerald-50' },
+                { label: t('inactiveStatus'), count: stats?.hospitals.inactive ?? 0, color: 'bg-slate-400', bg: 'bg-slate-50' },
+                { label: t('suspendedStatus'), count: stats?.hospitals.suspended ?? 0, color: 'bg-red-500', bg: 'bg-red-50' },
               ].map((s) => (
                 <div key={s.label} className="flex items-center gap-3">
                   <div className={`w-3 h-3 rounded-full ${s.color}`} />
@@ -156,7 +158,7 @@ export default function SuperAdminDashboard() {
               ))}
               <div className="pt-3 border-t border-[var(--color-border)]">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-[var(--color-text-primary)]">Revenue Collection</span>
+                  <span className="text-sm font-medium text-[var(--color-text-primary)]">{t('revenueCollection')}</span>
                   <span className="text-sm font-semibold text-emerald-600">
                     {stats ? `${Math.round((stats.revenue.totalPaid / Math.max(stats.revenue.totalBilled, 1)) * 100)}%` : '—'}
                   </span>
@@ -174,23 +176,23 @@ export default function SuperAdminDashboard() {
           {/* Recent Hospitals */}
           <div className="card overflow-hidden lg:col-span-3">
             <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)]">
-              <h3 className="text-sm font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">Recently Registered</h3>
+              <h3 className="text-sm font-semibold text-[var(--color-text-secondary)] uppercase tracking-wide">{t('recentlyRegistered')}</h3>
               <button
                 onClick={() => navigate('/super-admin/hospitals')}
                 className="text-sm text-[var(--color-primary)] hover:underline font-medium"
               >
-                View All →
+                {t('viewAll')} →
               </button>
             </div>
             <div className="overflow-x-auto">
               <table className="table-base">
                 <thead>
                   <tr>
-                    <th>Hospital</th>
-                    <th>Slug</th>
-                    <th>Plan</th>
-                    <th>Status</th>
-                    <th>Date</th>
+                    <th>{t('hospital')}</th>
+                    <th>{t('slug')}</th>
+                    <th>{t('plan')}</th>
+                    <th>{t('status')}</th>
+                    <th>{t('date')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -205,7 +207,7 @@ export default function SuperAdminDashboard() {
                   ) : (stats?.recentHospitals ?? []).length === 0 ? (
                     <tr>
                       <td colSpan={5} className="py-10 text-center text-[var(--color-text-muted)]">
-                        No hospitals registered recently
+                        {t('noHospitals')}
                       </td>
                     </tr>
                   ) : (

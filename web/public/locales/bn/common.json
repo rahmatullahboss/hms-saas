@@ -55,5 +55,8 @@
   "searchPlaceholder": "অনুসন্ধান করুন...",
   "monthlyIncome": "মাসিক আয়",
   "monthlyExpenses": "মাসিক ব্যয়",
-  "monthlyProfit": "মাসিক মুনাফা"
+  "monthlyProfit": "মাসিক মুনাফা",
+  "filter": "ফিল্টার",
+  "clear": "মুছুন",
+  "check": "যাচাই করুন"
 }

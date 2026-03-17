@@ -188,9 +188,16 @@ test.describe('🏥 Smoke — Core Endpoints (401 without auth)', () => {
     // ─── Insurance & OT ─────────────────────────────────────────
     '/api/insurance',
     '/api/ot',
+    // ─── Insurance Billing Depth ─────────────────────────────────────
+    '/api/insurance-billing/providers',
+    '/api/insurance-billing/preauth-records',
+    '/api/insurance-billing/claim-records',
+    '/api/insurance-billing/eob-records',
+    '/api/insurance-billing/stats',
     // ─── Communication ──────────────────────────────────────────
     '/api/notifications',
     '/api/inbox',
+    '/api/inbox/unread-count',
     '/api/push-notifications',
     '/api/push',
     // ─── Telemedicine & AI ──────────────────────────────────────

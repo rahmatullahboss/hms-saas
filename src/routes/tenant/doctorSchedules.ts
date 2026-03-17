@@ -23,25 +23,43 @@ app.get('/doctors', async (c) => {
   return c.json({ doctors: results });
 });
 
-// GET /api/doctor-schedules?doctor_id=
+// GET /api/doctor-schedules?doctor_id= (doctor_id is optional — lists all if omitted)
 app.get('/', async (c) => {
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
   const doctorId = c.req.query('doctor_id');
-  if (!doctorId) throw new HTTPException(400, { message: 'doctor_id is required' });
 
-  const { results } = await c.env.DB.prepare(`
-    SELECT * FROM doctor_schedules
-    WHERE tenant_id = ? AND doctor_id = ? AND is_active = 1
-    ORDER BY CASE day_of_week
-      WHEN 'sun' THEN 0 WHEN 'mon' THEN 1 WHEN 'tue' THEN 2
-      WHEN 'wed' THEN 3 WHEN 'thu' THEN 4 WHEN 'fri' THEN 5 WHEN 'sat' THEN 6
-    END, start_time
-  `).bind(tenantId, Number(doctorId)).all();
+  let results;
+  if (doctorId) {
+    const r = await c.env.DB.prepare(`
+      SELECT ds.*, d.name AS doctor_name, d.specialty
+      FROM doctor_schedules ds
+      LEFT JOIN doctors d ON d.id = ds.doctor_id AND d.tenant_id = ds.tenant_id
+      WHERE ds.tenant_id = ? AND ds.doctor_id = ? AND ds.is_active = 1
+      ORDER BY CASE ds.day_of_week
+        WHEN 'sun' THEN 0 WHEN 'mon' THEN 1 WHEN 'tue' THEN 2
+        WHEN 'wed' THEN 3 WHEN 'thu' THEN 4 WHEN 'fri' THEN 5 WHEN 'sat' THEN 6
+      END, ds.start_time
+    `).bind(tenantId, Number(doctorId)).all();
+    results = r.results;
+  } else {
+    const r = await c.env.DB.prepare(`
+      SELECT ds.*, d.name AS doctor_name, d.specialty
+      FROM doctor_schedules ds
+      LEFT JOIN doctors d ON d.id = ds.doctor_id AND d.tenant_id = ds.tenant_id
+      WHERE ds.tenant_id = ? AND ds.is_active = 1
+      ORDER BY d.name, CASE ds.day_of_week
+        WHEN 'sun' THEN 0 WHEN 'mon' THEN 1 WHEN 'tue' THEN 2
+        WHEN 'wed' THEN 3 WHEN 'thu' THEN 4 WHEN 'fri' THEN 5 WHEN 'sat' THEN 6
+      END, ds.start_time
+    `).bind(tenantId).all();
+    results = r.results;
+  }
 
-  return c.json({ schedules: results });
+  return c.json({ schedules: results, total: results.length });
 });
+
 
 // POST /api/doctor-schedules
 app.post('/', zValidator('json', createDoctorScheduleSchema), async (c) => {

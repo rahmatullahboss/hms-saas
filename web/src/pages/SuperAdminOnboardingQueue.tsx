@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 
 interface OnboardingRequest {
   id: number;
@@ -42,6 +43,7 @@ export default function SuperAdminOnboardingQueue() {
     whatsappMessage: string;
   } | null>(null);
   const navigate = useNavigate();
+  const { t } = useTranslation(['super-admin', 'common']);
 
   useEffect(() => { fetchRequests(); }, [activeTab]);
 

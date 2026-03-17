@@ -51,6 +51,7 @@ import telemedicineRoutes from './routes/tenant/telemedicine';
 import patientPortalRoutes from './routes/tenant/patientPortal';
 import aiRoutes from './routes/tenant/ai';
 import insuranceRoutes from './routes/tenant/insurance';
+import billingInsuranceRoutes from './routes/tenant/billingInsurance';
 import ipdChargeRoutes from './routes/tenant/ipdCharges';
 import inboxRoutes from './routes/tenant/inbox';
 import pushRoutes from './routes/tenant/push';
@@ -70,6 +71,12 @@ import settlementRoutes from './routes/tenant/settlements';
 import vitalsRoutes from './routes/tenant/vitals';
 import websiteRoutes from './routes/tenant/website';
 import inventoryRoutes from './routes/tenant/inventory';
+import billingMasterRoutes from './routes/tenant/billingMaster';
+import billingProvisionalRoutes from './routes/tenant/billingProvisional';
+import labSettingsRoutes from './routes/tenant/labSettings';
+import reportLabRoutes from './routes/tenant/reportLab';
+import reportPharmacyRoutes from './routes/tenant/reportPharmacy';
+import reportAppointmentRoutes from './routes/tenant/reportAppointment';
 import hospitalSiteRoutes from './routes/public/hospitalSite';
 
 import type { Env } from './types';
@@ -225,6 +232,13 @@ app.use('/api/auth/*', tenantMiddleware);
 app.use('/api/auth/register', authMiddleware);
 app.route('/api/auth', authRoutes);
 
+// ─── Public patient-portal OTP routes (tenant only, no JWT) ─────────
+// Must be before the catch-all auth middleware so patients can request/verify OTP
+app.use('/api/patient-portal/request-otp', tenantMiddleware);
+app.use('/api/patient-portal/request-otp', (c, next) => rateLimitMiddleware(c, next, { window: 900, max: 5 }));
+app.use('/api/patient-portal/verify-otp', tenantMiddleware);
+app.use('/api/patient-portal/verify-otp', (c, next) => rateLimitMiddleware(c, next, { window: 900, max: 10 }));
+
 // ─── Protected tenant routes ─────────────────────────────────────────
 app.use('/api/*', tenantMiddleware);
 app.use('/api/*', authMiddleware);
@@ -266,6 +280,7 @@ app.route('/api/telemedicine', telemedicineRoutes);
 app.route('/api/patient-portal', patientPortalRoutes);
 app.route('/api/ai', aiRoutes);
 app.route('/api/insurance', insuranceRoutes);
+app.route('/api/billing/insurance', billingInsuranceRoutes);
 app.route('/api/ipd-charges', ipdChargeRoutes);
 app.route('/api/inbox', inboxRoutes);
 app.route('/api/push', pushRoutes);
@@ -285,6 +300,12 @@ app.route('/api/settlements', settlementRoutes);
 app.route('/api/vitals', vitalsRoutes);
 app.route('/api/website', websiteRoutes);
 app.route('/api/inventory', inventoryRoutes);
+app.route('/api/billing-master', billingMasterRoutes);
+app.route('/api/billing-provisional', billingProvisionalRoutes);
+app.route('/api/lab-settings', labSettingsRoutes);
+app.route('/api/reports/lab', reportLabRoutes);
+app.route('/api/reports/pharmacy', reportPharmacyRoutes);
+app.route('/api/reports/appointments', reportAppointmentRoutes);
 
 
 // ─── Not Found handler ──────────────────────────────────────────────
@@ -303,8 +324,8 @@ app.notFound((c) => {
 // Global error handler — handles HTTPException & unknown errors
 app.onError((err, c) => {
   console.error(`[ERROR] ${err.message}`, err);
-  if (err instanceof Error && 'getResponse' in err && typeof (err as { getResponse?: () => Response }).getResponse === 'function') {
-    return (err as { getResponse: () => Response }).getResponse();
+  if ('status' in err && typeof (err as { status: number }).status === 'number') {
+    return c.json({ error: err.message }, (err as { status: number }).status as 500);
   }
   return c.json({ error: 'Internal server error' }, 500);
 });

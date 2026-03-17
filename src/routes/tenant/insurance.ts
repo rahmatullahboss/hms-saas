@@ -49,15 +49,11 @@ function requireReviewRole(role?: string): void {
 // Uses MAX(claim_no) instead of COUNT(*) to avoid race-condition duplicates.
 async function generateClaimNo(db: D1Database, tenantId: string): Promise<string> {
   const row = await db.prepare(
-    `SELECT MAX(claim_no) AS last_no FROM insurance_claims WHERE tenant_id = ?`
-  ).bind(tenantId).first<{ last_no: string | null }>();
+    `SELECT MAX(CAST(REPLACE(claim_no, 'CLM-', '') AS INTEGER)) AS max_num FROM insurance_claims WHERE tenant_id = ?`
+  ).bind(tenantId).first<{ max_num: number | null }>();
 
-  let next = 1;
-  if (row?.last_no) {
-    const parsed = parseInt(row.last_no.replace('CLM-', ''), 10);
-    if (!isNaN(parsed)) next = parsed + 1;
-  }
-  return `CLM-${String(next).padStart(5, '0')}`;
+  const next = (row?.max_num ?? 0) + 1;
+  return `CLM-${String(next).padStart(6, '0')}`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -240,7 +236,7 @@ app.get('/claims/:id', async (c) => {
     FROM insurance_claims ic
     LEFT JOIN patients           p  ON p.id  = ic.patient_id  AND p.tenant_id  = ic.tenant_id
     LEFT JOIN insurance_policies ip ON ip.id = ic.policy_id
-    LEFT JOIN billing            b  ON b.id  = ic.bill_id     AND b.tenant_id  = ic.tenant_id
+    LEFT JOIN bills               b  ON b.id  = ic.bill_id     AND b.tenant_id  = ic.tenant_id
     WHERE ic.id = ? AND ic.tenant_id = ?
   `).bind(id, tenantId).first();
 
@@ -273,27 +269,32 @@ app.post('/claims', zValidator('json', insuranceClaimSchema), async (c) => {
     }
   }
 
-  const claimNo = await generateClaimNo(c.env.DB, tenantId);
+  try {
+    const claimNo = await generateClaimNo(c.env.DB, tenantId);
 
-  const result = await c.env.DB.prepare(`
-    INSERT INTO insurance_claims
-      (tenant_id, claim_no, patient_id, policy_id, bill_id, diagnosis, icd10_code,
-       bill_amount, claimed_amount, status, created_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'submitted', ?)
-  `).bind(
-    tenantId,
-    claimNo,
-    data.patient_id,
-    data.policy_id  ?? null,
-    data.bill_id    ?? null,
-    data.diagnosis  ?? null,
-    data.icd10_code ?? null,
-    data.bill_amount,
-    data.claimed_amount,
-    userId,
-  ).run();
+    const result = await c.env.DB.prepare(`
+      INSERT INTO insurance_claims
+        (tenant_id, claim_no, patient_id, policy_id, bill_id, diagnosis, icd10_code,
+         bill_amount, claimed_amount, status, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'submitted', ?)
+    `).bind(
+      tenantId,
+      claimNo,
+      data.patient_id,
+      data.policy_id  ?? null,
+      data.bill_id    ?? null,
+      data.diagnosis  ?? null,
+      data.icd10_code ?? null,
+      data.bill_amount,
+      data.claimed_amount,
+      userId,
+    ).run();
 
-  return c.json({ success: true, id: result.meta.last_row_id, claim_no: claimNo }, 201);
+    return c.json({ success: true, id: result.meta.last_row_id, claim_no: claimNo }, 201);
+  } catch (err) {
+    console.error('[INSURANCE_CLAIMS_POST]', err instanceof Error ? err.message : err);
+    throw new HTTPException(500, { message: `Claim creation failed: ${err instanceof Error ? err.message : 'Unknown error'}` });
+  }
 });
 
 // PUT /api/insurance/claims/:id — update status (reviewer only)

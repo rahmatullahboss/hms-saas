@@ -55,5 +55,8 @@
   "searchPlaceholder": "Search...",
   "monthlyIncome": "Monthly Income",
   "monthlyExpenses": "Monthly Expenses",
-  "monthlyProfit": "Monthly Profit"
+  "monthlyProfit": "Monthly Profit",
+  "filter": "Filter",
+  "clear": "Clear",
+  "check": "Check"
 }

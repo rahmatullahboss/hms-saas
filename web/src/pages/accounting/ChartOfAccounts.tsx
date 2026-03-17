@@ -3,6 +3,7 @@ import { Plus, Pencil, Trash2, X, Search } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../../components/DashboardLayout';
+import { useTranslation } from 'react-i18next';
 
 interface Account {
   id: number; code: string; name: string;
@@ -31,6 +32,7 @@ export default function ChartOfAccounts({ role = 'md' }: { role?: string }) {
   const [showModal,      setShowModal]     = useState(false);
   const [editingAccount, setEditing]       = useState<Account | null>(null);
   const [formData,       setFormData]      = useState({ code: '', name: '', type: 'expense', parent_id: '' });
+  const { t } = useTranslation(['accounting', 'common']);
 
   const fetchAccounts = async () => {
     try {

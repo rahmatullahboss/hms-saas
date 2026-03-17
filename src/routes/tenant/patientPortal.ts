@@ -219,7 +219,9 @@ patientPortalRoutes.post(
       throw new HTTPException(401, { message: 'Invalid or expired OTP' });
     }
 
-    if (new Date(otpRecord.expires_at) < new Date()) {
+    // D1's datetime() stores UTC but without 'Z' suffix — append it to avoid timezone ambiguity
+    const expiresUtc = otpRecord.expires_at.endsWith('Z') ? otpRecord.expires_at : otpRecord.expires_at + 'Z';
+    if (new Date(expiresUtc) < new Date()) {
       throw new HTTPException(401, { message: 'OTP has expired. Please request a new one.' });
     }
 
@@ -269,7 +271,7 @@ patientPortalRoutes.post(
     await auditLog(c.env.DB, String(patient.id), 'login', tenantId);
 
     // Generate JWT — 2h expiry (shorter for security)
-    const token = generateToken(
+    const token = await generateToken(
       {
         userId: String(patient.id),
         role: 'patient',
@@ -312,7 +314,7 @@ patientPortalRoutes.post('/refresh-token', async (c) => {
     throw new HTTPException(400, { message: 'Tenant not identified' });
   }
 
-  const token = generateToken(
+  const token = await generateToken(
     {
       userId: String(patient.id),
       role: 'patient',
@@ -1080,9 +1082,10 @@ patientPortalRoutes.get('/timeline', async (c) => {
 
       SELECT 'lab_order' as event_type, lo.id, lo.created_at as event_date,
              'Lab Order #' || lo.order_no as title,
-             lo.status as detail, GROUP_CONCAT(loi.test_name, ', ') as description, '🧪' as icon
+             lo.status as detail, GROUP_CONCAT(COALESCE(ltc.name, 'Test #' || loi.lab_test_id), ', ') as description, '🧪' as icon
       FROM lab_orders lo
       JOIN lab_order_items loi ON loi.lab_order_id = lo.id
+      LEFT JOIN lab_test_catalog ltc ON ltc.id = loi.lab_test_id
       WHERE lo.patient_id = ? AND lo.tenant_id = ?
       GROUP BY lo.id
 
@@ -1091,7 +1094,7 @@ patientPortalRoutes.get('/timeline', async (c) => {
       SELECT 'bill' as event_type, b.id, b.created_at as event_date,
              'Bill #' || COALESCE(b.invoice_no, b.id) as title,
              CASE WHEN b.due > 0 THEN 'Due: ৳' || b.due ELSE 'Paid' END as detail,
-             b.description as description, '💰' as icon
+             'Total: ৳' || COALESCE(b.total_amount, b.total, 0) as description, '💰' as icon
       FROM bills b
       WHERE b.patient_id = ? AND b.tenant_id = ?
     ) timeline
