@@ -145,8 +145,8 @@ test.describe('💵 Extended2 — Billing', () => {
         discount: 0,
       },
     });
-    // 500 can happen if billing DB trigger fails; that's a server issue, not a test issue
-    expect([200, 201, 500]).toContain(res.status());
+    // Billing may fail with validation error; should never 500
+    expect([200, 201, 400]).toContain(res.status());
     if (res.ok()) {
       const body = await res.json() as { id?: number; billId?: number };
       billId = body.id ?? body.billId ?? 0;
@@ -306,8 +306,8 @@ test.describe('💊 Extended2 — Pharmacy', () => {
         reorderLevel: 50,
       },
     });
-    // 500 can happen due to DB constraint issues; acceptable
-    expect([200, 201, 500]).toContain(res.status());
+    // DB constraint → 400, not 500
+    expect([200, 201, 400]).toContain(res.status());
     if (res.ok()) {
       const body = await res.json() as { id?: number };
       medicineId = body.id ?? 0;
@@ -709,13 +709,13 @@ test.describe('📊 Extended2 — Shareholders', () => {
     const auth = loadAuth();
     // The shareholders route uses query-based list (zValidator on query)
     const res = await request.get(`${BASE_URL}/api/shareholders?page=1&limit=10`, { headers: authHeaders(auth) });
-    expect([200, 400, 500]).toContain(res.status());
+    expect([200, 400]).toContain(res.status());
   });
 
   test('GET /api/shareholders/settings → gets shareholder settings', async ({ request }) => {
     const auth = loadAuth();
     const res = await request.get(`${BASE_URL}/api/shareholders/settings`, { headers: authHeaders(auth) });
-    expect([200, 400, 500]).toContain(res.status());
+    expect([200, 400]).toContain(res.status());
   });
 
   test('POST /api/shareholders → creates shareholder', async ({ request }) => {
@@ -729,12 +729,11 @@ test.describe('📊 Extended2 — Shareholders', () => {
         shareCount: 10,
         investment: 1000000,
         shareValueBdt: 100000,
-        startDate: '2026-01-01',
         isActive: true,
       },
     });
     // Allow 4xx as well since shareholder may require share price to be set first
-    expect([200, 201, 400, 500]).toContain(res.status());
+    expect([200, 201, 400]).toContain(res.status());
     if (res.ok()) {
       const body = await res.json() as { id?: number; shareholderId?: number };
       shareholderId = body.id ?? body.shareholderId ?? 0;
@@ -748,7 +747,7 @@ test.describe('📊 Extended2 — Shareholders', () => {
       headers: authHeaders(auth),
       data: { shareCount: 20, investment: 2000000 },
     });
-    expect([200, 201, 400, 500]).toContain(res.status());
+    expect([200, 201, 400]).toContain(res.status());
   });
 });
 
@@ -803,8 +802,8 @@ test.describe('🔔 Extended2 — Notifications', () => {
         message: 'E2E test SMS notification',
       },
     });
-    // SMS may fail if no SMS provider configured; 400/500 are acceptable
-    expect([200, 201, 400, 500, 503]).toContain(res.status());
+    // SMS may fail if no SMS provider configured; 503 for service unavailable
+    expect([200, 201, 400, 503]).toContain(res.status());
   });
 });
 
@@ -901,8 +900,8 @@ test.describe('📈 Extended2 — Profit', () => {
       headers: authHeaders(auth),
       data: { month: '2026-01' },
     });
-    // May return 403 (director role required), 409 if already distributed, 400/500 for other issues
-    expect([200, 201, 400, 403, 409, 500]).toContain(res.status());
+    // May return 403 (director role required), 409 if already distributed, 400 for other issues
+    expect([200, 201, 400, 403, 409]).toContain(res.status());
   });
 
   test('GET /api/profit/history → gets profit distribution history', async ({ request }) => {
@@ -940,8 +939,8 @@ test.describe('📋 Extended2 — Reports', () => {
   test('GET /api/reports/bed-occupancy → gets bed occupancy', async ({ request }) => {
     const auth = loadAuth();
     const res = await request.get(`${BASE_URL}/api/reports/bed-occupancy`, { headers: authHeaders(auth) });
-    // 500 can occur if admissions data is missing; tolerated
-    expect([200, 400, 500]).toContain(res.status());
+    // Bed occupancy should not 500 — missing data returns empty results
+    expect([200, 400]).toContain(res.status());
   });
 });
 
@@ -958,19 +957,19 @@ test.describe('📊 Extended2 — Dashboard', () => {
   test('GET /api/dashboard/stats → gets dashboard stats (7-day)', async ({ request }) => {
     const auth = loadAuth();
     const res = await request.get(`${BASE_URL}/api/dashboard/stats`, { headers: authHeaders(auth) });
-    expect([200, 500]).toContain(res.status());
+    expect(res.status()).toBe(200);
   });
 
   test('GET /api/dashboard/daily-income → gets daily income', async ({ request }) => {
     const auth = loadAuth();
     const res = await request.get(`${BASE_URL}/api/dashboard/daily-income`, { headers: authHeaders(auth) });
-    expect([200, 500]).toContain(res.status());
+    expect(res.status()).toBe(200);
   });
 
   test('GET /api/dashboard/monthly-summary → gets monthly summary', async ({ request }) => {
     const auth = loadAuth();
     const res = await request.get(`${BASE_URL}/api/dashboard/monthly-summary`, { headers: authHeaders(auth) });
-    expect([200, 500]).toContain(res.status());
+    expect(res.status()).toBe(200);
   });
 });
 
@@ -981,8 +980,8 @@ test.describe('👨‍⚕️ Extended2 — Doctor Dashboard', () => {
   test('GET /api/doctor-dashboard/dashboard → gets doctor dashboard', async ({ request }) => {
     const auth = loadAuth();
     const res = await request.get(`${BASE_URL}/api/doctor-dashboard/dashboard`, { headers: authHeaders(auth) });
-    // 500 can happen due to DB query failing in production; 200/403 expected for role issues
-    expect([200, 403, 500]).toContain(res.status());
+    // 200 success, 403 for role restrictions
+    expect([200, 403]).toContain(res.status());
   });
 });
 
@@ -1024,8 +1023,8 @@ test.describe('🤖 Extended2 — AI', () => {
       headers: authHeaders(auth),
       data: { notes: 'Patient had fever for 3 days. BP 120/80.' },
     });
-    // AI calls may fail with 400/402/500 if AI binding not configured or quota exceeded
-    expect([200, 201, 400, 402, 429, 500]).toContain(res.status());
+    // AI calls may fail with 400/402 if AI binding not configured or quota exceeded, 503 if unavailable
+    expect([200, 201, 400, 402, 429, 503]).toContain(res.status());
   });
 
   test('POST /api/ai/triage → AI triage assistance', async ({ request }) => {
@@ -1034,7 +1033,7 @@ test.describe('🤖 Extended2 — AI', () => {
       headers: authHeaders(auth),
       data: { message: 'Patient has chest pain and shortness of breath', conversationHistory: [] },
     });
-    expect([200, 201, 400, 402, 429, 500]).toContain(res.status());
+    expect([200, 201, 400, 402, 429, 503]).toContain(res.status());
   });
 });
 
@@ -1091,8 +1090,8 @@ test.describe('🏠 Extended2 — IP Billing', () => {
   test('GET /api/ip-billing/admitted → lists admitted patients', async ({ request }) => {
     const auth = loadAuth();
     const res = await request.get(`${BASE_URL}/api/ip-billing/admitted`, { headers: authHeaders(auth) });
-    // 500 can happen if admissions table has issues in production
-    expect([200, 500]).toContain(res.status());
+    // Admissions should not 500 — missing data returns empty list
+    expect(res.status()).toBe(200);
   });
 
   test('POST /api/ip-billing/provisional → creates provisional bill', async ({ request }) => {

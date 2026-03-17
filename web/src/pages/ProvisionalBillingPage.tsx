@@ -6,6 +6,7 @@ import DashboardLayout from '../components/DashboardLayout';
 import KPICard from '../components/dashboard/KPICard';
 import EmptyState from '../components/dashboard/EmptyState';
 import { authHeader } from '../utils/auth';
+import { useTranslation } from 'react-i18next';
 
 interface ProvisionalItem {
   id: number;
@@ -34,6 +35,7 @@ export default function ProvisionalBillingPage({ role = 'hospital_admin' }: { ro
   const [patientIdFilter, setPatientIdFilter] = useState('');
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const { t } = useTranslation(['billing', 'common']);
 
   // Create modal
   const [showCreate, setShowCreate] = useState(false);

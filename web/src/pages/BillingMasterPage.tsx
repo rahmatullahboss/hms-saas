@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
 import EmptyState from '../components/dashboard/EmptyState';
 import { authHeader } from '../utils/auth';
+import { useTranslation } from 'react-i18next';
 
 /* ───── Shared types ────────────────────────────────────── */
 interface Scheme { id: number; scheme_name: string; scheme_code?: string; scheme_type: string; default_discount_percent: number; is_active: boolean; }
@@ -601,6 +602,7 @@ const TAB_MAP: Record<string, React.ComponentType> = {
 export default function BillingMasterPage({ role = 'hospital_admin' }: { role?: string }) {
   const [activeTab, setActiveTab] = useState('schemes');
   const TabComponent = TAB_MAP[activeTab];
+  const { t } = useTranslation(['billing', 'common']);
   return (
     <DashboardLayout role={role}>
       <div className="space-y-5 max-w-screen-2xl mx-auto">

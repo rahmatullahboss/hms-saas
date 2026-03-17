@@ -21,11 +21,11 @@ rfq.get("/", zValidator("query", schemas.listRFQSchema), async (c) => {
 
   const whereClause = conditions.join(" AND ");
   const count = await c.env.DB.prepare(
-    `SELECT COUNT(*) as total FROM InventoryRFQ WHERE ${whereClause}`
+    `SELECT COUNT(*) as total FROM InventoryRequestForQuotation WHERE ${whereClause}`
   ).bind(...params).first<{ total: number }>();
 
   const results = await c.env.DB.prepare(
-    `SELECT * FROM InventoryRFQ WHERE ${whereClause} ORDER BY RFQId DESC LIMIT ? OFFSET ?`
+    `SELECT * FROM InventoryRequestForQuotation WHERE ${whereClause} ORDER BY RFQId DESC LIMIT ? OFFSET ?`
   ).bind(...params, limit, offset).all();
 
   return c.json({ data: results.results, pagination: { page, limit, total: count?.total || 0 } });
@@ -38,10 +38,10 @@ rfq.post("/", zValidator("json", schemas.createRFQSchema), async (c) => {
   const userId = c.get('userId');
   const today = new Date().toISOString().slice(0, 10);
 
-  const nextRFQNo = await generateSequenceNo(c.env.DB, 'RFQ', 'InventoryRFQ', 'RFQNo', tenantId);
+  const nextRFQNo = await generateSequenceNo(c.env.DB, 'RFQ', 'InventoryRequestForQuotation', 'RFQNo', tenantId);
 
   const result = await c.env.DB.prepare(`
-    INSERT INTO InventoryRFQ (tenant_id, RFQNo, Subject, Description, RequestedCloseDate, Status, CreatedBy, CreatedOn)
+    INSERT INTO InventoryRequestForQuotation (tenant_id, RFQNo, Subject, Description, RequestedCloseDate, Status, CreatedBy, CreatedOn)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(tenantId, nextRFQNo, body.Subject, body.Description || null, body.RequestedCloseDate || null, 'active', userId ?? null, new Date().toISOString()).run();
 
@@ -51,7 +51,7 @@ rfq.post("/", zValidator("json", schemas.createRFQSchema), async (c) => {
   // Items
   for (const item of body.Items) {
     batchOps.push(c.env.DB.prepare(`
-      INSERT INTO InventoryRFQItem (tenant_id, RFQId, ItemId, Quantity, Description, CreatedBy, CreatedOn)
+      INSERT INTO InventoryRequestForQuotationItem (tenant_id, RFQId, ItemId, Quantity, Description, CreatedBy, CreatedOn)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `).bind(tenantId, rfqId, item.ItemId, item.Quantity, item.Description || null, userId ?? null, new Date().toISOString()));
   }
@@ -60,7 +60,7 @@ rfq.post("/", zValidator("json", schemas.createRFQSchema), async (c) => {
   if (body.VendorIds) {
     for (const vid of body.VendorIds) {
       batchOps.push(c.env.DB.prepare(`
-        INSERT INTO InventoryRFQVendor (tenant_id, RFQId, VendorId, IsEmailSent, CreatedBy, CreatedOn)
+        INSERT INTO InventoryRequestForQuotationVendor (tenant_id, RFQId, VendorId, IsEmailSent, CreatedBy, CreatedOn)
         VALUES (?, ?, ?, ?, ?, ?)
       `).bind(tenantId, rfqId, vid, 0, userId ?? null, new Date().toISOString()));
     }
@@ -105,7 +105,7 @@ rfq.post("/quotation", zValidator("json", schemas.createQuotationSchema), async 
 
   // Check RFQ (tenant-scoped)
   const rfqExists = await c.env.DB.prepare(
-    "SELECT * FROM InventoryRFQ WHERE RFQId = ? AND tenant_id = ?"
+    "SELECT * FROM InventoryRequestForQuotation WHERE RFQId = ? AND tenant_id = ?"
   ).bind(body.RFQId, tenantId).first();
   if (!rfqExists) return c.json({ error: "RFQ not found" }, 404);
 

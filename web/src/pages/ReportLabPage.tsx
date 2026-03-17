@@ -5,6 +5,7 @@ import DashboardLayout from '../components/DashboardLayout';
 import KPICard from '../components/dashboard/KPICard';
 import EmptyState from '../components/dashboard/EmptyState';
 import { authHeader } from '../utils/auth';
+import { useTranslation } from 'react-i18next';
 
 const TODAY = new Date().toISOString().split('T')[0];
 const MONTH_AGO = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
@@ -160,6 +161,7 @@ const TAB_MAP: Record<string, React.ComponentType> = {
 export default function ReportLabPage({ role = 'hospital_admin' }: { role?: string }) {
   const [activeTab, setActiveTab] = useState('by-category');
   const TabComponent = TAB_MAP[activeTab];
+  const { t } = useTranslation(['laboratory', 'common']);
   return (
     <DashboardLayout role={role}>
       <div className="space-y-5 max-w-screen-2xl mx-auto">

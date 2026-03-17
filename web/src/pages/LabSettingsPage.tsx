@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
 import EmptyState from '../components/dashboard/EmptyState';
 import { authHeader } from '../utils/auth';
+import { useTranslation } from 'react-i18next';
 
 const TABS = [
   { key: 'categories', label: 'Test Categories', icon: Tag       },
@@ -230,6 +231,7 @@ const TAB_MAP: Record<string, React.ComponentType> = {
 export default function LabSettingsPage({ role = 'hospital_admin' }: { role?: string }) {
   const [activeTab, setActiveTab] = useState('categories');
   const TabComponent = TAB_MAP[activeTab];
+  const { t } = useTranslation(['laboratory', 'common']);
   return (
     <DashboardLayout role={role}>
       <div className="space-y-5 max-w-screen-2xl mx-auto">

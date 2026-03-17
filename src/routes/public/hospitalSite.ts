@@ -4,6 +4,9 @@ import type { Env, Variables } from '../../types';
 /**
  * Public hospital website routes — serves pre-rendered HTML from KV + CF Cache API.
  *
+ * URL pattern: /site/{slug}, /site/{slug}/doctors, etc.
+ * Slug = tenant subdomain (e.g. "demo-hospital")
+ *
  * Cache strategy (3 layers):
  *  1. CF Cache API (caches.default) — CDN edge, no Worker invocation on HIT
  *  2. KV — pre-rendered HTML, Worker reads (fast, no D1)
@@ -15,107 +18,43 @@ const hospitalSite = new Hono<{ Bindings: Env; Variables: Variables }>();
 const VALID_PAGES = new Set(['', 'doctors', 'services', 'about', 'contact']);
 
 /**
- * Extracts tenant subdomain from Host header.
- * e.g. "hms-demo.ozzyl.com" → "demo"
- * e.g. "hms-demo.localhost:8787" → "demo"
+ * Root /site — list available hospital websites (directory page)
  */
-function getSubdomain(host: string | undefined): string | null {
-  if (!host) return null;
-  const hostname = host.split(':')[0]; // strip port
-  const parts = hostname.split('.');
-  const first = parts[0];
-  if (first.startsWith('hms-')) {
-    return first.slice(4); // exact prefix strip, avoids replace edge case
-  }
-  return null;
-}
+hospitalSite.get('/', async (c) => {
+  const { results } = await c.env.DB.prepare(
+    `SELECT t.name, t.subdomain FROM tenants t
+     JOIN website_config wc ON wc.tenant_id = t.id
+     WHERE wc.is_enabled = 1
+     ORDER BY t.name`
+  ).all();
 
-hospitalSite.get('/:page?', async (c) => {
-  const page = c.req.param('page') || '';
+  const hospitals = (results || []).map((h: Record<string, unknown>) =>
+    `<li><a href="/site/${h.subdomain}">${h.name}</a></li>`
+  ).join('');
 
-  // Only serve known pages
-  if (!VALID_PAGES.has(page)) {
-    return c.notFound();
-  }
-
-  const subdomain = getSubdomain(c.req.header('host'));
-  if (!subdomain) {
-    return c.json({ error: 'Invalid subdomain' }, 400);
-  }
-
-  const pagePath = page ? `/site/${page}` : '/site';
-  const cacheKey = `site:${subdomain}:${pagePath}`;
-
-  // ── Layer 1: CF Cache API (CDN edge) ──
-  // On custom domains (ozzyl.com), this prevents Worker invocation entirely.
-  // On workers.dev, it still works within the same PoP.
-  const cache = caches.default;
-  const cacheRequest = new Request(c.req.url);
-  const cachedResponse = await cache.match(cacheRequest);
-  if (cachedResponse) {
-    return cachedResponse;
-  }
-
-  // ── Layer 2: KV pre-rendered HTML ──
-  const html = await c.env.KV.get(cacheKey);
-
-  if (!html) {
-    // KV miss — could be disabled or never rendered
-    // Check if website is enabled
-    const config = await c.env.DB.prepare(
-      'SELECT is_enabled FROM website_config wc JOIN tenants t ON wc.tenant_id = t.id WHERE t.subdomain = ?'
-    ).bind(subdomain).first();
-
-    if (!config || !config.is_enabled) {
-      return c.html(
-        '<!DOCTYPE html><html><body style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:system-ui"><h1>Website coming soon</h1></body></html>',
-        404
-      );
-    }
-
-    // Trigger async re-render (KV will be populated for next request)
-    // For now, return a "loading" state — this should be very rare
-    return c.html(
-      '<!DOCTYPE html><html><head><meta http-equiv="refresh" content="3"></head><body style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:system-ui"><p>Loading website... please wait.</p></body></html>',
-      200
-    );
-  }
-
-  // Build response with cache headers
-  const response = new Response(html, {
-    headers: {
-      'Content-Type': 'text/html; charset=utf-8',
-      'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=3600',
-      'X-Content-Type-Options': 'nosniff',
-    },
-  });
-
-  // Store in CF Cache API (non-blocking)
-  c.executionCtx.waitUntil(cache.put(cacheRequest, response.clone()));
-
-  // ── Track pageview (non-blocking) — stores subdomain directly (no D1 lookup) ──
-  c.executionCtx.waitUntil(
-    c.env.DB.prepare(
-      `INSERT INTO website_pageviews (subdomain, page, referrer, user_agent, viewed_at)
-       VALUES (?, ?, ?, ?, datetime('now'))`
-    ).bind(
-      subdomain,
-      pagePath,
-      c.req.header('referer') || null,
-      (c.req.header('user-agent') || '').slice(0, 200)
-    ).run().catch(() => { /* pageview tracking failure is non-fatal */ })
-  );
-
-  return response;
+  return c.html(`<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hospital Directory — Ozzyl HMS</title>
+<style>
+  body{font-family:system-ui,sans-serif;max-width:600px;margin:4rem auto;padding:0 1rem;color:#1a1a2e}
+  h1{font-size:1.5rem} ul{list-style:none;padding:0}
+  li{padding:0.75rem 0;border-bottom:1px solid #eee}
+  a{color:#2563eb;text-decoration:none;font-weight:500} a:hover{text-decoration:underline}
+</style></head>
+<body>
+  <h1>🏥 Hospital Directory</h1>
+  ${hospitals.length > 0
+    ? `<ul>${hospitals}</ul>`
+    : '<p>No hospital websites available yet.</p>'}
+</body></html>`);
 });
 
 /**
- * Sitemap.xml generation
+ * Sitemap.xml generation — MUST be before the catch-all /:slug/:page?
  */
-hospitalSite.get('/sitemap.xml', async (c) => {
-  const subdomain = getSubdomain(c.req.header('host'));
-  if (!subdomain) return c.text('', 404);
-
+hospitalSite.get('/:slug/sitemap.xml', async (c) => {
+  const slug = c.req.param('slug');
   const host = c.req.header('host') || '';
   const protocol = host.includes('localhost') ? 'http' : 'https';
   const baseUrl = `${protocol}://${host}`;
@@ -123,7 +62,7 @@ hospitalSite.get('/sitemap.xml', async (c) => {
   const pages = ['', '/doctors', '/services', '/about', '/contact'];
   const urls = pages.map(p => `
     <url>
-      <loc>${baseUrl}/site${p}</loc>
+      <loc>${baseUrl}/site/${slug}${p}</loc>
       <changefreq>weekly</changefreq>
       <priority>${p === '' ? '1.0' : '0.8'}</priority>
     </url>`
@@ -143,21 +82,108 @@ hospitalSite.get('/sitemap.xml', async (c) => {
 });
 
 /**
- * Robots.txt
+ * Robots.txt — MUST be before the catch-all /:slug/:page?
  */
-hospitalSite.get('/robots.txt', async (c) => {
+hospitalSite.get('/:slug/robots.txt', async (c) => {
+  const slug = c.req.param('slug');
   const host = c.req.header('host') || '';
   const protocol = host.includes('localhost') ? 'http' : 'https';
   const robots = `User-agent: *
-Allow: /site/
+Allow: /site/${slug}/
 Disallow: /api/
 Disallow: /dashboard/
 Disallow: /login
-Sitemap: ${protocol}://${host}/site/sitemap.xml
+Sitemap: ${protocol}://${host}/site/${slug}/sitemap.xml
 `;
   return new Response(robots, {
     headers: { 'Content-Type': 'text/plain', 'Cache-Control': 'public, s-maxage=86400' },
   });
+});
+
+/**
+ * GET /site/:slug — Hospital home page
+ * GET /site/:slug/:page — Hospital subpage (doctors, services, about, contact)
+ */
+hospitalSite.get('/:slug/:page?', async (c) => {
+  const slug = c.req.param('slug');
+  const page = c.req.param('page') || '';
+
+  // Only serve known pages
+  if (!VALID_PAGES.has(page)) {
+    return c.notFound();
+  }
+
+  const pagePath = page ? `/site/${slug}/${page}` : `/site/${slug}`;
+  const cacheKey = `site:${slug}:${pagePath}`;
+
+  // ── Layer 1: CF Cache API (CDN edge) ──
+  // Serves directly from edge without Worker invocation after first cache
+  const cache = caches.default;
+  const cacheRequest = new Request(c.req.url);
+  const cachedResponse = await cache.match(cacheRequest);
+  if (cachedResponse) {
+    return cachedResponse;
+  }
+
+  // ── Layer 2: KV pre-rendered HTML ──
+  const html = await c.env.KV.get(cacheKey);
+
+  if (!html) {
+    // KV miss — check if website is enabled, maybe trigger re-render
+    const config = await c.env.DB.prepare(
+      'SELECT wc.is_enabled, t.id as tenant_id FROM website_config wc JOIN tenants t ON wc.tenant_id = t.id WHERE t.subdomain = ?'
+    ).bind(slug).first<{ is_enabled: number; tenant_id: number }>();
+
+    if (!config || !config.is_enabled) {
+      return c.html(
+        '<!DOCTYPE html><html><body style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:system-ui"><h1>Website coming soon</h1></body></html>',
+        404
+      );
+    }
+
+    // Trigger async re-render so KV is populated for next request
+    try {
+      const { preRenderTenantSite } = await import('./prerender');
+      c.executionCtx.waitUntil(
+        preRenderTenantSite(c.env.DB, c.env.KV, config.tenant_id, slug)
+      );
+    } catch {
+      // prerender not available — non-fatal
+    }
+
+    // Return a "loading" state — this should be very rare (only first visit ever)
+    return c.html(
+      '<!DOCTYPE html><html><head><meta http-equiv="refresh" content="3"></head><body style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:system-ui"><p>Loading website... please wait.</p></body></html>',
+      200
+    );
+  }
+
+  // Build response with cache headers
+  const response = new Response(html, {
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=3600',
+      'X-Content-Type-Options': 'nosniff',
+    },
+  });
+
+  // Store in CF Cache API (non-blocking)
+  c.executionCtx.waitUntil(cache.put(cacheRequest, response.clone()));
+
+  // ── Track pageview (non-blocking) ──
+  c.executionCtx.waitUntil(
+    c.env.DB.prepare(
+      `INSERT INTO website_pageviews (subdomain, page, referrer, user_agent, viewed_at)
+       VALUES (?, ?, ?, ?, datetime('now'))`
+    ).bind(
+      slug,
+      pagePath,
+      c.req.header('referer') || null,
+      (c.req.header('user-agent') || '').slice(0, 200)
+    ).run().catch(() => { /* pageview tracking failure is non-fatal */ })
+  );
+
+  return response;
 });
 
 export default hospitalSite;

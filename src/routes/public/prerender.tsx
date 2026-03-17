@@ -9,8 +9,6 @@ import { Footer } from './components/Footer';
 import { SEOHead } from './components/SEOHead';
 import type { ThemeName } from './themes';
 
-const BASE_PATH = '/site';
-
 interface TenantData {
   tenant: Record<string, any>;
   config: Record<string, any>;
@@ -45,7 +43,9 @@ async function fetchTenantData(db: D1Database, tenantId: number): Promise<Tenant
 
 /**
  * Renders all pages for a tenant and stores them in KV.
- * Called via waitUntil() after admin saves website config.
+ * Called via waitUntil() after admin saves website config or doctor changes.
+ *
+ * URL pattern: /site/{slug}, /site/{slug}/doctors, etc.
  */
 export async function preRenderTenantSite(
   db: D1Database,
@@ -60,6 +60,9 @@ export async function preRenderTenantSite(
   const theme = (config.theme as ThemeName) || 'arogyaseva';
   const hospitalName = tenant.name || 'Hospital';
 
+  // Slug-based basePath: /site/{slug}
+  const BASE_PATH = `/site/${subdomain}`;
+
   const commonProps = {
     theme,
     primaryColor: config.primary_color ?? undefined,
@@ -68,7 +71,7 @@ export async function preRenderTenantSite(
     logoUrl: config.logo_key ? `/api/uploads/${config.logo_key}` : undefined,
   };
 
-  // ── Render all 5 pages in parallel (Winston's optimization) ──
+  // ── Render all 5 pages in parallel ──
   const [homeHtml, doctorsHtml, servicesHtml, aboutHtml, contactHtml] = await Promise.all([
     // Home page
     renderToString(
@@ -76,8 +79,7 @@ export async function preRenderTenantSite(
         description={config.seo_description || `${hospitalName} — Your trusted healthcare partner`}>
         <SEOHead hospitalName={hospitalName} description={config.seo_description} doctors={doctors} />
         <Navbar hospitalName={hospitalName} logoUrl={commonProps.logoUrl} basePath={BASE_PATH} />
-        <HeroSection hospitalName={hospitalName} tagline={config.tagline} basePath={BASE_PATH}
-          portalUrl={`https://hms.ozzyl.com`} />
+        <HeroSection hospitalName={hospitalName} tagline={config.tagline} basePath={BASE_PATH} />
         <section class="section section-alt">
           <div class="container">
             <h2 class="section-title text-center">Our Doctors</h2>
@@ -222,7 +224,7 @@ export async function preRenderTenantSite(
               </div>
             )}
             <div class="text-center" style="margin-top:2rem">
-              <a href="https://hms.ozzyl.com/patient/login" class="btn btn-primary">🔐 Patient Portal Login</a>
+              <a href="/patient/login" class="btn btn-primary">🔐 Patient Portal Login</a>
             </div>
           </div>
         </section>
@@ -233,13 +235,13 @@ export async function preRenderTenantSite(
     ),
   ]);
 
-  // Map rendered HTML to page paths
+  // Map rendered HTML to page paths (slug-based)
   const pages: Record<string, string> = {
-    [`${BASE_PATH}`]: homeHtml,
-    [`${BASE_PATH}/doctors`]: doctorsHtml,
-    [`${BASE_PATH}/services`]: servicesHtml,
-    [`${BASE_PATH}/about`]: aboutHtml,
-    [`${BASE_PATH}/contact`]: contactHtml,
+    [`/site/${subdomain}`]: homeHtml,
+    [`/site/${subdomain}/doctors`]: doctorsHtml,
+    [`/site/${subdomain}/services`]: servicesHtml,
+    [`/site/${subdomain}/about`]: aboutHtml,
+    [`/site/${subdomain}/contact`]: contactHtml,
   };
 
   // Store all pages in KV with 24h TTL
@@ -248,17 +250,23 @@ export async function preRenderTenantSite(
   );
   await Promise.all(kvPuts);
 
-  // ── Purge CF Cache for instant updates (Winston's cache purge) ──
+  // ── Purge CF Cache for instant updates ──
   try {
     const cache = caches.default;
-    const host = `hms-${subdomain}.ozzyl.com`;
-    const purgePromises = Object.keys(pages).map(path =>
-      cache.delete(new Request(`https://${host}${path}`))
-    );
+    // Purge for all known host patterns
+    const hosts = [
+      `hms-${subdomain}.ozzyl.com`,  // future custom domain
+    ];
+    const purgePromises: Promise<boolean>[] = [];
+    for (const host of hosts) {
+      for (const path of Object.keys(pages)) {
+        purgePromises.push(cache.delete(new Request(`https://${host}${path}`)));
+      }
+    }
     await Promise.all(purgePromises);
   } catch {
     // Cache purge failure is non-fatal — pages will still update after s-maxage expires
-    console.warn(`[prerender] Cache purge failed for subdomain "${subdomain}"`);
+    console.warn(`[prerender] Cache purge failed for slug "${subdomain}"`);
   }
 }
 

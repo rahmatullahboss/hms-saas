@@ -201,10 +201,10 @@ reportsRoutes.get('/bed-occupancy', async (c) => {
     ).bind(tenantId).first<{ occupied: number }>();
 
     const byWard = await c.env.DB.prepare(`
-      SELECT ward, COUNT(*) as total,
+      SELECT ward_name as ward, COUNT(*) as total,
         SUM(CASE WHEN status = 'occupied' THEN 1 ELSE 0 END) as occupied
       FROM beds WHERE tenant_id = ?
-      GROUP BY ward ORDER BY ward
+      GROUP BY ward_name ORDER BY ward_name
     `).bind(tenantId).all<{ ward: string; total: number; occupied: number }>();
 
     const totalBeds = total?.total ?? 0;
@@ -236,7 +236,7 @@ reportsRoutes.get('/avg-length-of-stay', async (c) => {
   try {
     let query = `
       SELECT
-        COALESCE(a.department, 'General') as department,
+        'General' as department,
         COUNT(*) as total_admissions,
         AVG(julianday(COALESCE(a.discharge_date, date('now'))) - julianday(a.admission_date)) as avg_days
       FROM admissions a
@@ -280,7 +280,7 @@ reportsRoutes.get('/department-revenue', async (c) => {
   try {
     let query = `
       SELECT
-        COALESCE(v.department, 'General') as department,
+        COALESCE(v.visit_type, 'General') as department,
         COUNT(DISTINCT b.id) as bill_count,
         COALESCE(SUM(b.total), 0) as revenue,
         COUNT(DISTINCT v.patient_id) as patient_count
@@ -331,7 +331,7 @@ reportsRoutes.get('/doctor-performance', async (c) => {
       FROM doctors d
       LEFT JOIN visits v ON v.doctor_id = d.id AND v.tenant_id = d.tenant_id
       LEFT JOIN bills b ON b.visit_id = v.id AND b.tenant_id = d.tenant_id
-      WHERE d.tenant_id = ? AND d.status = 'active'
+      WHERE d.tenant_id = ? AND d.is_active = 1
     `;
     const params: (string | number)[] = [tenantId];
 
@@ -398,7 +398,7 @@ reportsRoutes.get('/monthly-summary', async (c) => {
       c.env.DB.prepare(`SELECT COUNT(*) as total, SUM(CASE WHEN status = 'discharged' THEN 1 ELSE 0 END) as discharged FROM admissions WHERE tenant_id = ? AND admission_date >= ? AND admission_date < ?`)
         .bind(tenantId, monthStart, nextMonth),
 
-      c.env.DB.prepare(`SELECT diagnosis, COUNT(*) as cnt FROM visits WHERE tenant_id = ? AND visit_date >= ? AND visit_date < ? AND diagnosis IS NOT NULL GROUP BY diagnosis ORDER BY cnt DESC LIMIT 10`)
+      c.env.DB.prepare(`SELECT COALESCE(icd10_description, visit_type) as diagnosis, COUNT(*) as cnt FROM visits WHERE tenant_id = ? AND visit_date >= ? AND visit_date < ? AND (icd10_description IS NOT NULL OR visit_type IS NOT NULL) GROUP BY diagnosis ORDER BY cnt DESC LIMIT 10`)
         .bind(tenantId, monthStart, nextMonth),
     ]);
 

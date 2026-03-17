@@ -22,7 +22,7 @@ directory = "./web/dist/"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
 # API + public website routes run the Worker; everything else served as static asset
-run_worker_first = ["/api/*", "/site/*", "/sitemap.xml", "/robots.txt"]
+run_worker_first = ["/api/*", "/site", "/site/*", "/sitemap.xml", "/robots.txt"]
 
 # ─── Cloudflare Bindings ──────────────────────────────────────────────
 [[d1_databases]]
@@ -157,7 +157,7 @@ SMS_PROVIDER = "stub"
 directory = "./web/dist/"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
-run_worker_first = ["/api/*", "/site/*", "/sitemap.xml", "/robots.txt"]
+run_worker_first = ["/api/*", "/site", "/site/*", "/sitemap.xml", "/robots.txt"]
 
 [[env.production.d1_databases]]
 binding = "DB"

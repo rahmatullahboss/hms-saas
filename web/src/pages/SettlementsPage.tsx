@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
 import KPICard from '../components/dashboard/KPICard';
 import EmptyState from '../components/dashboard/EmptyState';
+import { useTranslation } from 'react-i18next';
 
 interface Settlement {
   id: number;
@@ -31,6 +32,7 @@ export default function SettlementsPage({ role = 'hospital_admin' }: { role?: st
     party_name: '', amount: '', settlement_type: 'doctor',
     settlement_date: new Date().toISOString().split('T')[0], remarks: '',
   });
+  const { t } = useTranslation(['billing', 'common']);
 
   useEffect(() => {
     const fn = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowCreate(false); };

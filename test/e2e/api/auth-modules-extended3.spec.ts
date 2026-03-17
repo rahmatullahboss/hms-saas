@@ -52,8 +52,8 @@ test.describe('📅 Ext3 — Doctor Schedules CRUD', () => {
         notes: 'E2E test schedule',
       },
     });
-    // 201 success, 403 if role not allowed, 500 if FK issue
-    expect([201, 403, 500]).toContain(res.status());
+    // 201 success, 403 if role not allowed, 400 if FK issue
+    expect([201, 400, 403]).toContain(res.status());
     if (res.status() === 201) {
       const body = await res.json();
       // Try to extract ID if returned
@@ -68,8 +68,8 @@ test.describe('📅 Ext3 — Doctor Schedules CRUD', () => {
       headers: authHeaders(auth),
       data: { start_time: '10:00', end_time: '14:00' },
     });
-    // 200 success, 403 role, 500 if doesn't exist
-    expect([200, 403, 500]).toContain(res.status());
+    // 200 success, 403 role, 404 if doesn't exist
+    expect([200, 403, 404]).toContain(res.status());
   });
 
   test('DELETE /api/doctor-schedules/99999 → soft-deletes a schedule', async ({ request }) => {
@@ -78,7 +78,7 @@ test.describe('📅 Ext3 — Doctor Schedules CRUD', () => {
     const res = await request.delete(`${BASE_URL}/api/doctor-schedules/${targetId}`, {
       headers: authHeaders(auth),
     });
-    expect([200, 403, 500]).toContain(res.status());
+    expect([200, 403, 404]).toContain(res.status());
   });
 });
 
@@ -100,8 +100,8 @@ test.describe('🏥 Ext3 — IPD Charges CRUD', () => {
         amount: 5000,
       },
     });
-    // 201 success, 404 admission not found, 500 DB error
-    expect([201, 200, 404, 500]).toContain(res.status());
+    // 201 success, 404 admission not found, 400 invalid data
+    expect([201, 200, 400, 404]).toContain(res.status());
   });
 
   test('DELETE /api/ipd-charges/99999 → deletes a charge', async ({ request }) => {
@@ -109,7 +109,7 @@ test.describe('🏥 Ext3 — IPD Charges CRUD', () => {
     const res = await request.delete(`${BASE_URL}/api/ipd-charges/99999`, {
       headers: authHeaders(auth),
     });
-    expect([200, 404, 500]).toContain(res.status());
+    expect([200, 404]).toContain(res.status());
   });
 });
 
@@ -129,7 +129,7 @@ test.describe('🔔 Ext3 — Push Notifications', () => {
         },
       },
     });
-    expect([200, 201, 500, 503]).toContain(res.status());
+    expect([200, 201, 400, 503]).toContain(res.status());
   });
 
   test('POST /api/push/send → sends push notification', async ({ request }) => {
@@ -142,8 +142,8 @@ test.describe('🔔 Ext3 — Push Notifications', () => {
         url: '/dashboard',
       },
     });
-    // 200, 403 role, 500 no subscriptions, 503 not configured
-    expect([200, 403, 500, 503]).toContain(res.status());
+    // 200, 403 role, 400 no subscriptions, 503 not configured
+    expect([200, 400, 403, 503]).toContain(res.status());
   });
 
   test('DELETE /api/push/unsubscribe → unsubscribes from push', async ({ request }) => {
@@ -154,7 +154,7 @@ test.describe('🔔 Ext3 — Push Notifications', () => {
         endpoint: 'https://fcm.googleapis.com/fcm/send/e2e-test-endpoint-123',
       },
     });
-    expect([200, 404, 500]).toContain(res.status());
+    expect([200, 404]).toContain(res.status());
   });
 });
 
@@ -174,7 +174,7 @@ test.describe('📲 Ext3 — Push Notifications Module', () => {
         },
       },
     });
-    expect([200, 201, 500, 503]).toContain(res.status());
+    expect([200, 201, 400, 503]).toContain(res.status());
   });
 
   test('POST /api/push-notifications/send → sends push', async ({ request }) => {
@@ -186,7 +186,7 @@ test.describe('📲 Ext3 — Push Notifications Module', () => {
         body: 'Automated test push from push-notifications module',
       },
     });
-    expect([200, 403, 500, 503]).toContain(res.status());
+    expect([200, 400, 403, 503]).toContain(res.status());
   });
 
   test('DELETE /api/push-notifications/unsubscribe → unsubscribes', async ({ request }) => {
@@ -197,7 +197,7 @@ test.describe('📲 Ext3 — Push Notifications Module', () => {
         endpoint: 'https://fcm.googleapis.com/fcm/send/e2e-push-notif-test-456',
       },
     });
-    expect([200, 404, 500]).toContain(res.status());
+    expect([200, 404]).toContain(res.status());
   });
 });
 
@@ -222,7 +222,7 @@ test.describe('🏗️ Ext3 — OT Deep Write', () => {
         remarks: 'E2E automated test booking',
       },
     });
-    expect([201, 200, 403, 500]).toContain(res.status());
+    expect([201, 200, 400, 403]).toContain(res.status());
     if (res.status() === 201 || res.status() === 200) {
       const body = await res.json();
       bookingId = body?.bookingId ?? body?.id ?? null;
@@ -236,7 +236,7 @@ test.describe('🏗️ Ext3 — OT Deep Write', () => {
       headers: authHeaders(auth),
       data: { remarks: 'Updated by E2E test' },
     });
-    expect([200, 403, 404, 500]).toContain(res.status());
+    expect([200, 403, 404]).toContain(res.status());
   });
 
   test('PUT /api/ot/bookings/:id/cancel → cancels OT booking', async ({ request }) => {
@@ -246,7 +246,7 @@ test.describe('🏗️ Ext3 — OT Deep Write', () => {
       headers: authHeaders(auth),
       data: { cancellation_remarks: 'Cancelled by E2E test' },
     });
-    expect([200, 403, 404, 500]).toContain(res.status());
+    expect([200, 403, 404]).toContain(res.status());
   });
 
   test('POST /api/ot/team → adds team member to booking', async ({ request }) => {
@@ -260,7 +260,7 @@ test.describe('🏗️ Ext3 — OT Deep Write', () => {
         role_type: 'surgeon',
       },
     });
-    expect([201, 200, 403, 500]).toContain(res.status());
+    expect([201, 200, 400, 403]).toContain(res.status());
   });
 
   test('DELETE /api/ot/team/99999 → removes team member', async ({ request }) => {
@@ -268,7 +268,7 @@ test.describe('🏗️ Ext3 — OT Deep Write', () => {
     const res = await request.delete(`${BASE_URL}/api/ot/team/99999`, {
       headers: authHeaders(auth),
     });
-    expect([200, 403, 404, 500]).toContain(res.status());
+    expect([200, 403, 404]).toContain(res.status());
   });
 
   test('POST /api/ot/checklist → adds checklist item', async ({ request }) => {
@@ -282,7 +282,7 @@ test.describe('🏗️ Ext3 — OT Deep Write', () => {
         item_details: 'E2E test checklist item',
       },
     });
-    expect([201, 200, 403, 500]).toContain(res.status());
+    expect([201, 200, 400, 403]).toContain(res.status());
   });
 
   test('PUT /api/ot/checklist/99999 → updates checklist item', async ({ request }) => {
@@ -291,7 +291,7 @@ test.describe('🏗️ Ext3 — OT Deep Write', () => {
       headers: authHeaders(auth),
       data: { item_value: false, item_details: 'Updated by E2E' },
     });
-    expect([200, 403, 404, 500]).toContain(res.status());
+    expect([200, 403, 404]).toContain(res.status());
   });
 
   test('POST /api/ot/summary → creates OT summary', async ({ request }) => {
@@ -308,7 +308,7 @@ test.describe('🏗️ Ext3 — OT Deep Write', () => {
         category: 'minor',
       },
     });
-    expect([201, 200, 403, 500]).toContain(res.status());
+    expect([201, 200, 400, 403]).toContain(res.status());
   });
 
   test('PUT /api/ot/summary/99999 → updates OT summary', async ({ request }) => {
@@ -317,7 +317,7 @@ test.describe('🏗️ Ext3 — OT Deep Write', () => {
       headers: authHeaders(auth),
       data: { ot_charge: 18000, category: 'major' },
     });
-    expect([200, 403, 404, 500]).toContain(res.status());
+    expect([200, 403, 404]).toContain(res.status());
   });
 });
 
@@ -340,7 +340,7 @@ test.describe('🚑 Ext3 — Emergency Deep Write', () => {
         care_of_person_contact: '01700000002',
       },
     });
-    expect([201, 200, 500]).toContain(res.status());
+    expect([201, 200, 400]).toContain(res.status());
     if (res.status() === 201 || res.status() === 200) {
       const body = await res.json();
       erPatientId = body?.id ?? body?.patient?.id ?? null;
@@ -354,7 +354,7 @@ test.describe('🚑 Ext3 — Emergency Deep Write', () => {
       headers: authHeaders(auth),
       data: { triage_code: 'yellow' },
     });
-    expect([200, 404, 500]).toContain(res.status());
+    expect([200, 404]).toContain(res.status());
   });
 
   test('PUT /api/emergency/:id/undo-triage → undoes triage', async ({ request }) => {
@@ -363,7 +363,7 @@ test.describe('🚑 Ext3 — Emergency Deep Write', () => {
     const res = await request.put(`${BASE_URL}/api/emergency/${id}/undo-triage`, {
       headers: authHeaders(auth),
     });
-    expect([200, 404, 500]).toContain(res.status());
+    expect([200, 404]).toContain(res.status());
   });
 
   test('PUT /api/emergency/:id/finalize → finalizes ER patient', async ({ request }) => {
@@ -373,7 +373,7 @@ test.describe('🚑 Ext3 — Emergency Deep Write', () => {
       headers: authHeaders(auth),
       data: { finalized_status: 'discharged', finalized_remarks: 'E2E test discharge' },
     });
-    expect([200, 404, 500]).toContain(res.status());
+    expect([200, 404]).toContain(res.status());
   });
 
   test('PUT /api/emergency/:id → updates ER patient info', async ({ request }) => {
@@ -383,7 +383,7 @@ test.describe('🚑 Ext3 — Emergency Deep Write', () => {
       headers: authHeaders(auth),
       data: { first_name: 'E2E-Updated', age: '31' },
     });
-    expect([200, 404, 500]).toContain(res.status());
+    expect([200, 404]).toContain(res.status());
   });
 });
 
@@ -401,8 +401,8 @@ test.describe('📨 Ext3 — Notifications Deep Write', () => {
         html: '<p>Automated E2E test email</p>',
       },
     });
-    // 200, 403 role, 500 provider error
-    expect([200, 403, 500]).toContain(res.status());
+    // 200, 403 role, 503 provider error
+    expect([200, 403, 503]).toContain(res.status());
   });
 
   test('POST /api/notifications/appointment → sends appointment reminder', async ({ request }) => {
@@ -419,7 +419,7 @@ test.describe('📨 Ext3 — Notifications Deep Write', () => {
         channel: 'sms',
       },
     });
-    expect([200, 403, 500]).toContain(res.status());
+    expect([200, 403, 503]).toContain(res.status());
   });
 
   test('POST /api/notifications/lab-ready → sends lab ready notification', async ({ request }) => {
@@ -435,7 +435,7 @@ test.describe('📨 Ext3 — Notifications Deep Write', () => {
         channel: 'sms',
       },
     });
-    expect([200, 403, 500]).toContain(res.status());
+    expect([200, 403, 503]).toContain(res.status());
   });
 
   test('POST /api/notifications/invoice → sends invoice notification', async ({ request }) => {
@@ -451,7 +451,7 @@ test.describe('📨 Ext3 — Notifications Deep Write', () => {
         dueAmount: 2000,
       },
     });
-    expect([200, 403, 500]).toContain(res.status());
+    expect([200, 403, 503]).toContain(res.status());
   });
 
   test('POST /api/notifications/prescription-ready → sends rx ready', async ({ request }) => {
@@ -467,7 +467,7 @@ test.describe('📨 Ext3 — Notifications Deep Write', () => {
         channel: 'sms',
       },
     });
-    expect([200, 403, 500]).toContain(res.status());
+    expect([200, 403, 503]).toContain(res.status());
   });
 
   test('POST /api/notifications/whatsapp → sends WhatsApp message', async ({ request }) => {
@@ -479,7 +479,7 @@ test.describe('📨 Ext3 — Notifications Deep Write', () => {
         message: 'E2E test WhatsApp message from HMS',
       },
     });
-    expect([200, 403, 500]).toContain(res.status());
+    expect([200, 403, 503]).toContain(res.status());
   });
 });
 
@@ -498,8 +498,8 @@ test.describe('🤖 Ext3 — AI Deep Write', () => {
         patientGender: 'Male',
       },
     });
-    // 200, 500 (no AI key configured), 503
-    expect([200, 500, 503]).toContain(res.status());
+    // 200, 400 (no AI key configured), 503
+    expect([200, 400, 503]).toContain(res.status());
   });
 
   test('POST /api/ai/billing-from-notes → auto-billing from notes', async ({ request }) => {
@@ -523,7 +523,7 @@ test.describe('🤖 Ext3 — AI Deep Write', () => {
         conversationHistory: [],
       },
     });
-    expect([200, 500, 503]).toContain(res.status());
+    expect([200, 400, 503]).toContain(res.status());
   });
 
   test('POST /api/ai/summarize-note → summarizes clinical note', async ({ request }) => {
@@ -535,7 +535,7 @@ test.describe('🤖 Ext3 — AI Deep Write', () => {
         format: 'soap',
       },
     });
-    expect([200, 500, 503]).toContain(res.status());
+    expect([200, 400, 503]).toContain(res.status());
   });
 
   test('POST /api/ai/interpret-lab → interprets lab results', async ({ request }) => {
@@ -552,7 +552,7 @@ test.describe('🤖 Ext3 — AI Deep Write', () => {
         patientGender: 'Male',
       },
     });
-    expect([200, 500, 503]).toContain(res.status());
+    expect([200, 400, 503]).toContain(res.status());
   });
 
   test('POST /api/ai/dashboard-insights → generates dashboard insights', async ({ request }) => {
@@ -565,7 +565,7 @@ test.describe('🤖 Ext3 — AI Deep Write', () => {
         dateRange: { from: lastMonth, to: today },
       },
     });
-    expect([200, 500, 503]).toContain(res.status());
+    expect([200, 400, 503]).toContain(res.status());
   });
 });
 
@@ -587,7 +587,7 @@ test.describe('📞 Ext3 — Telemedicine Deep Write', () => {
         doctorName: 'Dr. E2E',
       },
     });
-    expect([201, 200, 500]).toContain(res.status());
+    expect([201, 200, 400]).toContain(res.status());
     if (res.status() === 201 || res.status() === 200) {
       const body = await res.json();
       roomId = body?.id ?? body?.roomId ?? null;
@@ -600,7 +600,7 @@ test.describe('📞 Ext3 — Telemedicine Deep Write', () => {
     const res = await request.post(`${BASE_URL}/api/telemedicine/rooms/${id}/join`, {
       headers: authHeaders(auth),
     });
-    expect([200, 404, 500]).toContain(res.status());
+    expect([200, 404]).toContain(res.status());
   });
 
   test('DELETE /api/telemedicine/rooms/:id → closes tele room', async ({ request }) => {
@@ -609,7 +609,7 @@ test.describe('📞 Ext3 — Telemedicine Deep Write', () => {
     const res = await request.delete(`${BASE_URL}/api/telemedicine/rooms/${id}`, {
       headers: authHeaders(auth),
     });
-    expect([200, 404, 500]).toContain(res.status());
+    expect([200, 404]).toContain(res.status());
   });
 });
 
@@ -628,7 +628,7 @@ test.describe('💊 Ext3 — Pharmacy Deep Write', () => {
         notes: 'E2E automated test supplier',
       },
     });
-    expect([201, 200, 500]).toContain(res.status());
+    expect([201, 200, 400]).toContain(res.status());
   });
 
   test('PUT /api/pharmacy/suppliers/99999 → updates supplier', async ({ request }) => {
@@ -637,7 +637,7 @@ test.describe('💊 Ext3 — Pharmacy Deep Write', () => {
       headers: authHeaders(auth),
       data: { name: 'E2E Updated Supplier', notes: 'Updated by E2E' },
     });
-    expect([200, 404, 500]).toContain(res.status());
+    expect([200, 404]).toContain(res.status());
   });
 
   test('PUT /api/pharmacy/medicines/99999 → updates medicine', async ({ request }) => {
@@ -646,7 +646,7 @@ test.describe('💊 Ext3 — Pharmacy Deep Write', () => {
       headers: authHeaders(auth),
       data: { name: 'E2E Updated Medicine' },
     });
-    expect([200, 404, 500]).toContain(res.status());
+    expect([200, 404]).toContain(res.status());
   });
 
   test('GET /api/pharmacy/suppliers → lists suppliers', async ({ request }) => {
@@ -665,7 +665,7 @@ test.describe('🔬 Ext3 — Lab Deep Write', () => {
     const res = await request.delete(`${BASE_URL}/api/lab/99999`, {
       headers: authHeaders(auth),
     });
-    expect([200, 404, 500]).toContain(res.status());
+    expect([200, 404]).toContain(res.status());
   });
 
   test('PATCH /api/lab/items/99999/sample-status → updates sample status', async ({ request }) => {
@@ -674,7 +674,7 @@ test.describe('🔬 Ext3 — Lab Deep Write', () => {
       headers: authHeaders(auth),
       data: { sample_status: 'collected' },
     });
-    expect([200, 400, 404, 500]).toContain(res.status());
+    expect([200, 400, 404]).toContain(res.status());
   });
 });
 
@@ -687,7 +687,7 @@ test.describe('🛡️ Ext3 — Insurance Deep Write', () => {
     const res = await request.delete(`${BASE_URL}/api/insurance/policies/99999`, {
       headers: authHeaders(auth),
     });
-    expect([200, 403, 404, 500]).toContain(res.status());
+    expect([200, 403, 404]).toContain(res.status());
   });
 
   test('POST /api/insurance/claims → creates insurance claim', async ({ request }) => {
@@ -702,7 +702,7 @@ test.describe('🛡️ Ext3 — Insurance Deep Write', () => {
         claimed_amount: 8000,
       },
     });
-    expect([201, 200, 403, 500]).toContain(res.status());
+    expect([201, 200, 400, 403]).toContain(res.status());
   });
 
   test('PUT /api/insurance/claims/99999 → updates insurance claim', async ({ request }) => {
@@ -714,7 +714,7 @@ test.describe('🛡️ Ext3 — Insurance Deep Write', () => {
         approved_amount: 7500,
       },
     });
-    expect([200, 403, 404, 500]).toContain(res.status());
+    expect([200, 403, 404]).toContain(res.status());
   });
 });
 
@@ -728,7 +728,7 @@ test.describe('⚙️ Ext3 — Settings Deep Write', () => {
       headers: authHeaders(auth),
       data: { value: 'E2E Test Hospital' },
     });
-    expect([200, 403, 500]).toContain(res.status());
+    expect([200, 403]).toContain(res.status());
   });
 
   test('DELETE /api/settings/logo → deletes hospital logo', async ({ request }) => {
@@ -736,7 +736,7 @@ test.describe('⚙️ Ext3 — Settings Deep Write', () => {
     const res = await request.delete(`${BASE_URL}/api/settings/logo`, {
       headers: authHeaders(auth),
     });
-    expect([200, 403, 404, 500]).toContain(res.status());
+    expect([200, 403, 404]).toContain(res.status());
   });
 });
 
@@ -749,7 +749,7 @@ test.describe('🔄 Ext3 — Recurring Expenses Deep', () => {
     const res = await request.delete(`${BASE_URL}/api/recurring/99999`, {
       headers: authHeaders(auth),
     });
-    expect([200, 404, 500]).toContain(res.status());
+    expect([200, 404]).toContain(res.status());
   });
 
   test('POST /api/recurring/99999/run → manually triggers recurring expense', async ({ request }) => {
@@ -757,7 +757,7 @@ test.describe('🔄 Ext3 — Recurring Expenses Deep', () => {
     const res = await request.post(`${BASE_URL}/api/recurring/99999/run`, {
       headers: authHeaders(auth),
     });
-    expect([200, 404, 500]).toContain(res.status());
+    expect([200, 404]).toContain(res.status());
   });
 });
 
@@ -775,7 +775,7 @@ test.describe('👥 Ext3 — Shareholders Deep Write', () => {
         profit_percentage: 50,
       },
     });
-    expect([200, 403, 500]).toContain(res.status());
+    expect([200, 403]).toContain(res.status());
   });
 
   test('PUT /api/shareholders/99999 → updates shareholder', async ({ request }) => {
@@ -784,7 +784,7 @@ test.describe('👥 Ext3 — Shareholders Deep Write', () => {
       headers: authHeaders(auth),
       data: { name: 'E2E Updated Shareholder' },
     });
-    expect([200, 403, 404, 500]).toContain(res.status());
+    expect([200, 403, 404]).toContain(res.status());
   });
 
   test('POST /api/shareholders/distribute → distributes dividends', async ({ request }) => {
@@ -800,8 +800,8 @@ test.describe('👥 Ext3 — Shareholders Deep Write', () => {
         ],
       },
     });
-    // 200, 403 (director role needed), 500 DB
-    expect([200, 403, 500]).toContain(res.status());
+    // 200, 403 (director role needed)
+    expect([200, 403]).toContain(res.status());
   });
 });
 
@@ -819,7 +819,7 @@ test.describe('🚫 Ext3 — Billing Cancellation Deep Write', () => {
         reason: 'E2E test cancellation',
       },
     });
-    expect([200, 400, 403, 404, 500]).toContain(res.status());
+    expect([200, 400, 403, 404]).toContain(res.status());
   });
 
   test('PUT /api/billing-cancellation/items/batch → batch cancels items', async ({ request }) => {
@@ -832,7 +832,7 @@ test.describe('🚫 Ext3 — Billing Cancellation Deep Write', () => {
         reason: 'E2E batch cancellation test',
       },
     });
-    expect([200, 400, 403, 500]).toContain(res.status());
+    expect([200, 400, 403]).toContain(res.status());
   });
 
   test('PUT /api/billing-cancellation/provisional/99999 → cancels provisional bill', async ({ request }) => {
@@ -841,7 +841,7 @@ test.describe('🚫 Ext3 — Billing Cancellation Deep Write', () => {
       headers: authHeaders(auth),
       data: { reason: 'E2E provisional cancellation test' },
     });
-    expect([200, 400, 403, 404, 500]).toContain(res.status());
+    expect([200, 400, 403, 404]).toContain(res.status());
   });
 });
 
@@ -865,7 +865,7 @@ test.describe('🩺 Ext3 — Nurse Station Deep Write', () => {
         notes: 'E2E vitals check — all normal',
       },
     });
-    expect([201, 200, 400, 500]).toContain(res.status());
+    expect([201, 200, 400]).toContain(res.status());
   });
 
   test('PUT /api/nurse-station/alerts/99999/acknowledge → acknowledges alert', async ({ request }) => {
@@ -873,7 +873,7 @@ test.describe('🩺 Ext3 — Nurse Station Deep Write', () => {
     const res = await request.put(`${BASE_URL}/api/nurse-station/alerts/99999/acknowledge`, {
       headers: authHeaders(auth),
     });
-    expect([200, 404, 500]).toContain(res.status());
+    expect([200, 404]).toContain(res.status());
   });
 });
 
@@ -887,8 +887,8 @@ test.describe('🏨 Ext3 — Admissions Deep Write', () => {
       headers: authHeaders(auth),
       data: { status: 'admitted' },
     });
-    // 200 success, 403 role, 400 if not found
-    expect([200, 400, 403, 404, 500]).toContain(res.status());
+    // 200 success, 403 role, 400/404 if not found
+    expect([200, 400, 403, 404]).toContain(res.status());
   });
 
   test('PUT /api/admissions/99999/discharge → discharges patient', async ({ request }) => {
@@ -897,7 +897,7 @@ test.describe('🏨 Ext3 — Admissions Deep Write', () => {
       headers: authHeaders(auth),
       data: { discharge_notes: 'E2E test discharge' },
     });
-    expect([200, 404, 500]).toContain(res.status());
+    expect([200, 404]).toContain(res.status());
   });
 });
 
@@ -910,7 +910,7 @@ test.describe('🩺 Ext3 — Vitals Deep Write', () => {
     const res = await request.delete(`${BASE_URL}/api/vitals/99999`, {
       headers: authHeaders(auth),
     });
-    expect([200, 404, 500]).toContain(res.status());
+    expect([200, 404]).toContain(res.status());
   });
 });
 
@@ -924,7 +924,7 @@ test.describe('👨‍⚕️ Ext3 — Staff Deep Write', () => {
       headers: authHeaders(auth),
       data: { name: 'E2E Updated Staff' },
     });
-    expect([200, 403, 404, 500]).toContain(res.status());
+    expect([200, 403, 404]).toContain(res.status());
   });
 
   test('DELETE /api/staff/99999 → deactivates staff member', async ({ request }) => {
@@ -932,6 +932,6 @@ test.describe('👨‍⚕️ Ext3 — Staff Deep Write', () => {
     const res = await request.delete(`${BASE_URL}/api/staff/99999`, {
       headers: authHeaders(auth),
     });
-    expect([200, 403, 404, 500]).toContain(res.status());
+    expect([200, 403, 404]).toContain(res.status());
   });
 });

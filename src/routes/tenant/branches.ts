@@ -38,8 +38,8 @@ branchRoutes.get('/analytics', async (c) => {
       SELECT b.id, b.name, b.address, b.is_active,
         (SELECT COUNT(*) FROM patients WHERE branch_id = b.id AND tenant_id = ?) as patients,
         (SELECT COUNT(*) FROM users WHERE branch_id = b.id AND tenant_id = ?) as staff,
-        (SELECT COUNT(*) FROM beds WHERE branch_id = b.id AND tenant_id = ?) as beds_total,
-        (SELECT COUNT(*) FROM beds WHERE branch_id = b.id AND tenant_id = ? AND status = 'occupied') as beds_occupied,
+        (SELECT COUNT(*) FROM beds WHERE tenant_id = ?) as beds_total,
+        (SELECT COUNT(*) FROM beds WHERE tenant_id = ? AND status = 'occupied') as beds_occupied,
         (SELECT COALESCE(SUM(amount), 0) FROM income WHERE branch_id = b.id AND tenant_id = ? AND strftime('%Y-%m', date) = ?) as revenue,
         (SELECT COALESCE(SUM(amount), 0) FROM income WHERE branch_id = b.id AND tenant_id = ? AND strftime('%Y-%m', date) = ?) as last_month_revenue
       FROM branches b

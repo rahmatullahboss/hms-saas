@@ -110,7 +110,7 @@ shareholderRoutes.get('/', zValidator('query', listShareholderSchema), async (c)
 
   let query = `SELECT id, name, address, phone, email, nid, share_count, type, investment,
     bank_name, bank_account_no, bank_branch, routing_no, share_value_bdt,
-    is_active, user_id, start_date, nominee_name, nominee_contact,
+    is_active, user_id, nominee_name, nominee_contact,
     created_at, updated_at
     FROM shareholders WHERE tenant_id = ?`;
   const params: (string | number)[] = [tenantId!];
@@ -201,9 +201,9 @@ shareholderRoutes.post('/', zValidator('json', createShareholderSchema), async (
     // 4. Insert
     const result = await c.env.DB.prepare(
       `INSERT INTO shareholders (name, address, phone, email, nid, share_count, type, investment,
-        start_date, bank_name, bank_account_no, bank_branch, routing_no,
+        bank_name, bank_account_no, bank_branch, routing_no,
         share_value_bdt, is_active, user_id, nominee_name, nominee_contact, tenant_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
       data.name,
       data.address ?? null,
@@ -213,7 +213,6 @@ shareholderRoutes.post('/', zValidator('json', createShareholderSchema), async (
       data.shareCount,
       data.type,
       data.investment ?? 0,
-      data.startDate ?? null,
       data.bankName ?? null,
       data.bankAccountNo ?? null,
       data.bankBranch ?? null,
@@ -264,7 +263,7 @@ shareholderRoutes.put('/:id', zValidator('json', updateShareholderSchema), async
     // Dynamic column whitelist update
     const ALLOWED_COLUMNS: Record<string, string> = {
       name: 'name', address: 'address', phone: 'phone', email: 'email', nid: 'nid',
-      shareCount: 'share_count', type: 'type', investment: 'investment', startDate: 'start_date',
+      shareCount: 'share_count', type: 'type', investment: 'investment',
       bankName: 'bank_name', bankAccountNo: 'bank_account_no', bankBranch: 'bank_branch',
       routingNo: 'routing_no', shareValueBdt: 'share_value_bdt', isActive: 'is_active',
       userId: 'user_id', nomineeName: 'nominee_name', nomineeContact: 'nominee_contact',

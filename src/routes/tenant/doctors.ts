@@ -9,6 +9,32 @@ type AppContext = Context<{ Bindings: Env; Variables: Variables }>;
 
 const doctorRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
+/**
+ * Trigger hospital site re-render when doctors change.
+ * Non-blocking — runs in background via waitUntil.
+ */
+async function triggerSiteReRender(
+  c: { env: Env; executionCtx: ExecutionContext },
+  tenantId: string
+): Promise<void> {
+  try {
+    // Only re-render if the tenant has a website enabled
+    const config = await c.env.DB.prepare(
+      `SELECT wc.is_enabled, t.subdomain FROM website_config wc
+       JOIN tenants t ON wc.tenant_id = t.id
+       WHERE wc.tenant_id = ? AND wc.is_enabled = 1`
+    ).bind(tenantId).first<{ is_enabled: number; subdomain: string }>();
+    if (!config?.subdomain) return;
+
+    const { preRenderTenantSite } = await import('../public/prerender');
+    c.executionCtx.waitUntil(
+      preRenderTenantSite(c.env.DB, c.env.KV, Number(tenantId), config.subdomain)
+    );
+  } catch {
+    // Non-fatal
+  }
+}
+
 // GET /api/doctors — list all active doctors
 doctorRoutes.get('/', async (c) => {
   const tenantId = requireTenantId(c);
@@ -166,6 +192,10 @@ doctorRoutes.post('/', zValidator('json', createDoctorSchema), async (c) => {
     ).bind(data.name, data.specialty ?? null, data.mobileNumber ?? null, data.consultationFee, tenantId).run();
 
     // TODO: audit log when audit module is available
+
+    // Re-render hospital site (non-blocking)
+    triggerSiteReRender(c, tenantId);
+
     return c.json({ message: 'Doctor added', id: result.meta.last_row_id }, 201);
   } catch {
     throw new HTTPException(500, { message: 'Failed to add doctor' });
@@ -196,6 +226,10 @@ doctorRoutes.put('/:id', zValidator('json', updateDoctorSchema), async (c) => {
     ).run();
 
     // TODO: audit log when audit module is available
+
+    // Re-render hospital site (non-blocking)
+    triggerSiteReRender(c, tenantId);
+
     return c.json({ message: 'Doctor updated' });
   } catch (error) {
     if (error instanceof HTTPException) throw error;
@@ -219,6 +253,10 @@ doctorRoutes.delete('/:id', async (c) => {
     ).bind(id, tenantId).run();
 
     // TODO: audit log when audit module is available
+
+    // Re-render hospital site (non-blocking)
+    triggerSiteReRender(c, tenantId);
+
     return c.json({ message: 'Doctor deactivated' });
   } catch (error) {
     if (error instanceof HTTPException) throw error;

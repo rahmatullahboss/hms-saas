@@ -8,6 +8,29 @@ import { websiteConfigSchema, websiteServiceSchema } from '../../schemas/website
 
 const websiteRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
+/**
+ * Shared helper to trigger non-blocking site re-render.
+ * Resolves subdomain from DB using tenantId (not headers).
+ */
+async function triggerReRender(
+  c: { env: Env; executionCtx: ExecutionContext },
+  tenantId: string
+): Promise<void> {
+  try {
+    const tenant = await c.env.DB.prepare(
+      'SELECT subdomain FROM tenants WHERE id = ?'
+    ).bind(tenantId).first<{ subdomain: string }>();
+    if (!tenant?.subdomain) return;
+
+    const { preRenderTenantSite } = await import('../public/prerender');
+    c.executionCtx.waitUntil(
+      preRenderTenantSite(c.env.DB, c.env.KV, Number(tenantId), tenant.subdomain)
+    );
+  } catch {
+    // Pre-render failure is non-fatal
+  }
+}
+
 // Whitelist of allowed column names for dynamic SQL (P0 SQL injection fix)
 const ALLOWED_CONFIG_COLUMNS = new Set([
   'is_enabled', 'theme', 'tagline', 'about_text', 'mission_text',
@@ -64,6 +87,9 @@ websiteRoutes.put('/config', zValidator('json', websiteConfigSchema), async (c) 
     ).bind(tenantId, ...values).run();
   }
 
+  // Auto re-render hospital site (non-blocking)
+  triggerReRender(c, tenantId);
+
   return c.json({ success: true, message: 'Website config saved' });
 });
 
@@ -89,6 +115,9 @@ websiteRoutes.post('/services', zValidator('json', websiteServiceSchema), async 
     data.icon ?? '🏥', data.category ?? 'general', data.is_active ?? 1, data.sort_order ?? 0
   ).run();
 
+  // Auto re-render (non-blocking)
+  triggerReRender(c, tenantId);
+
   return c.json({ success: true }, 201);
 });
 
@@ -108,6 +137,9 @@ websiteRoutes.put('/services/:id', zValidator('json', websiteServiceSchema.parti
     `UPDATE website_services SET ${setClauses} WHERE id = ? AND tenant_id = ?`
   ).bind(...values, serviceId, tenantId).run();
 
+  // Auto re-render (non-blocking)
+  triggerReRender(c, tenantId);
+
   return c.json({ success: true });
 });
 
@@ -119,6 +151,9 @@ websiteRoutes.delete('/services/:id', async (c) => {
   await c.env.DB.prepare(
     'DELETE FROM website_services WHERE id = ? AND tenant_id = ?'
   ).bind(serviceId, tenantId).run();
+
+  // Auto re-render (non-blocking)
+  triggerReRender(c, tenantId);
 
   return c.json({ success: true });
 });
@@ -169,16 +204,10 @@ websiteRoutes.get('/analytics', async (c) => {
 // Manual re-render trigger (admin use) — triggers SSR pre-render of hospital site
 websiteRoutes.post('/trigger-render', async (c) => {
   const tenantId = requireTenantId(c);
-  const subdomain = c.req.header('x-tenant-subdomain') || 'unknown';
 
-  try {
-    // Dynamic import to avoid bundling issues if prerender is not present
-    const { preRenderTenantSite } = await import('../public/prerender');
-    c.executionCtx.waitUntil(preRenderTenantSite(c.env.DB, c.env.KV, Number(tenantId), subdomain));
-    return c.json({ success: true, message: 'Re-render triggered' });
-  } catch {
-    return c.json({ success: true, message: 'Re-render skipped (prerender not available)' });
-  }
+  // Resolve subdomain from DB (not header)
+  triggerReRender(c, tenantId);
+  return c.json({ success: true, message: 'Re-render triggered' });
 });
 
 export default websiteRoutes;
