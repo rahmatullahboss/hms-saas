@@ -109,5 +109,26 @@ export default defineConfig({
       testMatch: '**/browser/auth-ui-flows.spec.ts',
       use: { ...devices['Desktop Chrome'] },
     },
+    // ─── Super Admin API E2E ─────────────────────────
+    {
+      name: 'super-admin-api',
+      testMatch: '**/api/super-admin-api.spec.ts',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    // ─── Shareholders E2E (43 tests, full coverage) ──
+    {
+      name: 'shareholders',
+      testMatch: '**/api/shareholders.spec.ts',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    // ─── Super Admin Browser E2E (Production — real API, no mocks) ──
+    {
+      name: 'super-admin-browser',
+      testMatch: '**/browser/super-admin-prod.spec.ts',
+      use: {
+        ...devices['Desktop Chrome'],
+        serviceWorkers: 'block',
+      },
+    },
   ],
 });

@@ -6,7 +6,7 @@ import {
   Activity, ShieldCheck,
 } from 'lucide-react';
 import KPICard from '../components/dashboard/KPICard';
-import axios from 'axios';
+import adminApi from '../lib/adminApi';
 import { useTranslation } from 'react-i18next';
 
 interface PlatformStats {
@@ -31,10 +31,7 @@ export default function SuperAdminDashboard() {
   const fetchStats = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('hms_token');
-      const { data } = await axios.get('/api/admin/stats', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const { data } = await adminApi.get('/stats');
       setStats(data);
     } catch {
       // Don't silently swallow errors with fake data
@@ -211,7 +208,7 @@ export default function SuperAdminDashboard() {
                       </td>
                     </tr>
                   ) : (
-                    stats!.recentHospitals.map((h) => (
+                    (stats?.recentHospitals ?? []).map((h) => (
                       <tr key={h.id} className="cursor-pointer" onClick={() => navigate(`/super-admin/hospitals/${h.id}`)}>
                         <td className="font-medium">{h.name}</td>
                         <td className="font-data text-sm text-[var(--color-text-secondary)]">{h.subdomain}</td>

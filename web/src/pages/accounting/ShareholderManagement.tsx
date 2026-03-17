@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Users, Plus, X, Search, DollarSign, TrendingUp,
-  PiggyBank, Calculator, Check, ChevronRight
+  PiggyBank, Calculator, Check, ChevronRight, Upload
 } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../../components/DashboardLayout';
 import KPICard from '../../components/dashboard/KPICard';
+import PdfImportModal from '../../components/shareholders/PdfImportModal';
 import { useTranslation } from 'react-i18next';
 
 /* ─── Types ─── */
@@ -32,27 +33,44 @@ interface Distribution {
 
 interface CalculationResult {
   month: string;
-  totalIncome: number;
-  totalExpenses: number;
-  profit: number;
+  financials: {
+    totalIncome: number;
+    totalExpenses: number;
+    netProfit: number;
+    retainedAmount: number;
+    retainedPct: number;
+    distributable: number;
+  };
+  taxConfig: {
+    tdsApplicable: boolean;
+    taxRate: number;
+    tdsRate: number;
+  };
+  metrics: {
+    totalShares: number;
+    globalShareValue: number;
+    grossPerShare: number;
+  };
   profitPct: number;
-  distributable: number;
-  perShare: number;
-  totalShares: number;
-  breakdown: { id: number; name: string; type: string; shareCount: number; amount: number }[];
+  breakdown: {
+    id: number;
+    name: string;
+    type: string;
+    shareCount: number;
+    shareValueBdt: number;
+    shareValueTotal: number;
+    grossDividend: number;
+    taxDeducted: number;
+    netPayable: number;
+  }[];
 }
 
-const DEMO_SHAREHOLDERS: Shareholder[] = [
-  { id: 1, name: 'ড. আব্দুল করিম', type: 'director', share_count: 50, investment: 5000000, phone: '01711000001' },
-  { id: 2, name: 'ড. ফাহিমা রহমান', type: 'director', share_count: 40, investment: 4000000, phone: '01711000002' },
-  { id: 3, name: 'রুবেল হোসেন', type: 'md', share_count: 30, investment: 3000000, phone: '01711000003' },
-  { id: 4, name: 'তানভীর আহমেদ', type: 'investor', share_count: 20, investment: 2000000, phone: '01711000004' },
-];
-
 const TYPE_BADGE: Record<string, { label: string; badge: string }> = {
-  director:  { label: 'Director',  badge: 'badge-primary' },
-  md:        { label: 'MD',        badge: 'badge-success' },
-  investor:  { label: 'Investor',  badge: 'badge-warning' },
+  owner:        { label: 'Owner',        badge: 'badge-primary' },
+  profit:       { label: 'Profit',       badge: 'badge-success' },
+  investor:     { label: 'Investor',     badge: 'badge-warning' },
+  doctor:       { label: 'Doctor',       badge: 'badge-info' },
+  shareholder:  { label: 'Shareholder',  badge: 'badge-secondary' },
 };
 
 export default function ShareholderManagement({ role = 'hospital_admin' }: { role?: string }) {
@@ -64,11 +82,12 @@ export default function ShareholderManagement({ role = 'hospital_admin' }: { rol
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Shareholder | null>(null);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ name: '', address: '', phone: '', shareCount: '', type: 'investor', investment: '', startDate: '' });
+  const [form, setForm] = useState({ name: '', address: '', phone: '', shareCount: '', type: 'investor', investment: '', startDate: '', email: '', nid: '', bankName: '', bankAccountNo: '', bankBranch: '', routingNo: '', nomineeName: '', nomineeContact: '' });
   const [activeTab, setActiveTab] = useState<'shareholders' | 'distributions' | 'calculate'>('shareholders');
   const [calcMonth, setCalcMonth] = useState(new Date().toISOString().slice(0, 7));
   const [calcResult, setCalcResult] = useState<CalculationResult | null>(null);
   const [distributing, setDistributing] = useState(false);
+  const [showPdfImport, setShowPdfImport] = useState(false);
   const { t } = useTranslation(['accounting', 'common']);
 
   // ESC-to-close modal
@@ -87,7 +106,8 @@ export default function ShareholderManagement({ role = 'hospital_admin' }: { rol
       const { data } = await axios.get('/api/shareholders', { params, headers: { Authorization: `Bearer ${token}` } });
       setShareholders(data.shareholders ?? []);
     } catch {
-      setShareholders(DEMO_SHAREHOLDERS);
+      setShareholders([]);
+      toast.error('Failed to load shareholders');
     } finally {
       setLoading(false);
     }
@@ -143,13 +163,13 @@ export default function ShareholderManagement({ role = 'hospital_admin' }: { rol
 
   const openAdd = () => {
     setEditing(null);
-    setForm({ name: '', address: '', phone: '', shareCount: '', type: 'investor', investment: '', startDate: '' });
+    setForm({ name: '', address: '', phone: '', shareCount: '', type: 'investor', investment: '', startDate: '', email: '', nid: '', bankName: '', bankAccountNo: '', bankBranch: '', routingNo: '', nomineeName: '', nomineeContact: '' });
     setShowModal(true);
   };
 
   const openEdit = (sh: Shareholder) => {
     setEditing(sh);
-    setForm({ name: sh.name, address: sh.address || '', phone: sh.phone || '', shareCount: sh.share_count.toString(), type: sh.type, investment: sh.investment.toString(), startDate: sh.start_date || '' });
+    setForm({ name: sh.name, address: sh.address || '', phone: sh.phone || '', shareCount: sh.share_count.toString(), type: sh.type, investment: sh.investment.toString(), startDate: sh.start_date || '', email: '', nid: '', bankName: '', bankAccountNo: '', bankBranch: '', routingNo: '', nomineeName: '', nomineeContact: '' });
     setShowModal(true);
   };
 
@@ -168,7 +188,16 @@ export default function ShareholderManagement({ role = 'hospital_admin' }: { rol
     setDistributing(true);
     try {
       const token = localStorage.getItem('hms_token');
-      await axios.post('/api/shareholders/distribute', { month: calcMonth }, { headers: { Authorization: `Bearer ${token}` } });
+      const items = calcResult.breakdown.map(b => ({
+        shareholderId: b.id,
+        grossDividend: b.grossDividend,
+        taxDeducted: b.taxDeducted,
+        netPayable: b.netPayable,
+      }));
+      await axios.post('/api/shareholders/distribute', {
+        month: calcMonth,
+        items,
+      }, { headers: { Authorization: `Bearer ${token}` } });
       toast.success('Profit distributed successfully!');
       setCalcResult(null);
       fetchDistributions();
@@ -193,7 +222,14 @@ export default function ShareholderManagement({ role = 'hospital_admin' }: { rol
             <h1 className="page-title">Shareholder Management</h1>
             <p className="section-subtitle mt-1">Manage shareholders, shares, and profit distribution</p>
           </div>
-          <button onClick={openAdd} className="btn-primary"><Plus className="w-4 h-4" /> Add Shareholder</button>
+          <div className="flex gap-3">
+            <button onClick={() => setShowPdfImport(true)} className="btn-secondary">
+              <Upload className="w-4 h-4" /> PDF Import
+            </button>
+            <button onClick={openAdd} className="btn-primary">
+              <Plus className="w-4 h-4" /> Add Shareholder
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -220,7 +256,7 @@ export default function ShareholderManagement({ role = 'hospital_admin' }: { rol
                 <input type="text" placeholder="Search shareholder…" value={search} onChange={e => setSearch(e.target.value)} className="input pl-9" />
               </div>
               <div className="flex border border-[var(--color-border)] rounded-lg overflow-hidden text-sm">
-                {[['', 'All'], ['director', 'Director'], ['md', 'MD'], ['investor', 'Investor']].map(([val, label]) => (
+                {[['', 'All'], ['owner', 'Owner'], ['profit', 'Profit'], ['investor', 'Investor'], ['doctor', 'Doctor'], ['shareholder', 'Shareholder']].map(([val, label]) => (
                   <button key={val} onClick={() => setTypeFilter(val)}
                     className={`px-3 py-2 font-medium transition-colors ${typeFilter === val ? 'bg-[var(--color-primary)] text-white' : 'bg-white hover:bg-[var(--color-border-light)] text-[var(--color-text-secondary)]'}`}>
                     {label}
@@ -301,40 +337,48 @@ export default function ShareholderManagement({ role = 'hospital_admin' }: { rol
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="p-3 bg-[var(--color-surface)] rounded-lg">
                     <p className="text-xs text-[var(--color-text-muted)]">Income</p>
-                    <p className="font-data font-medium text-emerald-600">৳{calcResult.totalIncome.toLocaleString()}</p>
+                    <p className="font-data font-medium text-emerald-600">৳{calcResult.financials.totalIncome.toLocaleString()}</p>
                   </div>
                   <div className="p-3 bg-[var(--color-surface)] rounded-lg">
                     <p className="text-xs text-[var(--color-text-muted)]">Expenses</p>
-                    <p className="font-data font-medium text-red-600">৳{calcResult.totalExpenses.toLocaleString()}</p>
+                    <p className="font-data font-medium text-red-600">৳{calcResult.financials.totalExpenses.toLocaleString()}</p>
                   </div>
                   <div className="p-3 bg-[var(--color-surface)] rounded-lg">
                     <p className="text-xs text-[var(--color-text-muted)]">Net Profit</p>
-                    <p className="font-data font-semibold">৳{calcResult.profit.toLocaleString()}</p>
+                    <p className="font-data font-semibold">৳{calcResult.financials.netProfit.toLocaleString()}</p>
                   </div>
                   <div className="p-3 bg-[var(--color-surface)] rounded-lg">
                     <p className="text-xs text-[var(--color-text-muted)]">Distributable ({calcResult.profitPct}%)</p>
-                    <p className="font-data font-semibold text-[var(--color-primary)]">৳{calcResult.distributable.toLocaleString()}</p>
+                    <p className="font-data font-semibold text-[var(--color-primary)]">৳{calcResult.financials.distributable.toLocaleString()}</p>
                   </div>
                 </div>
 
-                <p className="text-sm text-[var(--color-text-muted)]">Per Share: ৳{calcResult.perShare.toLocaleString()} × {calcResult.totalShares} shares</p>
+                {calcResult.financials.retainedAmount > 0 && (
+                  <p className="text-sm text-amber-600">Retained Earnings: ৳{calcResult.financials.retainedAmount.toLocaleString()} ({calcResult.financials.retainedPct}%)</p>
+                )}
+                {calcResult.taxConfig.tdsApplicable && (
+                  <p className="text-sm text-red-500">TDS @{calcResult.taxConfig.taxRate}% applicable</p>
+                )}
+                <p className="text-sm text-[var(--color-text-muted)]">Per Share: ৳{calcResult.metrics.grossPerShare.toLocaleString()} × {calcResult.metrics.totalShares} shares</p>
 
                 <table className="table-base text-sm">
-                  <thead><tr><th>Shareholder</th><th>Type</th><th>Shares</th><th className="text-right">Amount</th></tr></thead>
+                  <thead><tr><th>Shareholder</th><th>Type</th><th>Shares</th><th className="text-right">Gross</th><th className="text-right">Tax</th><th className="text-right">Net Payable</th></tr></thead>
                   <tbody>
                     {calcResult.breakdown.map(b => (
                       <tr key={b.id}>
                         <td className="font-medium">{b.name}</td>
-                        <td><span className={`badge ${TYPE_BADGE[b.type]?.badge ?? 'badge-secondary'}`}>{b.type}</span></td>
+                        <td><span className={`badge ${TYPE_BADGE[b.type]?.badge ?? 'badge-secondary'}`}>{TYPE_BADGE[b.type]?.label ?? b.type}</span></td>
                         <td className="font-data">{b.shareCount}</td>
-                        <td className="text-right font-data font-medium">৳{b.amount.toLocaleString()}</td>
+                        <td className="text-right font-data">৳{b.grossDividend.toLocaleString()}</td>
+                        <td className="text-right font-data text-red-500">{b.taxDeducted > 0 ? `৳${b.taxDeducted.toLocaleString()}` : '—'}</td>
+                        <td className="text-right font-data font-medium">৳{b.netPayable.toLocaleString()}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
 
                 <button onClick={distributeProfit} disabled={distributing} className="btn-primary w-full">
-                  <Check className="w-4 h-4" /> {distributing ? 'Distributing…' : `Approve & Distribute ৳${calcResult.distributable.toLocaleString()}`}
+                  <Check className="w-4 h-4" /> {distributing ? 'Distributing…' : `Approve & Distribute ৳${calcResult.financials.distributable.toLocaleString()}`}
                 </button>
               </div>
             )}
@@ -354,7 +398,7 @@ export default function ShareholderManagement({ role = 'hospital_admin' }: { rol
                 <div className="grid grid-cols-2 gap-4">
                   <div><label className="label">Type *</label>
                     <select className="input" value={form.type} onChange={e => setForm({ ...form, type: e.target.value })}>
-                      <option value="director">Director</option><option value="md">MD</option><option value="investor">Investor</option>
+                      <option value="owner">Owner</option><option value="profit">Profit Holder</option><option value="investor">Investor</option><option value="doctor">Doctor</option><option value="shareholder">Shareholder</option>
                     </select>
                   </div>
                   <div><label className="label">Shares *</label><input className="input" type="number" min="1" required value={form.shareCount} onChange={e => setForm({ ...form, shareCount: e.target.value })} /></div>
@@ -370,6 +414,16 @@ export default function ShareholderManagement({ role = 'hospital_admin' }: { rol
             </div>
           </div>
         )}
+
+        {/* PDF Import Modal */}
+        <PdfImportModal
+          isOpen={showPdfImport}
+          onClose={() => setShowPdfImport(false)}
+          onImportComplete={() => {
+            setShowPdfImport(false);
+            fetchShareholders();
+          }}
+        />
       </div>
     </DashboardLayout>
   );

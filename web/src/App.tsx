@@ -66,6 +66,9 @@ import SuperAdminDashboard from './pages/SuperAdminDashboard';
 import SuperAdminHospitalList from './pages/SuperAdminHospitalList';
 import SuperAdminHospitalDetail from './pages/SuperAdminHospitalDetail';
 import SuperAdminOnboardingQueue from './pages/SuperAdminOnboardingQueue';
+import SuperAdminSettings from './pages/SuperAdminSettings';
+import SuperAdminAuditLog from './pages/SuperAdminAuditLog';
+import SuperAdminHealth from './pages/SuperAdminHealth';
 import EmergencyDashboard from './pages/EmergencyDashboard';
 import OTDashboard from './pages/OTDashboard';
 import DepositsPage from './pages/DepositsPage';
@@ -140,6 +143,9 @@ function App() {
           <Route path="/super-admin/hospitals" element={<DashboardLayout role="super_admin"><SuperAdminHospitalList /></DashboardLayout>} />
           <Route path="/super-admin/hospitals/:id" element={<DashboardLayout role="super_admin"><SuperAdminHospitalDetail /></DashboardLayout>} />
           <Route path="/super-admin/onboarding" element={<DashboardLayout role="super_admin"><SuperAdminOnboardingQueue /></DashboardLayout>} />
+          <Route path="/super-admin/settings" element={<DashboardLayout role="super_admin"><SuperAdminSettings /></DashboardLayout>} />
+          <Route path="/super-admin/audit-log" element={<DashboardLayout role="super_admin"><SuperAdminAuditLog /></DashboardLayout>} />
+          <Route path="/super-admin/health" element={<DashboardLayout role="super_admin"><SuperAdminHealth /></DashboardLayout>} />
         </Route>
 
         {/* ─── Hospital slug-based routes: /h/:slug/* ───────────────── */}

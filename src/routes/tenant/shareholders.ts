@@ -12,6 +12,48 @@ import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 // ── Additional inline schemas (not in schema file to keep it simple) ──
 import { z } from 'zod';
 
+// ── XSS sanitization helper ──
+function stripHtml(input: string): string {
+  return input.replace(/[<>]/g, '').replace(/javascript:/gi, '').replace(/on\w+=/gi, '').trim();
+}
+
+// ── Bulk import schema ──
+const bulkImportItemSchema = z.object({
+  name: z.string().min(1, 'Name required').max(500).transform(stripHtml),
+  nameEn: z.string().max(500).optional().transform(v => v ? stripHtml(v) : v),
+  phone: z.string().max(20).optional().transform(v => v ? v.replace(/\D/g, '') : v),
+  phone2: z.string().max(20).optional().transform(v => v ? v.replace(/\D/g, '') : v),
+  email: z.string().email().max(255).optional().or(z.literal('')),
+  nid: z.string().max(20).optional().transform(v => v ? v.replace(/\D/g, '') : v),
+  shareCount: z.number().int().min(0).max(10000).default(0),
+  shareValueBdt: z.number().int().positive().optional(),
+  investment: z.number().nonnegative().optional(),
+  address: z.string().max(1000).optional().transform(v => v ? stripHtml(v) : v),
+  type: z.enum(['profit', 'owner', 'investor', 'doctor', 'shareholder']).default('investor'),
+  bankName: z.string().max(200).optional().transform(v => v ? stripHtml(v) : v),
+  bankAccountNo: z.string().max(50).optional(),
+  bankBranch: z.string().max(200).optional().transform(v => v ? stripHtml(v) : v),
+  routingNo: z.string().max(20).optional(),
+  isActive: z.boolean().default(true),
+  nomineeName: z.string().max(500).optional().transform(v => v ? stripHtml(v) : v),
+  nomineeContact: z.string().max(20).optional().transform(v => v ? v.replace(/\D/g, '') : v),
+  fatherName: z.string().max(500).optional().transform(v => v ? stripHtml(v) : v),
+  motherName: z.string().max(500).optional().transform(v => v ? stripHtml(v) : v),
+  religion: z.string().max(100).optional().transform(v => v ? stripHtml(v) : v),
+  nationality: z.string().max(100).optional().transform(v => v ? stripHtml(v) : v),
+  profession: z.string().max(200).optional().transform(v => v ? stripHtml(v) : v),
+  annualIncome: z.string().max(100).optional(),
+  dateOfBirth: z.string().max(20).optional(),
+  birthCertificate: z.string().max(50).optional(),
+  passportNo: z.string().max(50).optional(),
+  serialNo: z.string().max(50).optional(),
+});
+
+const bulkImportSchema = z.object({
+  shareholders: z.array(bulkImportItemSchema).min(1, 'At least one shareholder required').max(500, 'Maximum 500 shareholders per import'),
+  skipDuplicates: z.boolean().default(true),
+});
+
 const listShareholderSchema = z.object({
   page: z.coerce.number().min(1).default(1),
   limit: z.coerce.number().min(1).max(100).default(20),
@@ -232,6 +274,187 @@ shareholderRoutes.post('/', zValidator('json', createShareholderSchema), async (
   }
 });
 
+// ============================================================
+// BULK IMPORT (PDF Import)
+// ============================================================
+
+/** POST /api/shareholders/bulk-import — import multiple shareholders from PDF data */
+shareholderRoutes.post('/bulk-import', zValidator('json', bulkImportSchema), async (c) => {
+  const tenantId = requireTenantId(c);
+  const userId = requireUserId(c);
+  const { shareholders: items, skipDuplicates } = c.req.valid('json');
+
+  // ── Default share caps (DRY) ──
+  const DEFAULT_CAPS = { total: 300, investor: 100, owner: 200 } as const;
+
+  try {
+    // 1. Fetch settings + current share counts (single query for atomicity)
+    const [settingsRows, currentShares] = await Promise.all([
+      c.env.DB.prepare(
+        "SELECT key, value FROM settings WHERE key IN ('max_total_shares','max_investor_shares','max_owner_shares') AND tenant_id = ?"
+      ).bind(tenantId).all<{ key: string; value: string }>(),
+      c.env.DB.prepare(
+        `SELECT 
+          COALESCE(SUM(share_count), 0) as total,
+          COALESCE(SUM(CASE WHEN type IN ('investor','profit','doctor','shareholder') THEN share_count ELSE 0 END), 0) as investor,
+          COALESCE(SUM(CASE WHEN type = 'owner' THEN share_count ELSE 0 END), 0) as owner
+         FROM shareholders WHERE tenant_id = ? AND is_active = 1`
+      ).bind(tenantId).first<{ total: number; investor: number; owner: number }>(),
+    ]);
+
+    const settingsMap = new Map(settingsRows.results.map(r => [r.key, r.value]));
+    const maxTotal = parseInt(settingsMap.get('max_total_shares') ?? String(DEFAULT_CAPS.total));
+    const maxInvestor = parseInt(settingsMap.get('max_investor_shares') ?? String(DEFAULT_CAPS.investor));
+    const maxOwner = parseInt(settingsMap.get('max_owner_shares') ?? String(DEFAULT_CAPS.owner));
+    let runningTotal = currentShares?.total ?? 0;
+    let runningInvestor = currentShares?.investor ?? 0;
+    let runningOwner = currentShares?.owner ?? 0;
+
+    // 2. Pre-validate ALL items before inserting anything (fail-fast)
+    const validatedItems: typeof items = [];
+    const preCheckResults: Array<{ row: number; status: 'skipped' | 'failed'; message: string; name: string }> = [];
+
+    // Check duplicates in-batch (not just against DB)
+    const batchNids = new Set<string>();
+    const batchPhones = new Set<string>();
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const rowNum = i + 1;
+
+      // In-batch duplicate check
+      if (item.nid && batchNids.has(item.nid)) {
+        preCheckResults.push({ row: rowNum, status: 'skipped', message: `Duplicate NID in batch: ${item.nid}`, name: item.name });
+        continue;
+      }
+      if (item.phone && batchPhones.has(item.phone)) {
+        preCheckResults.push({ row: rowNum, status: 'skipped', message: `Duplicate phone in batch: ${item.phone}`, name: item.name });
+        continue;
+      }
+      if (item.nid) batchNids.add(item.nid);
+      if (item.phone) batchPhones.add(item.phone);
+
+      validatedItems.push(item);
+    }
+
+    // 3. Check DB duplicates if skipDuplicates is true
+    const dbDuplicates = new Set<string>();
+    if (skipDuplicates && validatedItems.length > 0) {
+      const nidsToCheck = validatedItems.filter(i => i.nid).map(i => i.nid!);
+      const phonesToCheck = validatedItems.filter(i => i.phone).map(i => i.phone!);
+
+      if (nidsToCheck.length > 0) {
+        const placeholders = nidsToCheck.map(() => '?').join(',');
+        const existing = await c.env.DB.prepare(
+          `SELECT nid FROM shareholders WHERE tenant_id = ? AND nid IN (${placeholders})`
+        ).bind(tenantId, ...nidsToCheck).all<{ nid: string }>();
+        for (const row of existing.results) dbDuplicates.add(`nid:${row.nid}`);
+      }
+      if (phonesToCheck.length > 0) {
+        const placeholders = phonesToCheck.map(() => '?').join(',');
+        const existing = await c.env.DB.prepare(
+          `SELECT phone FROM shareholders WHERE tenant_id = ? AND phone IN (${placeholders})`
+        ).bind(tenantId, ...phonesToCheck).all<{ phone: string }>();
+        for (const row of existing.results) dbDuplicates.add(`phone:${row.phone}`);
+      }
+    }
+
+    // 4. Process validated items with cap checks
+    const statements: ReturnType<typeof c.env.DB.prepare>[] = [];
+    const finalResults: Array<{ row: number; status: 'imported' | 'skipped' | 'failed'; message: string; id?: number; name: string }> = [...preCheckResults];
+
+    for (let i = 0; i < validatedItems.length; i++) {
+      const item = validatedItems[i];
+      const rowNum = items.indexOf(item) + 1;
+
+      // DB duplicate check
+      if (skipDuplicates) {
+        if (item.nid && dbDuplicates.has(`nid:${item.nid}`)) {
+          finalResults.push({ row: rowNum, status: 'skipped', message: `Duplicate NID: ${item.nid}`, name: item.name });
+          continue;
+        }
+        if (item.phone && dbDuplicates.has(`phone:${item.phone}`)) {
+          finalResults.push({ row: rowNum, status: 'skipped', message: `Duplicate phone: ${item.phone}`, name: item.name });
+          continue;
+        }
+      }
+
+      // Share cap checks (with running totals)
+      if (['investor', 'profit', 'doctor', 'shareholder'].includes(item.type)) {
+        if (runningInvestor + item.shareCount > maxInvestor) {
+          finalResults.push({ row: rowNum, status: 'failed', message: `Investor cap exceeded (max: ${maxInvestor})`, name: item.name });
+          continue;
+        }
+      }
+      if (item.type === 'owner') {
+        if (runningOwner + item.shareCount > maxOwner) {
+          finalResults.push({ row: rowNum, status: 'failed', message: `Owner cap exceeded (max: ${maxOwner})`, name: item.name });
+          continue;
+        }
+      }
+      if (runningTotal + item.shareCount > maxTotal) {
+        finalResults.push({ row: rowNum, status: 'failed', message: `Total cap exceeded (max: ${maxTotal})`, name: item.name });
+        continue;
+      }
+
+      const investment = item.investment ?? (item.shareValueBdt ? item.shareCount * item.shareValueBdt : 0);
+
+      statements.push(
+        c.env.DB.prepare(
+          `INSERT OR IGNORE INTO shareholders (name, address, phone, email, nid, share_count, type, investment,
+            bank_name, bank_account_no, bank_branch, routing_no,
+            share_value_bdt, is_active, user_id, nominee_name, nominee_contact, tenant_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ).bind(
+          item.name.substring(0, 500), // Truncate to prevent abuse
+          (item.address ?? '').substring(0, 1000),
+          item.phone?.substring(0, 20) ?? null,
+          item.email ?? null,
+          item.nid?.substring(0, 20) ?? null,
+          item.shareCount,
+          item.type,
+          investment,
+          item.bankName ?? null,
+          item.bankAccountNo ?? null,
+          item.bankBranch ?? null,
+          item.routingNo ?? null,
+          item.shareValueBdt ?? null,
+          item.isActive ? 1 : 0,
+          userId ?? null,
+          item.nomineeName ?? null,
+          item.nomineeContact ?? null,
+          tenantId,
+        ),
+      );
+
+      runningTotal += item.shareCount;
+      if (['investor', 'profit', 'doctor', 'shareholder'].includes(item.type)) runningInvestor += item.shareCount;
+      if (item.type === 'owner') runningOwner += item.shareCount;
+
+      finalResults.push({ row: rowNum, status: 'imported', message: 'Success', name: item.name });
+    }
+
+    // 5. Execute batch insert (atomic via D1 batch)
+    if (statements.length > 0) {
+      await c.env.DB.batch(statements);
+    }
+
+    const successCount = finalResults.filter(r => r.status === 'imported').length;
+    const skippedCount = finalResults.filter(r => r.status === 'skipped').length;
+    const failedCount = finalResults.filter(r => r.status === 'failed').length;
+
+    return c.json({
+      message: `Import complete: ${successCount} imported, ${skippedCount} skipped, ${failedCount} failed`,
+      summary: { total: items.length, imported: successCount, skipped: skippedCount, failed: failedCount },
+      results: finalResults,
+    }, 201);
+  } catch (error) {
+    console.error('[shareholders/bulk-import]', error);
+    if (error instanceof HTTPException) throw error;
+    throw new HTTPException(500, { message: 'Failed to import shareholders' });
+  }
+});
+
 /** PUT /api/shareholders/:id — dynamic update with cap re-validation */
 shareholderRoutes.put('/:id', zValidator('json', updateShareholderSchema), async (c) => {
   const tenantId = requireTenantId(c);
@@ -377,7 +600,8 @@ shareholderRoutes.get('/calculate', zValidator('query', calculateDividendSchema)
       profitPct,
       breakdown,
     });
-  } catch {
+  } catch (error) {
+    console.error('[shareholders/calculate]', error);
     throw new HTTPException(500, { message: 'Failed to calculate profit distribution' });
   }
 });
@@ -428,10 +652,10 @@ shareholderRoutes.post('/distribute', zValidator('json', finalizeDividendSchema)
     ).run();
     const distributionId = distResult.meta.last_row_id;
 
-    // Create per-shareholder payout records
+    // Create per-shareholder payout records via batch for atomicity & D1 performance
     const totalDistributed = items.reduce((sum, item) => sum + item.netPayable, 0);
-    for (const item of items) {
-      await c.env.DB.prepare(
+    const payoutStmts = items.map(item =>
+      c.env.DB.prepare(
         `INSERT INTO shareholder_distributions
            (distribution_id, shareholder_id, share_count, per_share_amount, distribution_amount,
             gross_dividend, tax_deducted, net_payable, paid_status, tenant_id)
@@ -439,7 +663,10 @@ shareholderRoutes.post('/distribute', zValidator('json', finalizeDividendSchema)
       ).bind(
         distributionId, item.shareholderId, 0, 0, item.netPayable,
         item.grossDividend, item.taxDeducted, item.netPayable, tenantId,
-      ).run();
+      ),
+    );
+    if (payoutStmts.length > 0) {
+      await c.env.DB.batch(payoutStmts);
     }
 
     return c.json({
@@ -450,6 +677,7 @@ shareholderRoutes.post('/distribute', zValidator('json', finalizeDividendSchema)
       shareholderCount: items.length,
     }, 201);
   } catch (error) {
+    console.error('[shareholders/distribute]', error);
     if (error instanceof HTTPException) throw error;
     throw new HTTPException(500, { message: 'Failed to distribute profit' });
   }
@@ -467,7 +695,8 @@ shareholderRoutes.get('/distributions', async (c) => {
       'SELECT * FROM profit_distributions WHERE tenant_id = ? ORDER BY month DESC',
     ).bind(tenantId).all();
     return c.json({ distributions: distributions.results });
-  } catch {
+  } catch (error) {
+    console.error('[shareholders/distributions]', error);
     throw new HTTPException(500, { message: 'Failed to fetch distributions' });
   }
 });

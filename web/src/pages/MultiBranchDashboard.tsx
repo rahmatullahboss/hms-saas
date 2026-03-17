@@ -16,16 +16,6 @@ interface Branch {
   trend: number; // revenue change %
 }
 
-const DEMO_BRANCHES: Branch[] = [
-  { id: 1, name: 'Main Hospital — Mirpur', location: 'Mirpur-10, Dhaka', status: 'active',
-    stats: { patients: 1250, revenue: 4500000, beds_total: 100, beds_occupied: 78, staff: 85, occupancy_pct: 78 }, trend: 12 },
-  { id: 2, name: 'Branch — Uttara', location: 'Sector 7, Uttara, Dhaka', status: 'active',
-    stats: { patients: 620, revenue: 2100000, beds_total: 40, beds_occupied: 32, staff: 38, occupancy_pct: 80 }, trend: 8 },
-  { id: 3, name: 'Branch — Dhanmondi', location: 'Road 27, Dhanmondi, Dhaka', status: 'active',
-    stats: { patients: 450, revenue: 1800000, beds_total: 30, beds_occupied: 18, staff: 25, occupancy_pct: 60 }, trend: -3 },
-  { id: 4, name: 'Diagnostic Center — Banani', location: 'Banani DOHS, Dhaka', status: 'active',
-    stats: { patients: 310, revenue: 900000, beds_total: 0, beds_occupied: 0, staff: 12, occupancy_pct: 0 }, trend: 15 },
-];
 
 function fmtTaka(n: number): string {
   if (n >= 1000000) return `৳${(n / 1000000).toFixed(1)}M`;
@@ -41,7 +31,7 @@ export default function MultiBranchDashboard({
 
   const { slug = '' } = useParams<{ slug: string }>();
   const basePath = `/h/${slug}`;
-  const [branches, setBranches] = useState<Branch[]>(DEMO_BRANCHES);
+  const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchBranches = useCallback(async () => {
@@ -49,18 +39,18 @@ export default function MultiBranchDashboard({
     try {
       const token = localStorage.getItem('hms_token');
       const { data } = await axios.get('/api/branches/analytics', {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'X-Tenant-Subdomain': slug,
+        },
       });
-      if (data.branches && data.branches.length > 0) {
-        setBranches(data.branches);
-      }
-      // If no branches returned, keep demo data
+      setBranches(data.branches ?? []);
     } catch {
-      // API unavailable — keep demo data
+      // API unavailable — show empty
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [slug]);
 
   useEffect(() => { fetchBranches(); }, [fetchBranches]);
 
@@ -119,6 +109,11 @@ export default function MultiBranchDashboard({
                 <div className="skeleton h-2 w-full rounded-full" />
               </div>
             ))
+          ) : branches.length === 0 ? (
+            <div className="col-span-2 card p-10 text-center">
+              <Building2 className="w-10 h-10 mx-auto mb-3 text-[var(--color-text-muted)] opacity-40" />
+              <p className="text-sm text-[var(--color-text-muted)]">{t('noBranches', { defaultValue: 'No branches configured yet' })}</p>
+            </div>
           ) : branches.map(branch => (
             <div key={branch.id} className="card p-5 hover:shadow-md transition-shadow">
               <div className="flex items-start justify-between mb-4">

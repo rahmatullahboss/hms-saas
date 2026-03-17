@@ -15,6 +15,8 @@ export default defineConfig({
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     actionTimeout: 10000,
+    // Block service workers so page.route() mocks intercept API fetches
+    serviceWorkers: 'block',
   },
   projects: [
     {

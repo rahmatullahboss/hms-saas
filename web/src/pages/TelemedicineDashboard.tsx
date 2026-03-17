@@ -46,11 +46,6 @@ function timeAgo(d: string): string {
   return `${Math.floor(mins / 60)}h ago`;
 }
 
-const DEMO_CONSULTATIONS: UpcomingConsultation[] = [
-  { id: 1, patient_name: 'Mohammad Karim', patient_code: 'P-00001', doctor_name: 'Dr. Aminur Rahman', time: new Date(Date.now() + 30 * 60000).toISOString(), type: 'Follow-up', status: 'scheduled' },
-  { id: 2, patient_name: 'Fatima Begum', patient_code: 'P-00012', doctor_name: 'Dr. Nasreen Akter', time: new Date(Date.now() + 90 * 60000).toISOString(), type: 'First Visit', status: 'scheduled' },
-  { id: 3, patient_name: 'Rafiqul Islam', patient_code: 'P-00045', doctor_name: 'Dr. Aminur Rahman', time: new Date(Date.now() + 180 * 60000).toISOString(), type: 'Report Review', status: 'scheduled' },
-];
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
@@ -62,24 +57,48 @@ export default function TelemedicineDashboard({ role = 'hospital_admin' }: { rol
   const navigate = useNavigate();
 
   const [rooms, setRooms] = useState<TeleRoom[]>([]);
-  const [consultations] = useState<UpcomingConsultation[]>(DEMO_CONSULTATIONS);
+  const [consultations, setConsultations] = useState<UpcomingConsultation[]>([]);
   const [, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [search, setSearch] = useState('');
 
+  const tenantHeaders = () => ({
+    Authorization: `Bearer ${localStorage.getItem('hms_token')}`,
+    'X-Tenant-Subdomain': slug,
+  });
+
   useEffect(() => {
     fetchRooms();
-  }, []);
+    fetchConsultations();
+  }, [slug]);
 
   const fetchRooms = async () => {
     setLoading(true);
     try {
-      const res = await axios.get('/api/telemedicine/rooms', { headers: authHeaders() });
+      const res = await axios.get('/api/telemedicine/rooms', { headers: tenantHeaders() });
       if (res.data.rooms) setRooms(res.data.rooms);
     } catch {
       /* no rooms = ok */
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchConsultations = async () => {
+    try {
+      const res = await axios.get('/api/appointments?status=scheduled&limit=10', { headers: tenantHeaders() });
+      const appts = res.data.appointments ?? res.data.data ?? [];
+      setConsultations(appts.map((a: any) => ({
+        id: a.id,
+        patient_name: a.patient_name ?? a.name ?? '',
+        patient_code: a.patient_code ?? '',
+        doctor_name: a.doctor_name ?? '',
+        time: a.appointment_date ?? a.scheduled_at ?? '',
+        type: a.visit_type ?? a.type ?? 'Consultation',
+        status: a.status ?? 'scheduled',
+      })));
+    } catch {
+      /* appointments API unavailable */
     }
   };
 
@@ -94,7 +113,7 @@ export default function TelemedicineDashboard({ role = 'hospital_admin' }: { rol
         appointmentId: consultation?.id?.toString() || '',
         doctorName,
         patientName,
-      }, { headers: authHeaders() });
+      }, { headers: tenantHeaders() });
 
       if (res.data.room) {
         navigate(`${basePath}/telemedicine/room/${res.data.room.id}`);

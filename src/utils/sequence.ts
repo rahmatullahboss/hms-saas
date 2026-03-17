@@ -4,6 +4,7 @@
  * Format: PREFIX-YYYY-NNNNN (e.g., PO-2025-00001, GRN-2025-00001)
  *
  * SECURITY: Only whitelisted table/column pairs are allowed to prevent SQL injection.
+ * Defense-in-depth: table names are validated against regex pattern.
  */
 
 /** Whitelisted table→column pairs for sequence generation */
@@ -15,9 +16,15 @@ const SEQUENCE_WHITELIST: Record<string, string> = {
   InventoryReturnToVendor: 'ReturnNo',
   InventoryWriteOff: 'WriteOffNo',
   InventoryRFQ: 'RFQNo',
+  InventoryRequestForQuotation: 'RFQNo', // Alias for RFQ route
   InventoryQuotation: 'QuotationNo',
   InventoryPurchaseOrderDraft: 'DraftPurchaseOrderNo',
 };
+
+/** Defense-in-depth: table name must match this pattern */
+const SAFE_TABLE_NAME = /^[A-Za-z][A-Za-z0-9]*$/;
+/** Defense-in-depth: column name must match this pattern */
+const SAFE_COLUMN_NAME = /^[A-Za-z][A-Za-z0-9]*$/;
 
 export async function generateSequenceNo(
   db: D1Database,
@@ -32,6 +39,14 @@ export async function generateSequenceNo(
     throw new Error(
       `Invalid sequence target: ${tableName}.${columnName}. Not whitelisted.`,
     );
+  }
+
+  // Defense-in-depth: validate table/column names match safe pattern
+  if (!SAFE_TABLE_NAME.test(tableName)) {
+    throw new Error(`Invalid table name format: ${tableName}`);
+  }
+  if (!SAFE_COLUMN_NAME.test(allowedColumn)) {
+    throw new Error(`Invalid column name format: ${allowedColumn}`);
   }
 
   const year = new Date().getFullYear();

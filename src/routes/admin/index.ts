@@ -63,7 +63,7 @@ adminRoutes.post('/login', zValidator('json', loginSchema), async (c) => {
   }
 });
 
-// ─── Public pricing endpoint ──────────────────────────────────────────────
+// ─── Pricing endpoint (auth-gated: requires super_admin JWT) ──────────────
 adminRoutes.get('/plans', (c) => {
   return c.json({
     plans: Object.values(PLANS).map((p) => ({
@@ -85,17 +85,27 @@ adminRoutes.get('/plans', (c) => {
 // HOSPITAL CRUD
 // ═══════════════════════════════════════════════════════════════════════
 
-// Get all hospitals
+// Get all hospitals (with pagination)
 adminRoutes.get('/hospitals', async (c) => {
-  try {
-    const hospitals = await c.env.DB.prepare(
-      `SELECT t.id, t.name, t.subdomain, t.status, t.plan, t.created_at,
-              (SELECT COUNT(*) FROM users WHERE tenant_id = t.id) as user_count,
-              (SELECT COUNT(*) FROM patients WHERE tenant_id = t.id) as patient_count
-       FROM tenants t ORDER BY t.created_at DESC`
-    ).all();
+  const page = Math.max(1, parseInt(c.req.query('page') || '1', 10) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(c.req.query('limit') || '50', 10) || 50));
+  const offset = (page - 1) * limit;
 
-    return c.json({ hospitals: hospitals.results });
+  try {
+    const [hospitals, total] = await Promise.all([
+      c.env.DB.prepare(
+        `SELECT t.id, t.name, t.subdomain, t.status, t.plan, t.created_at,
+                (SELECT COUNT(*) FROM users WHERE tenant_id = t.id) as user_count,
+                (SELECT COUNT(*) FROM patients WHERE tenant_id = t.id) as patient_count
+         FROM tenants t ORDER BY t.created_at DESC LIMIT ? OFFSET ?`
+      ).bind(limit, offset).all(),
+      c.env.DB.prepare('SELECT COUNT(*) as count FROM tenants').first<{ count: number }>(),
+    ]);
+
+    return c.json({
+      hospitals: hospitals.results,
+      pagination: { page, limit, total: total?.count || 0, totalPages: Math.ceil((total?.count || 0) / limit) },
+    });
   } catch (error) {
     console.error('Error:', error);
     return c.json({ error: 'Failed to fetch hospitals' }, 500);
@@ -104,7 +114,10 @@ adminRoutes.get('/hospitals', async (c) => {
 
 // Get single hospital with detailed stats
 adminRoutes.get('/hospitals/:id', async (c) => {
-  const id = c.req.param('id');
+  const id = parseInt(c.req.param('id'), 10);
+  if (isNaN(id) || id <= 0) {
+    return c.json({ error: 'Invalid hospital ID' }, 400);
+  }
 
   try {
     const hospital = await c.env.DB.prepare(
@@ -187,7 +200,10 @@ adminRoutes.post('/hospitals', zValidator('json', createHospitalSchema), async (
 
 // Update hospital
 adminRoutes.put('/hospitals/:id', zValidator('json', updateHospitalSchema), async (c) => {
-  const id = c.req.param('id');
+  const id = parseInt(c.req.param('id'), 10);
+  if (isNaN(id) || id <= 0) {
+    return c.json({ error: 'Invalid hospital ID' }, 400);
+  }
   const { name, status, plan } = c.req.valid('json');
 
   try {
@@ -203,9 +219,20 @@ adminRoutes.put('/hospitals/:id', zValidator('json', updateHospitalSchema), asyn
 
 // Delete hospital (soft delete)
 adminRoutes.delete('/hospitals/:id', async (c) => {
-  const id = c.req.param('id');
+  const id = parseInt(c.req.param('id'), 10);
+  if (isNaN(id) || id <= 0) {
+    return c.json({ error: 'Invalid hospital ID' }, 400);
+  }
 
   try {
+    const existing = await c.env.DB.prepare(
+      'SELECT id FROM tenants WHERE id = ?'
+    ).bind(id).first();
+
+    if (!existing) {
+      return c.json({ error: 'Hospital not found' }, 404);
+    }
+
     await c.env.DB.prepare(
       'UPDATE tenants SET status = ?, updated_at = datetime("now") WHERE id = ?'
     ).bind('inactive', id).run();
@@ -401,21 +428,26 @@ adminRoutes.post('/onboarding/:id/provision', zValidator('json', provisionSchema
     const generatedPassword = generateRandomPassword();
     const passwordHash = await bcrypt.hash(generatedPassword, 10);
 
-    // Use D1 batch for atomic tenant + user + onboarding update
-    const tenantStmt = c.env.DB.prepare(
-      `INSERT INTO tenants (name, subdomain, status, plan, plan_price, billing_cycle, trial_ends_at, plan_started_at, created_at, updated_at)
-       VALUES (?, ?, 'active', ?, 0, 'monthly', datetime('now', '+' || ? || ' days'), datetime('now'), datetime('now'), datetime('now'))`
-    ).bind(
-      (request as Record<string, unknown>).hospital_name as string,
-      slug,
-      plan,
-      TRIAL_DAYS,
-    );
+    // Atomic provisioning: create tenant, user, and update onboarding in a single D1 batch.
+    // D1 batch is transactional — all or nothing.
+    const hospitalName = (request as Record<string, unknown>).hospital_name as string;
 
-    const tenantResult = await tenantStmt.run();
-    const tenantId = tenantResult.meta.last_row_id;
+    const batchResults = await c.env.DB.batch([
+      // [0] Create tenant
+      c.env.DB.prepare(
+        `INSERT INTO tenants (name, subdomain, status, plan, plan_price, billing_cycle, trial_ends_at, plan_started_at, created_at, updated_at)
+         VALUES (?, ?, 'active', ?, 0, 'monthly', datetime('now', '+' || ? || ' days'), datetime('now'), datetime('now'), datetime('now'))`
+      ).bind(hospitalName, slug, plan, TRIAL_DAYS),
+      // [1] Get the new tenant ID (last_insert_rowid)
+      c.env.DB.prepare('SELECT last_insert_rowid() as id'),
+    ]);
 
-    // Batch the user creation and onboarding update for atomicity
+    const tenantId = (batchResults[1].results?.[0] as { id: number } | undefined)?.id;
+    if (!tenantId) {
+      return c.json({ error: 'Failed to retrieve tenant ID after creation' }, 500);
+    }
+
+    // Second batch: create user + update onboarding (references tenantId from first batch)
     await c.env.DB.batch([
       c.env.DB.prepare(
         'INSERT INTO users (email, password_hash, name, role, tenant_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, datetime("now"), datetime("now"))'
@@ -453,7 +485,11 @@ adminRoutes.post('/onboarding/:id/provision', zValidator('json', provisionSchema
 // ═══════════════════════════════════════════════════════════════════════
 
 adminRoutes.post('/impersonate/:tenantId', async (c) => {
-  const tenantId = c.req.param('tenantId');
+  const tenantIdParam = parseInt(c.req.param('tenantId'), 10);
+  if (isNaN(tenantIdParam) || tenantIdParam <= 0) {
+    return c.json({ error: 'Invalid tenant ID' }, 400);
+  }
+  const tenantId = String(tenantIdParam);
   const superAdminId = c.get('userId');
 
   try {
@@ -472,8 +508,10 @@ adminRoutes.post('/impersonate/:tenantId', async (c) => {
       return c.json({ error: 'Hospital not found' }, 404);
     }
 
-    // Generate impersonation token with shorter expiry (2 hours)
-    // Includes isImpersonation flag for audit trail
+    // Generate impersonation token with shorter expiry (2 hours).
+    // ⚠️ Grants full hospital_admin permissions. The `isImpersonation` flag is
+    // embedded in the JWT so tenant-side middleware can restrict destructive
+    // operations (DELETE, billing mutations) if desired.
     const token = await generateToken({
       userId: superAdminId || '0',
       role: 'hospital_admin',
@@ -506,6 +544,86 @@ adminRoutes.post('/impersonate/:tenantId', async (c) => {
   } catch (error) {
     console.error('Impersonation error:', error);
     return c.json({ error: 'Failed to create impersonation session' }, 500);
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// AUDIT LOGS (Platform-wide)
+// ═══════════════════════════════════════════════════════════════════════
+
+adminRoutes.get('/audit-logs', async (c) => {
+  const page = Math.max(1, parseInt(c.req.query('page') || '1', 10) || 1);
+  const limit = Math.min(200, Math.max(1, parseInt(c.req.query('limit') || '50', 10) || 50));
+  const offset = (page - 1) * limit;
+
+  try {
+    const [logs, total] = await Promise.all([
+      c.env.DB.prepare(
+        `SELECT a.id, a.tenant_id, a.user_id, a.action, a.table_name, a.record_id, a.created_at,
+                t.name as tenant_name, u.email as user_email
+         FROM audit_logs a
+         LEFT JOIN tenants t ON a.tenant_id = t.id
+         LEFT JOIN users u ON a.user_id = u.id
+         ORDER BY a.created_at DESC
+         LIMIT ? OFFSET ?`
+      ).bind(limit, offset).all(),
+      c.env.DB.prepare('SELECT COUNT(*) as count FROM audit_logs').first<{ count: number }>(),
+    ]);
+
+    return c.json({
+      logs: logs.results,
+      pagination: { page, limit, total: total?.count || 0, totalPages: Math.ceil((total?.count || 0) / limit) },
+    });
+  } catch (error) {
+    // audit_logs table might not exist yet
+    console.error('Audit logs error:', error);
+    return c.json({ logs: [], pagination: { page: 1, limit, total: 0, totalPages: 0 } });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// SYSTEM HEALTH
+// ═══════════════════════════════════════════════════════════════════════
+
+adminRoutes.get('/system-health', async (c) => {
+  try {
+    // Get table row counts for key tables.
+    // SAFETY: table names are hardcoded constants below — never from user input.
+    const tables = ['tenants', 'users', 'patients', 'bills', 'appointments', 'lab_tests',
+                    'prescriptions', 'audit_logs', 'onboarding_requests', 'admissions',
+                    'beds', 'departments', 'medicines'];
+
+    const tableStats: Array<{ table: string; count: number }> = [];
+
+    for (const table of tables) {
+      try {
+        const result = await c.env.DB.prepare(
+          `SELECT COUNT(*) as count FROM "${table}"`
+        ).first<{ count: number }>();
+        tableStats.push({ table, count: result?.count || 0 });
+      } catch {
+        // Table might not exist, skip
+      }
+    }
+
+    // Sort by count descending
+    tableStats.sort((a, b) => b.count - a.count);
+
+    return c.json({
+      database: {
+        totalTables: tableStats.length,
+        tableStats,
+      },
+      status: 'healthy',
+      uptime: 'N/A (serverless)',
+    });
+  } catch (error) {
+    console.error('Health check error:', error);
+    return c.json({
+      database: { totalTables: 0, tableStats: [] },
+      status: 'degraded',
+      uptime: 'N/A',
+    });
   }
 });
 

@@ -50,10 +50,24 @@ export default function Sidebar({ role, onLogout }: SidebarProps) {
   const roleNavGroups: Record<string, NavGroup[]> = {
     super_admin: [
       {
+        groupKey: 'groupPlatform',
         items: [
-          { labelKey: 'dashboard', path: '/super_admin/dashboard', icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
-          { labelKey: 'hospitals',  path: '/super_admin/hospitals', icon: <Building2 className="w-4.5 h-4.5" /> },
-          { labelKey: 'settings',   path: '/super_admin/settings',  icon: <Settings className="w-4.5 h-4.5" /> },
+          { labelKey: 'dashboard',      path: '/super-admin/dashboard',  icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
+          { labelKey: 'platformHealth', path: '/super-admin/health',     icon: <Heart className="w-4.5 h-4.5" /> },
+        ],
+      },
+      {
+        groupKey: 'groupHospitals',
+        items: [
+          { labelKey: 'hospitals',       path: '/super-admin/hospitals',  icon: <Building2 className="w-4.5 h-4.5" /> },
+          { labelKey: 'onboardingQueue', path: '/super-admin/onboarding', icon: <ClipboardList className="w-4.5 h-4.5" /> },
+        ],
+      },
+      {
+        groupKey: 'groupSystem',
+        items: [
+          { labelKey: 'auditLog',  path: '/super-admin/audit-log', icon: <Shield className="w-4.5 h-4.5" /> },
+          { labelKey: 'settings',  path: '/super-admin/settings',  icon: <Settings className="w-4.5 h-4.5" /> },
         ],
       },
     ],
@@ -191,6 +205,9 @@ export default function Sidebar({ role, onLogout }: SidebarProps) {
 
   // Get default group label translations
   const groupLabels: Record<string, string> = {
+    groupPlatform:   t('groupPlatform',   { defaultValue: 'Platform' }),
+    groupHospitals:  t('groupHospitals',  { defaultValue: 'Hospitals' }),
+    groupSystem:     t('groupSystem',     { defaultValue: 'System' }),
     groupOperations: t('groupOperations', { defaultValue: 'Operations' }),
     groupClinical:   t('groupClinical',   { defaultValue: 'Clinical' }),
     groupFinance:    t('groupFinance',    { defaultValue: 'Finance' }),

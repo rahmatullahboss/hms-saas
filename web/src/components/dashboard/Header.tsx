@@ -147,7 +147,7 @@ export default function Header({
   }, []);
 
   // Derive avatar initials from userName
-  const avatarInitial = userName.trim()[0]?.toUpperCase() ?? 'U';
+  const avatarInitial = String(userName || 'U').trim()[0]?.toUpperCase() ?? 'U';
 
   return (
     <header className="h-16 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-[var(--color-border)]/80 flex items-center justify-between px-6 shrink-0 sticky top-0 z-20">
