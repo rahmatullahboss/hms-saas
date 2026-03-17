@@ -9,6 +9,113 @@ import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 
 const paymentRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
+// ─── GET / — list all payments (with filters) ─────────────────────────────────
+paymentRoutes.get('/', async (c) => {
+  const tenantId = requireTenantId(c);
+  const { search, status, payment_method, date_from, date_to } = c.req.query();
+
+  let sql = `
+    SELECT p.id, p.receipt_no as payment_ref, pt.name as patient_name, pt.patient_code,
+      p.amount, COALESCE(p.payment_method, 'cash') as payment_method,
+      COALESCE(p.payment_type, p.type, 'received') as payment_type,
+      'completed' as status,
+      p.date as paid_at, p.created_at
+    FROM payments p
+    LEFT JOIN bills b ON p.bill_id = b.id
+    LEFT JOIN patients pt ON b.patient_id = pt.id AND pt.tenant_id = p.tenant_id
+    WHERE p.tenant_id = ?
+  `;
+  const params: (string | number)[] = [tenantId];
+
+  if (search) {
+    sql += ' AND (pt.name LIKE ? OR pt.patient_code LIKE ? OR p.receipt_no LIKE ?)';
+    params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+  }
+  if (payment_method && payment_method !== 'all') {
+    sql += ' AND p.payment_method = ?';
+    params.push(payment_method);
+  }
+  if (date_from) { sql += ' AND date(p.created_at) >= ?'; params.push(date_from); }
+  if (date_to)   { sql += ' AND date(p.created_at) <= ?'; params.push(date_to); }
+
+  sql += ' ORDER BY p.created_at DESC LIMIT 200';
+
+  try {
+    const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+    return c.json({ data: results });
+  } catch {
+    return c.json({ data: [] });
+  }
+});
+
+// ─── GET /stats — payment KPI stats ────────────────────────────────────────────
+paymentRoutes.get('/stats', async (c) => {
+  const tenantId = requireTenantId(c);
+  const today = new Date().toISOString().split('T')[0];
+
+  try {
+    const batchResults = await c.env.DB.batch([
+      c.env.DB.prepare(
+        "SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE tenant_id = ? AND date(created_at) = ?"
+      ).bind(tenantId, today),
+      c.env.DB.prepare(
+        "SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE tenant_id = ? AND date(created_at) = ? AND (type = 'received' OR type = 'current')"
+      ).bind(tenantId, today),
+      c.env.DB.prepare(
+        "SELECT COUNT(*) as count FROM payment_gateway_logs WHERE tenant_id = ? AND status = 'pending'"
+      ).bind(tenantId),
+      c.env.DB.prepare(
+        "SELECT COUNT(*) as count FROM payment_gateway_logs WHERE tenant_id = ? AND status = 'failed'"
+      ).bind(tenantId),
+      c.env.DB.prepare(
+        "SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE tenant_id = ? AND date(created_at) = ? AND payment_method = 'cash'"
+      ).bind(tenantId, today),
+      c.env.DB.prepare(
+        "SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE tenant_id = ? AND date(created_at) = ? AND payment_method = 'card'"
+      ).bind(tenantId, today),
+    ]);
+
+    return c.json({
+      total_today:     (batchResults[0].results[0] as any)?.total ?? 0,
+      completed_today: (batchResults[1].results[0] as any)?.total ?? 0,
+      pending_count:   (batchResults[2].results[0] as any)?.count ?? 0,
+      failed_count:    (batchResults[3].results[0] as any)?.count ?? 0,
+      cash_total:      (batchResults[4].results[0] as any)?.total ?? 0,
+      card_total:      (batchResults[5].results[0] as any)?.total ?? 0,
+    });
+  } catch {
+    return c.json({ total_today: 0, completed_today: 0, pending_count: 0, failed_count: 0, cash_total: 0, card_total: 0 });
+  }
+});
+
+// ─── GET /:id — single payment detail ──────────────────────────────────────────
+paymentRoutes.get('/:id', async (c) => {
+  const tenantId = requireTenantId(c);
+  const id = parseInt(c.req.param('id'));
+  if (isNaN(id)) return c.json({ error: 'Invalid payment ID' }, 400);
+
+  try {
+    const result = await c.env.DB.prepare(`
+      SELECT p.id, p.receipt_no as payment_ref, pt.name as patient_name, pt.patient_code,
+        p.amount, COALESCE(p.payment_method, 'cash') as payment_method,
+        COALESCE(p.payment_type, p.type, 'received') as payment_type,
+        'completed' as status,
+        p.date as paid_at, p.created_at,
+        p.bill_id, s.name as collected_by
+      FROM payments p
+      LEFT JOIN bills b ON p.bill_id = b.id
+      LEFT JOIN patients pt ON b.patient_id = pt.id AND pt.tenant_id = p.tenant_id
+      LEFT JOIN staff s ON p.received_by = s.id
+      WHERE p.id = ? AND p.tenant_id = ?
+    `).bind(id, tenantId).first();
+
+    if (!result) return c.json({ error: 'Payment not found' }, 404);
+    return c.json({ data: result });
+  } catch {
+    return c.json({ error: 'Failed to fetch payment' }, 500);
+  }
+});
+
 // Staff roles allowed to initiate payments
 const PAYMENT_STAFF_ROLES = ['hospital_admin', 'reception', 'accountant'];
 

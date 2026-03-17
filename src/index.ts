@@ -305,7 +305,7 @@ app.route('/api/billing-provisional', billingProvisionalRoutes);
 app.route('/api/lab-settings', labSettingsRoutes);
 app.route('/api/reports/lab', reportLabRoutes);
 app.route('/api/reports/pharmacy', reportPharmacyRoutes);
-app.route('/api/reports/appointments', reportAppointmentRoutes);
+app.route('/api/reports/appointment', reportAppointmentRoutes);
 
 
 // ─── Not Found handler ──────────────────────────────────────────────

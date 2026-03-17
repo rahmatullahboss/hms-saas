@@ -8,6 +8,97 @@ import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 
 const ipBilling = new Hono<{ Bindings: Env; Variables: Variables }>();
 
+// ─── GET /patients — list IP patients with billing summary (used by frontend) ─
+ipBilling.get('/patients', async (c) => {
+  const tenantId = requireTenantId(c);
+  const search = c.req.query('search');
+  const billingStatus = c.req.query('billing_status');
+
+  let sql = `
+    SELECT
+      a.id as admission_id, a.admission_no as admission_number,
+      a.patient_id, p.name as patient_name, p.patient_code,
+      b.ward_name, b.bed_number, s.name as doctor_name,
+      a.admitted_at as admitted_date, a.expected_discharge,
+      COALESCE(prov.total_charges, 0) as total_charges,
+      COALESCE(pay.total_paid, 0) as total_paid,
+      COALESCE(prov.total_charges, 0) - COALESCE(pay.total_paid, 0) as balance,
+      CASE
+        WHEN COALESCE(pay.total_paid, 0) >= COALESCE(prov.total_charges, 0) AND COALESCE(prov.total_charges, 0) > 0 THEN 'settled'
+        WHEN COALESCE(pay.total_paid, 0) > 0 THEN 'partial'
+        ELSE 'pending'
+      END as billing_status
+    FROM admissions a
+    JOIN patients p ON a.patient_id = p.id AND p.tenant_id = a.tenant_id
+    LEFT JOIN beds b ON a.bed_id = b.id
+    LEFT JOIN staff s ON a.doctor_id = s.id
+    LEFT JOIN (
+      SELECT admission_id, SUM(total_amount) as total_charges
+      FROM billing_provisional_items
+      WHERE tenant_id = ? AND is_active = 1
+      GROUP BY admission_id
+    ) prov ON prov.admission_id = a.id
+    LEFT JOIN (
+      SELECT bi.id as bill_id, SUM(pay2.amount) as total_paid
+      FROM bills bi
+      LEFT JOIN payments pay2 ON pay2.bill_id = bi.id AND pay2.tenant_id = bi.tenant_id
+      WHERE bi.tenant_id = ?
+      GROUP BY bi.id
+    ) pay ON pay.bill_id = a.id
+    WHERE a.tenant_id = ? AND a.status = 'admitted'
+  `;
+  const params: (string | number)[] = [tenantId, tenantId, tenantId];
+  if (search) { sql += ' AND (p.name LIKE ? OR p.patient_code LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
+  sql += ' ORDER BY a.admitted_at DESC';
+
+  try {
+    const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+
+    // Apply billing_status filter in JS (derived column)
+    const filtered = billingStatus ? results.filter((r: any) => r.billing_status === billingStatus) : results;
+    return c.json({ data: filtered });
+  } catch {
+    return c.json({ data: [] });
+  }
+});
+
+// ─── GET /stats — IP billing summary stats (used by frontend KPI cards) ──────
+ipBilling.get('/stats', async (c) => {
+  const tenantId = requireTenantId(c);
+  const today = new Date().toISOString().split('T')[0];
+
+  try {
+    const batchResults = await c.env.DB.batch([
+      c.env.DB.prepare(
+        "SELECT COUNT(*) as count FROM admissions WHERE tenant_id = ? AND status = 'admitted'"
+      ).bind(tenantId),
+      c.env.DB.prepare(
+        `SELECT COUNT(DISTINCT a.id) as count FROM admissions a
+         LEFT JOIN billing_provisional_items bp ON bp.admission_id = a.id AND bp.tenant_id = a.tenant_id
+         WHERE a.tenant_id = ? AND a.status = 'admitted' AND bp.bill_status = 'provisional'`
+      ).bind(tenantId),
+      c.env.DB.prepare(
+        `SELECT COALESCE(SUM(total_amount), 0) as total FROM billing_provisional_items
+         WHERE tenant_id = ? AND date(created_at) = ? AND is_active = 1`
+      ).bind(tenantId, today),
+      c.env.DB.prepare(
+        `SELECT COALESCE(SUM(bi.total), 0) as total FROM bills bi
+         JOIN admissions a ON bi.patient_id = a.patient_id AND bi.tenant_id = a.tenant_id
+         WHERE bi.tenant_id = ? AND date(bi.created_at) = ? AND bi.status = 'paid'`
+      ).bind(tenantId, today),
+    ]);
+
+    return c.json({
+      total_inpatients: (batchResults[0].results[0] as any)?.count ?? 0,
+      pending_billing: (batchResults[1].results[0] as any)?.count ?? 0,
+      total_charges_today: (batchResults[2].results[0] as any)?.total ?? 0,
+      settled_today: (batchResults[3].results[0] as any)?.total ?? 0,
+    });
+  } catch {
+    return c.json({ total_inpatients: 0, pending_billing: 0, total_charges_today: 0, settled_today: 0 });
+  }
+});
+
 // ─── GET /admitted — list admitted patients for IP billing ────────────────────
 
 ipBilling.get('/admitted', async (c) => {
