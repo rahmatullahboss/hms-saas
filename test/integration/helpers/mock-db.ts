@@ -322,11 +322,24 @@ export function createMockDB(options: MockDBOptions = {}): MockDB {
       async run() {
         queries.push({ sql, params, method: 'run' });
         const rowId = ++_rowIdCounter;
+        const upper = sql.replace(/\s+/g, ' ').trim().toUpperCase();
+        let changes = 1; // default for INSERT
+        // For UPDATE/DELETE, calculate changes based on matching rows
+        if (upper.startsWith('UPDATE') || upper.startsWith('DELETE')) {
+          const table = extractTableName(sql);
+          if (table) {
+            const rows = tables[table] ?? [];
+            const filtered = filterRows(sql, params, rows);
+            changes = filtered.length;
+          } else {
+            changes = 0;
+          }
+        }
         return {
           success: true,
           meta: {
             last_row_id: rowId,
-            changes: 1,
+            changes,
             duration: 0,
           },
         };
