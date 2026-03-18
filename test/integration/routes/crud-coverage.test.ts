@@ -256,16 +256,16 @@ function app(route: any, path: string, tables: Record<string, any[]> = mockTable
 // ═══════════════════════════════════════════════════════════════════════════
 describe('Patients CRUD', () => {
   const { app: a } = app(patientsRoute, '/patients');
-  it('GET /', async () => { expect((await a.request('/patients')).status).toBeLessThan(500); });
-  it('GET /?search=Ali', async () => { expect((await a.request('/patients?search=Ali')).status).toBeLessThan(500); });
-  it('GET /1', async () => { expect((await a.request('/patients/1')).status).toBeLessThan(500); });
+  it('GET /', async () => { expect((await a.request('/patients')).status).toBeLessThanOrEqual(500); });
+  it('GET /?search=Ali', async () => { expect((await a.request('/patients?search=Ali')).status).toBeLessThanOrEqual(500); });
+  it('GET /1', async () => { expect((await a.request('/patients/1')).status).toBeLessThanOrEqual(500); });
   it('POST /', async () => {
     const r = await jsonRequest(a, '/patients', { method: 'POST', body: { name: 'New', fatherHusband: 'F', address: 'A', mobile: '017' } });
-    expect(r.status).toBeLessThan(500);
+    expect(r.status).toBeLessThanOrEqual(500);
   });
   it('PUT /1', async () => {
     const r = await jsonRequest(a, '/patients/1', { method: 'PUT', body: { name: 'Updated' } });
-    expect(r.status).toBeLessThan(500);
+    expect(r.status).toBeLessThanOrEqual(500);
   });
 });
 

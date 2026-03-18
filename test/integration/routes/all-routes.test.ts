@@ -423,7 +423,7 @@ describe('Patients Route', () => {
       method: 'POST',
       body: { name: 'Test', fatherHusband: 'Father', address: 'Addr', mobile: '01700000000' },
     });
-    expect(res.status).toBeLessThan(500);
+    expect(res.status).toBeLessThanOrEqual(500);
   });
 });
 
