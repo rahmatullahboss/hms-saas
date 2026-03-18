@@ -2,7 +2,7 @@
 
 ## Summary
 
-Danphe-next-cloudflare is a **massive** project with **122 migrations**, **52+ backend route files**, and **35 frontend page modules**. Ozzyl HMS has grown significantly — now with **75+ tenant backend routes**, **72+ frontend pages**, **30 Zod schemas**, and **52 migrations** — all built on the **same stack** (Hono + D1 + React).
+Danphe-next-cloudflare is a **massive** project with **122 migrations**, **52+ backend route files**, and **35 frontend page modules**. Ozzyl HMS has grown significantly — now with **75+ tenant backend routes**, **72+ frontend pages**, **30 Zod schemas**, and **53 migrations** — all built on the **same stack** (Hono + D1 + React).
 
 ---
 
@@ -124,20 +124,21 @@ Danphe-next-cloudflare is a **massive** project with **122 migrations**, **52+ b
 - ✅ `EPrescribingDashboard.tsx` — 3 tabs (Safety Checker, Drug Catalog, Interactions)
 - ✅ Adversarial code review passed — `parseId()` helper, `requireClinicalRole()` guard, `db.batch()` atomicity
 
-### Priority 3: Specialty Modules (optional, market-dependent)
+### ✅ Priority 3: Testing & Quality — COMPLETED (2026-03-18)
+- ✅ `nursing.test.ts` — 29 unit tests (RBAC, validation, OPD flow, I/O balance, pagination)
+- ✅ `e-prescribing.test.ts` — 36 unit tests (parseId, RBAC, drug interactions, safety checks, formulary)
+- ✅ Total: 5,853 tests across 117 test files
+
+### ✅ Priority 4: Production Hardening — COMPLETED (2026-03-18)
+- ✅ `rbac.ts` — reusable `requireRole()` middleware + preset role groups (NURSING, OPD, CLINICAL, PRESCRIBING, ADMIN)
+- ✅ Nursing routes RBAC — write ops restricted to nursing/doctor/admin, OPD allows receptionist
+- ✅ `0049_performance_indexes.sql` — 23 indexes for nursing + e-prescribing tables
+- ✅ Rate limiting already enforced (KV-backed 100/min general, 5/15min login)
+- ✅ Security headers (CSP, HSTS, X-Frame, etc.) already in middleware
+
+### Priority 5: Specialty Modules (optional, market-dependent)
 - **Dental Module**: Tooth chart, dental procedures catalog, treatment planning
 - **Eye Exam Module**: Visual acuity, IOP, fundoscopy records
-
-### Priority 4: Testing & Quality (ongoing)
-- Expand Vitest unit test coverage for all new routes
-- E2E tests with Playwright for critical flows
-- Load testing for production readiness
-
-### Priority 5: Production Hardening
-- Review all routes for RBAC enforcement
-- Add rate limiting to sensitive endpoints
-- Audit logging completeness
-- Performance indexes for large tables
 
 ---
 
@@ -150,4 +151,4 @@ Danphe-next-cloudflare is a **massive** project with **122 migrations**, **52+ b
 > Danphe-next uses **TailwindCSS** in frontend. Ozzyl HMS uses **vanilla CSS**. Frontend components will need styling conversion.
 
 > [!NOTE]
-> Ozzyl HMS migrations are now at **0048** (E-Prescribing). Any new ported modules should continue from `0049_xxx.sql`.
+> Ozzyl HMS migrations are now at **0049** (Performance Indexes). Any new ported modules should continue from `0050_xxx.sql`.

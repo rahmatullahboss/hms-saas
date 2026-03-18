@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import type { Env, Variables } from '../../../types';
 import { requireTenantId } from '../../../lib/context-helpers';
+import { requireRole, NURSING_ROLES, OPD_ROLES } from '../../../middleware/rbac';
 
 // Sub-routes
 import { carePlanRoutes } from './care-plan';
@@ -19,6 +20,21 @@ import wardsRoutes from './wards';
 type NursingEnv = { Bindings: Env; Variables: Variables };
 
 const nursing = new Hono<NursingEnv>();
+
+// ─── RBAC: Restrict write operations to nursing staff ───────────────────────
+// GETs = open to all authenticated users (viewing patient data)
+// POST/PUT/DELETE = restricted to nursing roles
+nursing.use('/*', async (c, next) => {
+  const method = c.req.method;
+  if (method === 'GET') return next();
+
+  // OPD check-in/out can be done by receptionists too
+  if (c.req.path.includes('/opd/')) {
+    return requireRole(...OPD_ROLES)(c, next);
+  }
+
+  return requireRole(...NURSING_ROLES)(c, next);
+});
 
 // GET /nursing/patients — admitted patients for nursing dashboard
 nursing.get(

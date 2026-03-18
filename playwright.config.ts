@@ -130,5 +130,11 @@ export default defineConfig({
         serviceWorkers: 'block',
       },
     },
+    // ─── Nursing + E-Prescribing E2E (new modules) ──
+    {
+      name: 'nursing-eprescribing',
+      testMatch: '**/api/nursing-eprescribing.spec.ts',
+      use: { ...devices['Desktop Chrome'] },
+    },
   ],
 });

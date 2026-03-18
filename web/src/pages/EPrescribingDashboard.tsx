@@ -120,13 +120,15 @@ export default function EPrescribingDashboard({ role = 'hospital_admin' }: { rol
   const [showInteractionModal, setShowInteractionModal] = useState(false);
   const [interactionForm, setInteractionForm] = useState({ drug_a_name: '', drug_b_name: '', severity: 'moderate' as string, description: '', recommendation: '' });
   const [expandedWarning, setExpandedWarning] = useState<number | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
-  const headers = authHeader();
+  // Per-request headers to avoid stale token closure
+  const getHeaders = () => authHeader();
 
   // ── Fetch stats
   const fetchStats = useCallback(async () => {
     try {
-      const { data } = await axios.get('/api/e-prescribing/stats', { headers });
+      const { data } = await axios.get('/api/e-prescribing/stats', { headers: getHeaders() });
       setStats(data);
     } catch { /* fallback */ }
     setLoading(false);
@@ -145,11 +147,18 @@ export default function EPrescribingDashboard({ role = 'hospital_admin' }: { rol
     if (activeTab === 'interactions') fetchInteractions();
   }, [interactionFilter]);
 
+  // Debounced formulary search
+  useEffect(() => {
+    if (activeTab !== 'formulary') return;
+    const timer = setTimeout(() => fetchFormulary(), 400);
+    return () => clearTimeout(timer);
+  }, [formularySearch]);
+
   // ── Formulary
   const fetchFormulary = async () => {
     setFormularyLoading(true);
     try {
-      const { data } = await axios.get('/api/e-prescribing/formulary', { headers, params: { search: formularySearch || undefined } });
+      const { data } = await axios.get('/api/e-prescribing/formulary', { headers: getHeaders(), params: { search: formularySearch || undefined } });
       setFormulary(data.formulary ?? []);
     } catch { setFormulary([]); }
     setFormularyLoading(false);
