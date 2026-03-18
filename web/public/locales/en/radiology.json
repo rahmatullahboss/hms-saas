@@ -1,0 +1,121 @@
+{
+  "title": "Radiology",
+  "subtitle": "Imaging orders, reports & PACS studies",
+  "refresh": "Refresh",
+  "newOrder": "New Order",
+  "kpi": {
+    "pending": "Pending",
+    "scanned": "Scanned",
+    "reported": "Reported",
+    "statOrders": "STAT Orders",
+    "cancelled": "Cancelled"
+  },
+  "statAlert": "<strong>{{count}} STAT order</strong> require immediate attention",
+  "statAlertPlural": "<strong>{{count}} STAT orders</strong> require immediate attention",
+  "tabs": {
+    "orders": "Orders",
+    "reports": "Reports",
+    "catalog": "Test Catalog",
+    "pacs": "PACS Studies"
+  },
+  "orders": {
+    "searchPlaceholder": "Search patient or imaging item…",
+    "allStatuses": "All Statuses",
+    "statusPending": "Pending",
+    "statusScanned": "Scanned",
+    "statusReported": "Reported",
+    "statusCancelled": "Cancelled",
+    "table": {
+      "hash": "#",
+      "patient": "Patient",
+      "imagingTest": "Imaging Test",
+      "date": "Date",
+      "urgency": "Urgency",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "loading": "Loading…",
+    "noOrders": "No orders found",
+    "scan": "Scan",
+    "report": "Report",
+    "reportedLabel": "Reported",
+    "showingPage": "Showing page {{page}} — {{total}} total",
+    "prev": "Prev",
+    "next": "Next"
+  },
+  "reports": {
+    "table": {
+      "radNum": "Rad #",
+      "patient": "Patient",
+      "test": "Test",
+      "radiologist": "Radiologist",
+      "status": "Status",
+      "date": "Date",
+      "actions": "Actions"
+    },
+    "noReports": "No reports yet",
+    "finalize": "Finalize"
+  },
+  "catalog": {
+    "imagingTypes": "Imaging Types",
+    "typesCount": "{{count}} types",
+    "noTypes": "No imaging types configured",
+    "imagingTests": "Imaging Tests",
+    "testsCount": "{{count}} tests",
+    "noTests": "No items — seed data will load on first request"
+  },
+  "pacs": {
+    "title": "PACS / DICOM Studies",
+    "description": "DICOM studies are registered when images arrive from the imaging modality. Connect your X-Ray / CT / MRI machine via the REST API (<code className=\"text-xs bg-zinc-100 px-1 rounded\">/api/radiology/pacs</code>) or an OrthanC DICOM-to-REST bridge."
+  },
+  "modals": {
+    "newOrder": {
+      "title": "New Radiology Order",
+      "patientLabel": "Patient *",
+      "patientSearchPlaceholder": "Search patient name…",
+      "patientSelected": "✓ Patient #{{id}} selected",
+      "typeLabel": "Imaging Type *",
+      "typePlaceholder": "Select type…",
+      "testLabel": "Imaging Test *",
+      "testPlaceholder": "Select test…",
+      "urgencyLabel": "Urgency",
+      "urgencyNormal": "Normal",
+      "urgencyUrgent": "Urgent",
+      "urgencyStat": "STAT (Immediate)",
+      "dateLabel": "Imaging Date",
+      "doctorLabel": "Prescribing Doctor",
+      "doctorPlaceholder": "Dr. Name",
+      "remarksLabel": "Clinical Remarks",
+      "remarksPlaceholder": "Clinical indications, symptoms…",
+      "cancel": "Cancel",
+      "submit": "Create Order"
+    },
+    "newReport": {
+      "title": "Create Radiology Report",
+      "indicationLabel": "Indication / Clinical History",
+      "indicationPlaceholder": "Clinical indication…",
+      "reportLabel": "Report / Findings *",
+      "reportPlaceholder": "Describe the radiological findings…",
+      "radiologistLabel": "Radiologist",
+      "radiologistPlaceholder": "Dr. Name",
+      "statusLabel": "Report Status",
+      "statusFinal": "Final",
+      "statusPreliminary": "Preliminary",
+      "cancel": "Cancel",
+      "submit": "Save Report"
+    }
+  },
+  "messages": {
+    "orderCreated": "Radiology order created ✓",
+    "orderFailed": "Failed to create order",
+    "markedScanned": "Marked as scanned ✓",
+    "scannedFailed": "Failed to mark as scanned",
+    "reportCreated": "Report created ✓",
+    "reportFailed": "Failed to create report",
+    "reportFinalized": "Report finalized ✓",
+    "finalizeFailed": "Failed to finalize report",
+    "missingFields": "Patient, imaging type, and item are required",
+    "missingReportText": "Report text is required",
+    "loadOrdersFailed": "Failed to load orders"
+  }
+}
