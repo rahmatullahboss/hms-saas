@@ -10,6 +10,9 @@ import DashboardLayout from '../components/DashboardLayout';
 import KPICard from '../components/dashboard/KPICard';
 import EmptyState from '../components/dashboard/EmptyState';
 import { authHeader } from '../utils/auth';
+import MARTab from '../components/nursing/MARTab';
+import MedicationOrdersTab from '../components/nursing/MedicationOrdersTab';
+import ReconciliationTab from '../components/nursing/ReconciliationTab';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -54,16 +57,18 @@ interface OPDVisit {
 // ─── Tab config ───────────────────────────────────────────────────────────────
 
 const TABS = [
-  { key: 'overview',   label: 'Overview',    icon: <Users className="w-4 h-4" /> },
-  { key: 'care-plan',  label: 'Care Plans',  icon: <ClipboardList className="w-4 h-4" /> },
-  { key: 'notes',      label: 'Notes',       icon: <FileText className="w-4 h-4" /> },
-  { key: 'mar',        label: 'MAR',         icon: <Pill className="w-4 h-4" /> },
-  { key: 'io',         label: 'I/O Charts',  icon: <Droplets className="w-4 h-4" /> },
-  { key: 'monitoring', label: 'Monitoring',  icon: <Activity className="w-4 h-4" /> },
-  { key: 'iv-drugs',   label: 'IV Drugs',    icon: <Syringe className="w-4 h-4" /> },
-  { key: 'wound-care', label: 'Wound Care',  icon: <Heart className="w-4 h-4" /> },
-  { key: 'handover',   label: 'Handover',    icon: <ArrowRightLeft className="w-4 h-4" /> },
-  { key: 'opd',        label: 'OPD',         icon: <Stethoscope className="w-4 h-4" /> },
+  { key: 'overview',           label: 'Overview',       icon: <Users className="w-4 h-4" /> },
+  { key: 'care-plan',          label: 'Care Plans',     icon: <ClipboardList className="w-4 h-4" /> },
+  { key: 'notes',              label: 'Notes',          icon: <FileText className="w-4 h-4" /> },
+  { key: 'mar',                label: 'MAR',            icon: <Pill className="w-4 h-4" /> },
+  { key: 'medication-orders',  label: 'Med Orders',     icon: <ClipboardList className="w-4 h-4" /> },
+  { key: 'reconciliation',     label: 'Reconciliation', icon: <ArrowRightLeft className="w-4 h-4" /> },
+  { key: 'io',                 label: 'I/O Charts',     icon: <Droplets className="w-4 h-4" /> },
+  { key: 'monitoring',         label: 'Monitoring',     icon: <Activity className="w-4 h-4" /> },
+  { key: 'iv-drugs',           label: 'IV Drugs',       icon: <Syringe className="w-4 h-4" /> },
+  { key: 'wound-care',         label: 'Wound Care',     icon: <Heart className="w-4 h-4" /> },
+  { key: 'handover',           label: 'Handover',       icon: <ArrowRightLeft className="w-4 h-4" /> },
+  { key: 'opd',                label: 'OPD',            icon: <Stethoscope className="w-4 h-4" /> },
 ] as const;
 
 type TabKey = typeof TABS[number]['key'];
@@ -245,13 +250,17 @@ export default function NursingDashboard({ role = 'hospital_admin' }: { role?: s
   }, [opdDates]);
 
   // ── Tab change handler ──
+  // Clinical MAR tabs have their own internal fetching; just ensure patients loaded
+  const CLINICAL_TABS = ['mar', 'medication-orders', 'reconciliation'];
+
   useEffect(() => {
     if (activeTab === 'overview') {
       fetchPatients();
     } else if (activeTab === 'opd') {
       fetchOpdVisits();
+    } else if (CLINICAL_TABS.includes(activeTab)) {
+      if (patients.length === 0) fetchPatients();
     } else if (TAB_FIELDS[activeTab]) {
-      // H5 fix: ensure patient list is loaded for CRUD tabs (e.g. deep link)
       if (patients.length === 0) fetchPatients();
       fetchRecords(activeTab);
     }
@@ -497,8 +506,35 @@ export default function NursingDashboard({ role = 'hospital_admin' }: { role?: s
           </div>
         )}
 
-        {/* ────────────── CRUD TABS (care-plan, notes, mar, io, monitoring, iv-drugs, wound-care, handover) ────────────── */}
-        {tabConfig && (
+        {/* ── Clinical MAR Tab ── */}
+        {activeTab === 'mar' && (
+          <MARTab
+            patients={patients}
+            selectedPatient={selectedPatient}
+            onSelectPatient={setSelectedPatient}
+          />
+        )}
+
+        {/* ── Medication Orders Tab ── */}
+        {activeTab === 'medication-orders' && (
+          <MedicationOrdersTab
+            patients={patients}
+            selectedPatient={selectedPatient}
+            onSelectPatient={setSelectedPatient}
+          />
+        )}
+
+        {/* ── Reconciliation Tab ── */}
+        {activeTab === 'reconciliation' && (
+          <ReconciliationTab
+            patients={patients}
+            selectedPatient={selectedPatient}
+            onSelectPatient={setSelectedPatient}
+          />
+        )}
+
+        {/* ────────────── CRUD TABS (care-plan, notes, io, monitoring, iv-drugs, wound-care, handover) ────────────── */}
+        {tabConfig && activeTab !== 'mar' && (
           <div className="card overflow-hidden">
             <div className="px-4 py-3 border-b border-[var(--color-border)] flex items-center justify-between">
               <h2 className="text-sm font-semibold text-[var(--color-text)]">

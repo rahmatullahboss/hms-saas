@@ -6486,3 +6486,182 @@ export const monthlyExpenseSummary = sqliteTable("monthly_expense_summary", {
 	check("audit_logs_check_27", sql`action IN ('CREATE', 'UPDATE', 'DELETE', 'APPROVE', 'REJECT', 'LOGIN'`),
 ]);
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// Medical Records Module Tables
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export const icd10ReportingGroups = sqliteTable("icd10_reporting_groups", {
+	id: integer().primaryKey({ autoIncrement: true }),
+	tenantId: text("tenant_id").notNull(),
+	name: text().notNull(),
+	description: text(),
+	isActive: integer("is_active").default(1),
+	createdBy: text("created_by"),
+	createdAt: text("created_at").default("sql`(datetime('now'))`"),
+	updatedAt: text("updated_at").default("sql`(datetime('now'))`"),
+});
+
+export const icd10DiseaseGroups = sqliteTable("icd10_disease_groups", {
+	id: integer().primaryKey({ autoIncrement: true }),
+	tenantId: text("tenant_id").notNull(),
+	name: text().notNull(),
+	reportingGroupId: integer("reporting_group_id").references(() => icd10ReportingGroups.id),
+	isActive: integer("is_active").default(1),
+	createdBy: text("created_by"),
+	createdAt: text("created_at").default("sql`(datetime('now'))`"),
+	updatedAt: text("updated_at").default("sql`(datetime('now'))`"),
+});
+
+export const icd10Codes = sqliteTable("icd10_codes", {
+	id: integer().primaryKey({ autoIncrement: true }),
+	tenantId: text("tenant_id").notNull(),
+	code: text().notNull(),
+	description: text().notNull(),
+	diseaseGroupId: integer("disease_group_id").references(() => icd10DiseaseGroups.id),
+	isActive: integer("is_active").default(1),
+	createdBy: text("created_by"),
+	createdAt: text("created_at").default("sql`(datetime('now'))`"),
+	updatedAt: text("updated_at").default("sql`(datetime('now'))`"),
+}, (table) => [
+	index("idx_icd10_codes_tenant").on(table.tenantId),
+	index("idx_icd10_codes_code").on(table.code),
+	index("idx_icd10_codes_desc").on(table.description),
+	uniqueIndex("idx_icd10_codes_unique").on(table.tenantId, table.code),
+]);
+
+export const medicalRecords = sqliteTable("medical_records", {
+	id: integer().primaryKey({ autoIncrement: true }),
+	tenantId: text("tenant_id").notNull(),
+	patientId: integer("patient_id").notNull().references(() => patients.id),
+	visitId: integer("visit_id"),
+	admissionId: integer("admission_id"),
+	doctorId: integer("doctor_id"),
+	fileNumber: text("file_number"),
+	dischargeType: text("discharge_type"),
+	dischargeCondition: text("discharge_condition"),
+	isOperationConducted: integer("is_operation_conducted").default(0),
+	operationDate: text("operation_date"),
+	operationDiagnosis: text("operation_diagnosis"),
+	gestationalWeek: integer("gestational_week"),
+	gestationalDay: integer("gestational_day"),
+	numberOfBabies: integer("number_of_babies"),
+	bloodLostMl: integer("blood_lost_ml"),
+	gravita: text(),
+	referredDate: text("referred_date"),
+	referredTime: text("referred_time"),
+	referredTo: text("referred_to"),
+	referredReason: text("referred_reason"),
+	isFileCleared: integer("is_file_cleared").default(0),
+	fileClearedBy: text("file_cleared_by"),
+	fileClearedOn: text("file_cleared_on"),
+	remarks: text(),
+	isActive: integer("is_active").default(1),
+	createdBy: text("created_by"),
+	createdAt: text("created_at").default("sql`(datetime('now'))`"),
+	updatedAt: text("updated_at").default("sql`(datetime('now'))`"),
+}, (table) => [
+	index("idx_mr_tenant_patient").on(table.tenantId, table.patientId),
+	index("idx_mr_tenant_visit").on(table.tenantId, table.visitId),
+	index("idx_mr_file_number").on(table.tenantId, table.fileNumber),
+]);
+
+export const babyBirthDetails = sqliteTable("baby_birth_details", {
+	id: integer().primaryKey({ autoIncrement: true }),
+	tenantId: text("tenant_id").notNull(),
+	medicalRecordId: integer("medical_record_id").references(() => medicalRecords.id),
+	patientId: integer("patient_id").notNull().references(() => patients.id),
+	visitId: integer("visit_id"),
+	certificateNumber: text("certificate_number"),
+	babyName: text("baby_name"),
+	sex: text(),
+	weightKg: real("weight_kg"),
+	birthDate: text("birth_date").notNull(),
+	birthTime: text("birth_time"),
+	birthType: text("birth_type"),
+	birthCondition: text("birth_condition"),
+	deliveryType: text("delivery_type"),
+	birthOrder: text("birth_order"),
+	fatherName: text("father_name"),
+	motherName: text("mother_name"),
+	issuedBy: text("issued_by"),
+	certifiedBy: text("certified_by"),
+	printedBy: text("printed_by"),
+	printCount: integer("print_count").default(0),
+	printedOn: text("printed_on"),
+	isActive: integer("is_active").default(1),
+	createdBy: text("created_by"),
+	createdAt: text("created_at").default("sql`(datetime('now'))`"),
+	updatedAt: text("updated_at").default("sql`(datetime('now'))`"),
+}, (table) => [
+	index("idx_birth_tenant_patient").on(table.tenantId, table.patientId),
+	index("idx_birth_date").on(table.tenantId, table.birthDate),
+]);
+
+export const deathDetails = sqliteTable("death_details", {
+	id: integer().primaryKey({ autoIncrement: true }),
+	tenantId: text("tenant_id").notNull(),
+	medicalRecordId: integer("medical_record_id").references(() => medicalRecords.id),
+	patientId: integer("patient_id").notNull().references(() => patients.id),
+	visitId: integer("visit_id"),
+	certificateNumber: text("certificate_number"),
+	deathDate: text("death_date").notNull(),
+	deathTime: text("death_time"),
+	causeOfDeath: text("cause_of_death"),
+	secondaryCause: text("secondary_cause"),
+	mannerOfDeath: text("manner_of_death"),
+	placeOfDeath: text("place_of_death"),
+	ageAtDeath: text("age_at_death"),
+	fatherName: text("father_name"),
+	motherName: text("mother_name"),
+	spouseName: text("spouse_name"),
+	certifiedBy: text("certified_by"),
+	printedBy: text("printed_by"),
+	printCount: integer("print_count").default(0),
+	printedOn: text("printed_on"),
+	isActive: integer("is_active").default(1),
+	createdBy: text("created_by"),
+	createdAt: text("created_at").default("sql`(datetime('now'))`"),
+	updatedAt: text("updated_at").default("sql`(datetime('now'))`"),
+}, (table) => [
+	index("idx_death_tenant_patient").on(table.tenantId, table.patientId),
+	index("idx_death_date").on(table.tenantId, table.deathDate),
+]);
+
+export const finalDiagnosis = sqliteTable("final_diagnosis", {
+	id: integer().primaryKey({ autoIncrement: true }),
+	tenantId: text("tenant_id").notNull(),
+	patientId: integer("patient_id").notNull().references(() => patients.id),
+	visitId: integer("visit_id"),
+	medicalRecordId: integer("medical_record_id").references(() => medicalRecords.id),
+	icd10Id: integer("icd10_id").references(() => icd10Codes.id),
+	isPrimary: integer("is_primary").default(0),
+	notes: text(),
+	isActive: integer("is_active").default(1),
+	createdBy: text("created_by"),
+	createdAt: text("created_at").default("sql`(datetime('now'))`"),
+	updatedAt: text("updated_at").default("sql`(datetime('now'))`"),
+}, (table) => [
+	index("idx_diagnosis_tenant_visit").on(table.tenantId, table.visitId),
+	index("idx_diagnosis_icd10").on(table.icd10Id),
+]);
+
+export const documentRecords = sqliteTable("document_records", {
+	id: integer().primaryKey({ autoIncrement: true }),
+	tenantId: text("tenant_id").notNull(),
+	patientId: integer("patient_id").notNull().references(() => patients.id),
+	medicalRecordId: integer("medical_record_id").references(() => medicalRecords.id),
+	documentType: text("document_type").notNull(),
+	title: text().notNull(),
+	description: text(),
+	fileKey: text("file_key"),
+	fileName: text("file_name"),
+	fileSize: integer("file_size"),
+	mimeType: text("mime_type"),
+	uploadedBy: text("uploaded_by"),
+	isActive: integer("is_active").default(1),
+	createdAt: text("created_at").default("sql`(datetime('now'))`"),
+	updatedAt: text("updated_at").default("sql`(datetime('now'))`"),
+}, (table) => [
+	index("idx_document_tenant_patient").on(table.tenantId, table.patientId),
+]);
+

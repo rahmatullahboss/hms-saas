@@ -16,6 +16,8 @@ import { woundCareRoutes } from './wound-care';
 import { handoverRoutes } from './handover';
 import { opdRoutes } from './opd';
 import wardsRoutes from './wards';
+import { medicationOrderRoutes } from './medication-orders';
+import { medicationReconciliationRoutes } from './medication-reconciliation';
 import { getDb } from '../../../db';
 
 
@@ -25,11 +27,18 @@ const nursing = new Hono<NursingEnv>();
 
 // ─── RBAC: Restrict write operations to nursing staff ───────────────────────
 // GETs = open to all authenticated users (viewing patient data)
-// POST/PUT/DELETE = restricted to nursing roles
+// POST/PUT/DELETE = restricted by route:
+//   - medication-orders: doctor/md/admin only (CPOE)
+//   - opd: nursing + receptionist
+//   - everything else: nursing roles
 nursing.use('/*', async (c, next) => {
-  const db = getDb(c.env.DB);
   const method = c.req.method;
   if (method === 'GET') return next();
+
+  // CPOE: only doctors/md/admin can create/modify medication orders
+  if (c.req.path.includes('/medication-orders')) {
+    return requireRole('doctor', 'md', 'hospital_admin')(c, next);
+  }
 
   // OPD check-in/out can be done by receptionists too
   if (c.req.path.includes('/opd/')) {
@@ -86,5 +95,7 @@ nursing.route('/wound-care', woundCareRoutes);
 nursing.route('/handover', handoverRoutes);
 nursing.route('/opd', opdRoutes);
 nursing.route('/wards', wardsRoutes);
+nursing.route('/medication-orders', medicationOrderRoutes);
+nursing.route('/medication-reconciliation', medicationReconciliationRoutes);
 
 export default nursing;

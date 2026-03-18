@@ -13,6 +13,7 @@ import testRoutes from './routes/tenant/tests';
 import billingRoutes from './routes/tenant/billing';
 import pharmacyRoutes from './routes/tenant/pharmacy';
 import staffRoutes from './routes/tenant/staff';
+import hrRoutes from './routes/tenant/hr';
 import dashboardRoutes from './routes/tenant/dashboard';
 import settingsRoutes from './routes/tenant/settings';
 import shareholderRoutes from './routes/tenant/shareholders';
@@ -79,6 +80,8 @@ import reportPharmacyRoutes from './routes/tenant/reportPharmacy';
 import reportAppointmentRoutes from './routes/tenant/reportAppointment';
 import nursingRoutes from './routes/tenant/nursing';
 import ePrescribingRoutes from './routes/tenant/ePrescribing';
+import medicalRecordsRoutes from './routes/tenant/medicalRecords';
+import clinicalRoutes from './routes/tenant/clinical';
 import hospitalSiteRoutes from './routes/public/hospitalSite';
 
 import type { Env } from './types';
@@ -250,6 +253,7 @@ app.route('/api/tests', testRoutes);
 app.route('/api/billing', billingRoutes);
 app.route('/api/pharmacy', pharmacyRoutes);
 app.route('/api/staff', staffRoutes);
+app.route('/api/hr', hrRoutes);
 app.route('/api/dashboard', dashboardRoutes);
 app.route('/api/settings', settingsRoutes);
 app.route('/api/shareholders', shareholderRoutes);
@@ -310,6 +314,8 @@ app.route('/api/reports/pharmacy', reportPharmacyRoutes);
 app.route('/api/reports/appointment', reportAppointmentRoutes);
 app.route('/api/nursing', nursingRoutes);
 app.route('/api/e-prescribing', ePrescribingRoutes);
+app.route('/api/medical-records', medicalRecordsRoutes);
+app.route('/api/clinical', clinicalRoutes);
 
 
 // ─── Not Found handler ──────────────────────────────────────────────

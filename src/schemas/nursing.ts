@@ -40,6 +40,12 @@ export const createMARSchema = z.object({
   administered_by: z.number().int().optional(),
   remarks: z.string().optional(),
   status: z.string().default('given'),
+  // New clinical MAR fields
+  order_id: z.number().int().optional(),
+  formulary_item_id: z.number().int().optional(),
+  generic_name: z.string().optional(),
+  strength: z.string().optional(),
+  scheduled_time: z.string().optional(),
 });
 export const updateMARSchema = createMARSchema.partial();
 
@@ -165,4 +171,80 @@ export const clinicalInfoQuerySchema = z.object({
 });
 export const favoritesQuerySchema = z.object({
   employee_id: z.coerce.number().int(),
+});
+
+// ─── 11. Clinical Medication Orders (CPOE) ──────────────────────────────────
+export const createMedicationOrderSchema = z.object({
+  patient_id: z.number().int(),
+  visit_id: z.number().int(),
+  formulary_item_id: z.number().int().optional(),
+  medication_name: z.string().min(1),
+  generic_name: z.string().optional(),
+  strength: z.string().optional(),
+  dosage_form: z.string().optional(),
+  dose: z.string().min(1),
+  route: z.string().default('Oral'),
+  frequency: z.string().min(1),
+  duration: z.string().optional(),
+  instructions: z.string().optional(),
+  priority: z.enum(['stat', 'urgent', 'routine', 'prn']).default('routine'),
+  start_datetime: z.string().optional(),
+  end_datetime: z.string().optional(),
+});
+
+export const updateOrderStatusSchema = z.object({
+  status: z.enum(['active', 'completed', 'discontinued', 'on_hold', 'cancelled']),
+  status_reason: z.string().optional(),
+});
+
+export const medicationOrderQuerySchema = z.object({
+  patient_id: z.coerce.number().int().optional(),
+  visit_id: z.coerce.number().int().optional(),
+  status: z.enum(['active', 'completed', 'discontinued', 'on_hold', 'cancelled']).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+// ─── 12. MAR Administration ─────────────────────────────────────────────────
+export const administerMedicationSchema = z.object({
+  status: z.enum(['given', 'withheld', 'refused', 'not_given']),
+  actual_time: z.string().optional(),
+  reason_not_given: z.string().optional(),
+  remarks: z.string().optional(),
+  barcode_scanned: z.number().int().default(0),
+});
+
+export const marScheduleQuerySchema = z.object({
+  patient_id: z.coerce.number().int().positive(),
+  visit_id: z.coerce.number().int().positive().optional(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format: YYYY-MM-DD').optional(),
+});
+
+// ─── 13. Medication Reconciliation ──────────────────────────────────────────
+export const createReconciliationSchema = z.object({
+  patient_id: z.number().int(),
+  visit_id: z.number().int(),
+  reconciliation_type: z.enum(['admission', 'transfer', 'discharge']),
+  notes: z.string().optional(),
+});
+
+export const reconciliationItemSchema = z.object({
+  medication_name: z.string().min(1),
+  generic_name: z.string().optional(),
+  dose: z.string().optional(),
+  route: z.string().optional(),
+  frequency: z.string().optional(),
+  source: z.enum(['home', 'inpatient', 'new']).default('home'),
+  action: z.enum(['continue', 'modify', 'discontinue', 'add']),
+  action_reason: z.string().optional(),
+  new_dose: z.string().optional(),
+  new_route: z.string().optional(),
+  new_frequency: z.string().optional(),
+});
+
+export const reconciliationQuerySchema = z.object({
+  patient_id: z.coerce.number().int().optional(),
+  visit_id: z.coerce.number().int().optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
 });

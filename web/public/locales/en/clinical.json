@@ -1,0 +1,121 @@
+{
+  "title": "Clinical Assessments",
+  "subtitle": "Comprehensive patient clinical evaluation and tracking",
+  "searchPlaceholder": "Search by Patient ID...",
+  "loadPatient": "Load Patient",
+  "clear": "Clear",
+  "noPatientSelected": "No Patient Selected",
+  "noPatientDesc": "Please enter a Patient ID above to view their clinical records.",
+  "tabs": {
+    "problems": "Problem List",
+    "diagnosis": "Diagnosis",
+    "history": "History",
+    "assessments": "Assessments",
+    "diet": "Diet",
+    "glucose": "Glucose"
+  },
+  "problems": {
+    "active": "Active Problems",
+    "add": "Add Problem",
+    "new": "New Problem",
+    "description": "Description",
+    "icd10": "ICD-10 Code",
+    "severity": "Severity",
+    "onsetDate": "Onset Date",
+    "comments": "Comments",
+    "save": "Save Problem",
+    "none": "No problems recorded.",
+    "resolve": "Resolve",
+    "resolved": "Resolved",
+    "status": "Status"
+  },
+  "diagnosis": {
+    "current": "Current Diagnoses",
+    "add": "Add Diagnosis",
+    "new": "Add New Diagnosis",
+    "searchIcd10": "Search ICD-10",
+    "searchPlaceholder": "Type code or description to search...",
+    "type": "Diagnosis Type",
+    "primary": "Primary",
+    "secondary": "Secondary",
+    "admitting": "Admitting",
+    "discharge": "Discharge",
+    "date": "Date Recorded",
+    "none": "No diagnoses recorded.",
+    "save": "Save Diagnosis"
+  },
+  "history": {
+    "family": "Family History",
+    "social": "Social History",
+    "surgical": "Surgical History",
+    "add": "Add Record",
+    "new": "Add {{type}} History",
+    "relationship": "Relationship",
+    "notes": "Notes",
+    "smoking": "Smoking History",
+    "alcohol": "Alcohol History",
+    "drug": "Drug History",
+    "occupation": "Occupation",
+    "surgeryType": "Surgery Type",
+    "surgeryDate": "Surgery Date",
+    "none": "No records found.",
+    "save": "Save"
+  },
+  "assessments": {
+    "new": "New Assessment",
+    "newTyped": "New {{type}} Assessment",
+    "save": "Save Assessment",
+    "none": "No assessments recorded.",
+    "score": "Score",
+    "totalScore": "Total Score",
+    "severity": "Severity",
+    "suicideRisk": "Suicide Risk Flagged",
+    "soap": {
+      "subjective": "Subjective",
+      "objective": "Objective",
+      "assessment": "Assessment",
+      "plan": "Plan",
+      "subjectivePlaceholder": "Patient's current condition in their own words...",
+      "objectivePlaceholder": "Vital signs, physical exam findings, lab results...",
+      "assessmentPlaceholder": "Medical diagnosis or assessment of the situation...",
+      "planPlaceholder": "Treatment plan, medications, follow-up..."
+    },
+    "phq9": {
+      "instruction": "Over the last 2 weeks, how often have you been bothered by any of the following problems?"
+    },
+    "gad7": {
+      "instruction": "Over the last 2 weeks, how often have you been bothered by the following problems?"
+    }
+  },
+  "diet": {
+    "title": "Diet Plan",
+    "add": "Add Diet",
+    "new": "Add Diet Entry",
+    "name": "Diet Name",
+    "quantity": "Quantity",
+    "unit": "Unit",
+    "time": "Feeding Time",
+    "remarks": "Remarks",
+    "none": "No diet records.",
+    "save": "Save Diet"
+  },
+  "glucose": {
+    "title": "Glucose Monitoring",
+    "add": "Add Reading",
+    "new": "New Blood Sugar Reading",
+    "value": "Value",
+    "unit": "Unit",
+    "type": "Type",
+    "time": "Measurement Time",
+    "none": "No glucose readings recorded.",
+    "save": "Save Reading"
+  },
+  "common": {
+    "loading": "Loading...",
+    "actions": "Actions",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "refresh": "Refresh",
+    "required": "*"
+  }
+}

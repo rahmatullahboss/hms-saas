@@ -30,7 +30,7 @@ i18n
     ns: ['common', 'sidebar', 'dashboard', 'auth', 'patients', 'billing',
          'pharmacy', 'laboratory', 'appointments', 'staff', 'accounting',
          'reports', 'settings', 'telemedicine', 'ipd', 'notifications', 'director',
-         'emergency', 'ot', 'vitals', 'nursing', 'super-admin', 'inventory'],
+         'emergency', 'ot', 'vitals', 'nursing', 'super-admin', 'inventory', 'hr', 'clinical'],
     defaultNS: 'common',
 
     interpolation: {

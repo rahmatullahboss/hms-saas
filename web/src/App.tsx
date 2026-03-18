@@ -37,6 +37,7 @@ import TestCatalog from './pages/TestCatalog';
 import ProfitLoss from './pages/accounting/ProfitLoss';
 import AIAssistant from './pages/AIAssistant';
 import StaffPage from './pages/StaffPage';
+import HRDashboard from './pages/HRDashboard';
 import PatientDetail from './pages/PatientDetail';
 import ReportsDashboard from './pages/ReportsDashboard';
 import BillPrint from './pages/BillPrint';
@@ -78,6 +79,7 @@ import BillingHandoverPage from './pages/BillingHandoverPage';
 import BillCancellationPage from './pages/BillCancellationPage';
 import VitalsPage from './pages/VitalsPage';
 import AllergiesPage from './pages/AllergiesPage';
+import ClinicalAssessments from './pages/ClinicalAssessments';
 import InventoryDashboard from './pages/inventory/InventoryDashboard';
 import StockList from './pages/inventory/StockList';
 import PurchaseOrderList from './pages/inventory/PurchaseOrderList';
@@ -101,6 +103,7 @@ import PaymentsPage from './pages/PaymentsPage';
 import InboxPage from './pages/InboxPage';
 import NursingDashboard from './pages/NursingDashboard';
 import EPrescribingDashboard from './pages/EPrescribingDashboard';
+import MedicalRecordsDashboard from './pages/MedicalRecordsDashboard';
 import HelpCenterPage from './pages/HelpCenterPage';
 
 function Unauthorized() {
@@ -175,6 +178,7 @@ function App() {
             <Route path="recurring" element={<RecurringExpenses role="hospital_admin" />} />
             <Route path="accounts" element={<ChartOfAccounts role="hospital_admin" />} />
             <Route path="staff" element={<StaffPage role="hospital_admin" />} />
+            <Route path="hr" element={<HRDashboard role="hospital_admin" />} />
             <Route path="shareholders" element={<ShareholderManagement role="hospital_admin" />} />
             <Route path="journal" element={<JournalEntries role="hospital_admin" />} />
             <Route path="consultation-notes" element={<ConsultationNotes role="hospital_admin" />} />
@@ -200,6 +204,7 @@ function App() {
             <Route path="nurse-station" element={<NurseStation role="hospital_admin" />} />
             <Route path="nursing" element={<NursingDashboard role="hospital_admin" />} />
             <Route path="e-prescribing" element={<EPrescribingDashboard role="hospital_admin" />} />
+            <Route path="medical-records" element={<MedicalRecordsDashboard role="hospital_admin" />} />
             <Route path="admissions/:admissionId/discharge" element={<DischargeSummary role="hospital_admin" />} />
             <Route path="prescriptions/:prescriptionId/print" element={<PrescriptionPrint role="hospital_admin" />} />
             <Route path="doctor-schedule" element={<DoctorSchedule role="hospital_admin" />} />
@@ -225,6 +230,7 @@ function App() {
             <Route path="inbox" element={<InboxPage role="hospital_admin" />} />
             <Route path="vitals" element={<VitalsPage role="hospital_admin" />} />
             <Route path="allergies" element={<AllergiesPage role="hospital_admin" />} />
+            <Route path="clinical" element={<ClinicalAssessments role="hospital_admin" />} />
             {/* ─── Inventory ─────────────────────────────── */}
             <Route path="inventory" element={<InventoryDashboard role="hospital_admin" />} />
             <Route path="inventory/stock" element={<StockList role="hospital_admin" />} />
@@ -275,6 +281,7 @@ function App() {
           <Route element={<ProtectedRoute allowedRoles={['md', 'hospital_admin']} />}>
             <Route path="md/dashboard" element={<MDDashboard />} />
             <Route path="md/staff" element={<StaffPage role="md" />} />
+            <Route path="md/hr" element={<HRDashboard role="md" />} />
             <Route path="md/profit" element={<MDDashboard />} />
             <Route path="md/accounting" element={<AccountingDashboard role="md" />} />
             <Route path="md/income" element={<IncomeList role="md" />} />

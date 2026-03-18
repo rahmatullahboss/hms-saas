@@ -6,7 +6,7 @@ import {
   BookOpen, FileText, Video, ChevronRight,
   BedDouble, Stethoscope, Calendar, Shield, ClipboardList,
   Globe, Siren, Scissors, Heart, ShieldAlert, ArrowRightLeft, HeartPulse,
-  XCircle, Handshake, CreditCard, Layers, Beaker, BarChart3, MessageSquare, HelpCircle,
+  XCircle, Handshake, CreditCard, Layers, Beaker, BarChart3, MessageSquare, HelpCircle, Briefcase, Brain,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -96,7 +96,9 @@ export default function Sidebar({ role, onLogout }: SidebarProps) {
           { labelKey: 'inventory',     path: 'inventory',         icon: <Package         className="w-4.5 h-4.5" /> },
           { labelKey: 'vitals',        path: 'vitals',            icon: <Heart           className="w-4.5 h-4.5" /> },
           { labelKey: 'allergies',     path: 'allergies',         icon: <ShieldAlert     className="w-4.5 h-4.5" /> },
-          { labelKey: 'ePrescribing', path: 'e-prescribing',     icon: <Shield          className="w-4.5 h-4.5" /> },
+          { labelKey: 'clinicalAssessments', path: 'clinical', icon: <Brain className="w-4.5 h-4.5" /> },
+          { labelKey: 'ePrescribing',    path: 'e-prescribing',    icon: <Shield       className="w-4.5 h-4.5" /> },
+          { labelKey: 'medicalRecords',   path: 'medical-records',  icon: <FileText     className="w-4.5 h-4.5" /> },
           { labelKey: 'labSettings',   path: 'lab-settings',      icon: <Beaker          className="w-4.5 h-4.5" /> },
         ],
       },
@@ -127,6 +129,7 @@ export default function Sidebar({ role, onLogout }: SidebarProps) {
         items: [
           { labelKey: 'inbox',              path: 'inbox',               icon: <MessageSquare   className="w-4.5 h-4.5" /> },
           { labelKey: 'staff',              path: 'staff',               icon: <UserCog         className="w-4.5 h-4.5" /> },
+          { labelKey: 'hrPayroll',           path: 'hr',                  icon: <Briefcase        className="w-4.5 h-4.5" /> },
           { labelKey: 'shareholders',       path: 'shareholders',        icon: <Users           className="w-4.5 h-4.5" /> },
           { labelKey: 'multiBranch',        path: 'multi-branch',        icon: <Building2       className="w-4.5 h-4.5" /> },
           { labelKey: 'reports',            path: 'reports',             icon: <PieChart        className="w-4.5 h-4.5" /> },
@@ -171,6 +174,7 @@ export default function Sidebar({ role, onLogout }: SidebarProps) {
           { labelKey: 'reports',    path: 'md/reports',     icon: <PieChart        className="w-4.5 h-4.5" /> },
           { labelKey: 'audit',      path: 'md/audit',       icon: <FileText        className="w-4.5 h-4.5" /> },
           { labelKey: 'staff',      path: 'md/staff',       icon: <UserCog         className="w-4.5 h-4.5" /> },
+          { labelKey: 'hrPayroll',  path: 'md/hr',          icon: <Briefcase        className="w-4.5 h-4.5" /> },
           { labelKey: 'profit',     path: 'md/profit',      icon: <TrendingUp      className="w-4.5 h-4.5" /> },
           { labelKey: 'helpCenter', path: 'md/help',        icon: <HelpCircle      className="w-4.5 h-4.5" /> },
         ],
