@@ -56,3 +56,15 @@ export function requireSpecificRole(c: Context, ...roles: string[]): string {
   }
   return role;
 }
+
+/**
+ * Parse a route param as a positive integer or throw 400.
+ * Centralised version — replaces inline copies across route files.
+ */
+export function parseId(v: string, label = 'ID'): number {
+  const n = parseInt(v, 10);
+  if (isNaN(n) || n <= 0) {
+    throw new HTTPException(400, { message: `Invalid ${label}` });
+  }
+  return n;
+}

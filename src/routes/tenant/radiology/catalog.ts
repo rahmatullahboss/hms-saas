@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { zValidator } from '@hono/zod-validator';
 import type { Env, Variables } from '../../../types';
-import { requireTenantId, requireUserId } from '../../../lib/context-helpers';
+import { requireTenantId, requireUserId, parseId } from '../../../lib/context-helpers';
 import { requireRole } from '../../../middleware/rbac';
 import {
   createImagingTypeSchema,
@@ -20,27 +20,26 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 const RAD_READ  = ['hospital_admin', 'doctor', 'md', 'nurse', 'reception'];
 const RAD_WRITE = ['hospital_admin', 'doctor', 'md'];
 
-// ─── helpers ────────────────────────────────────────────────────────────────
-
-function parseId(v: string, label = 'ID'): number {
-  const n = parseInt(v, 10);
-  if (isNaN(n) || n <= 0) throw new HTTPException(400, { message: `Invalid ${label}` });
-  return n;
-}
-
 // ═══════════════════════════════════════════════════════════════════════════════
-// MASTER DATA (seed clone helper)
+// MASTER DATA (seed clone helper)  F-09: in-process cache
 // ═══════════════════════════════════════════════════════════════════════════════
+
+const seedClonedTenants = new Set<string>();
 
 async function ensureSeedCloned(
   d1: D1Database,
   tenantId: string,
 ): Promise<void> {
+  if (seedClonedTenants.has(tenantId)) return;
+
   const existing = await d1
     .prepare('SELECT COUNT(*) as cnt FROM radiology_imaging_types WHERE tenant_id = ?')
     .bind(tenantId)
     .first<{ cnt: number }>();
-  if ((existing?.cnt ?? 0) > 0) return;
+  if ((existing?.cnt ?? 0) > 0) {
+    seedClonedTenants.add(tenantId);
+    return;
+  }
 
   await d1
     .prepare(`INSERT OR IGNORE INTO radiology_imaging_types (tenant_id, name, code, description, is_active)
@@ -60,6 +59,8 @@ async function ensureSeedCloned(
       WHERE si.tenant_id = '__seed__'`)
     .bind(tenantId, tenantId)
     .run();
+
+  seedClonedTenants.add(tenantId);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

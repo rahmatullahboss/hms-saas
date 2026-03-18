@@ -1,12 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 import { Plus, Trash2, RefreshCw } from 'lucide-react';
 import { authHeader } from '../../utils/auth';
 
 type AssessmentType = 'phq9' | 'gad7' | 'soap';
 
 export default function AssessmentsTab({ patientId }: { patientId: number }) {
+  const { t } = useTranslation(['clinical']);
   const [activeTab, setActiveTab] = useState<AssessmentType>('phq9');
   const [records, setRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -141,22 +143,24 @@ export default function AssessmentsTab({ patientId }: { patientId: number }) {
           ))}
         </div>
         <div className="flex gap-2">
-          <button onClick={fetchAssessments} className="btn-ghost" title="Refresh">
+          <button onClick={fetchAssessments} className="btn-ghost" title={t('common.refresh')}>
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
           <button onClick={() => setShowAdd(true)} className="btn-primary">
-            <Plus className="w-4 h-4" /> New Assessment
+            <Plus className="w-4 h-4" /> {t('assessments.new')}
           </button>
         </div>
       </div>
 
       {showAdd && (
         <div className="card p-5 border border-indigo-100 dark:border-indigo-900/30 bg-indigo-50/50 dark:bg-indigo-900/10 mb-4">
-          <h3 className="font-medium text-indigo-900 dark:text-indigo-300 mb-4 uppercase">New {activeTab} Assessment</h3>
+          <h3 className="font-medium text-indigo-900 dark:text-indigo-300 mb-4 uppercase">
+            {t('assessments.newTyped', { type: activeTab })}
+          </h3>
           <form onSubmit={handleAdd}>
             {activeTab === 'phq9' && (
               <div className="space-y-4">
-                <p className="text-sm text-gray-500 mb-2">Over the last 2 weeks, how often have you been bothered by any of the following problems?</p>
+                <p className="text-sm text-gray-500 mb-2">{t('assessments.phq9.instruction')}</p>
                 {PHQ9_QUESTIONS.map((q, i) => (
                   <div key={i} className="flex flex-col md:flex-row md:items-center justify-between border-b border-gray-200 dark:border-gray-700 pb-3 gap-2">
                     <span className="text-sm font-medium">{i + 1}. {q}</span>
@@ -177,7 +181,7 @@ export default function AssessmentsTab({ patientId }: { patientId: number }) {
                   </div>
                 ))}
                 <div className="flex justify-between items-center pt-2 font-bold">
-                  <span>Total Score:</span>
+                  <span>{t('assessments.totalScore')}:</span>
                   <span className="text-lg text-indigo-600">{phq9Answers.reduce((a, b) => a + b, 0)}</span>
                 </div>
               </div>
@@ -185,7 +189,7 @@ export default function AssessmentsTab({ patientId }: { patientId: number }) {
 
             {activeTab === 'gad7' && (
               <div className="space-y-4">
-                <p className="text-sm text-gray-500 mb-2">Over the last 2 weeks, how often have you been bothered by the following problems?</p>
+                <p className="text-sm text-gray-500 mb-2">{t('assessments.gad7.instruction')}</p>
                 {GAD7_QUESTIONS.map((q, i) => (
                   <div key={i} className="flex flex-col md:flex-row md:items-center justify-between border-b border-gray-200 dark:border-gray-700 pb-3 gap-2">
                     <span className="text-sm font-medium">{i + 1}. {q}</span>
@@ -206,7 +210,7 @@ export default function AssessmentsTab({ patientId }: { patientId: number }) {
                   </div>
                 ))}
                 <div className="flex justify-between items-center pt-2 font-bold">
-                  <span>Total Score:</span>
+                  <span>{t('assessments.totalScore')}:</span>
                   <span className="text-lg text-indigo-600">{gad7Answers.reduce((a, b) => a + b, 0)}</span>
                 </div>
               </div>
@@ -215,27 +219,27 @@ export default function AssessmentsTab({ patientId }: { patientId: number }) {
             {activeTab === 'soap' && (
               <div className="space-y-4">
                 <div>
-                  <label className="label font-bold text-gray-700">Subjective</label>
-                  <textarea required value={soapForm.subject} onChange={e => setSoapForm({...soapForm, subject: e.target.value})} className="input min-h-[80px]" placeholder="Patient's current condition in their own words..." />
+                  <label className="label font-bold text-gray-700">{t('assessments.soap.subjective')} {t('common.required')}</label>
+                  <textarea required value={soapForm.subject} onChange={e => setSoapForm({...soapForm, subject: e.target.value})} className="input min-h-[80px]" placeholder={t('assessments.soap.subjectivePlaceholder')} />
                 </div>
                 <div>
-                  <label className="label font-bold text-gray-700">Objective</label>
-                  <textarea required value={soapForm.object} onChange={e => setSoapForm({...soapForm, object: e.target.value})} className="input min-h-[80px]" placeholder="Vital signs, physical exam findings, lab results..." />
+                  <label className="label font-bold text-gray-700">{t('assessments.soap.objective')} {t('common.required')}</label>
+                  <textarea required value={soapForm.object} onChange={e => setSoapForm({...soapForm, object: e.target.value})} className="input min-h-[80px]" placeholder={t('assessments.soap.objectivePlaceholder')} />
                 </div>
                 <div>
-                  <label className="label font-bold text-gray-700">Assessment</label>
-                  <textarea required value={soapForm.assessment} onChange={e => setSoapForm({...soapForm, assessment: e.target.value})} className="input min-h-[80px]" placeholder="Medical diagnosis or assessment of the situation..." />
+                  <label className="label font-bold text-gray-700">{t('assessments.soap.assessment')} {t('common.required')}</label>
+                  <textarea required value={soapForm.assessment} onChange={e => setSoapForm({...soapForm, assessment: e.target.value})} className="input min-h-[80px]" placeholder={t('assessments.soap.assessmentPlaceholder')} />
                 </div>
                 <div>
-                  <label className="label font-bold text-gray-700">Plan</label>
-                  <textarea required value={soapForm.plan} onChange={e => setSoapForm({...soapForm, plan: e.target.value})} className="input min-h-[80px]" placeholder="Treatment plan, medications, follow-up..." />
+                  <label className="label font-bold text-gray-700">{t('assessments.soap.plan')} {t('common.required')}</label>
+                  <textarea required value={soapForm.plan} onChange={e => setSoapForm({...soapForm, plan: e.target.value})} className="input min-h-[80px]" placeholder={t('assessments.soap.planPlaceholder')} />
                 </div>
               </div>
             )}
 
             <div className="flex justify-end gap-2 mt-6">
-              <button type="button" onClick={() => setShowAdd(false)} className="btn-ghost">Cancel</button>
-              <button type="submit" disabled={saving} className="btn-primary">{saving ? 'Saving...' : 'Save Assessment'}</button>
+              <button type="button" onClick={() => setShowAdd(false)} className="btn-ghost">{t('common.cancel')}</button>
+              <button type="submit" disabled={saving} className="btn-primary">{saving ? 'Saving...' : t('assessments.save')}</button>
             </div>
           </form>
         </div>
@@ -244,9 +248,9 @@ export default function AssessmentsTab({ patientId }: { patientId: number }) {
       {/* List View */}
       <div className="space-y-3">
         {loading ? (
-          <div className="text-center py-8 text-gray-500">Loading...</div>
+          <div className="text-center py-8 text-gray-500">{t('common.loading')}</div>
         ) : records.length === 0 ? (
-          <div className="text-center py-12 text-gray-500 border border-gray-200 dark:border-gray-800 rounded-lg">No assessments recorded.</div>
+          <div className="text-center py-12 text-gray-500 border border-gray-200 dark:border-gray-800 rounded-lg">{t('assessments.none')}</div>
         ) : (
           records.map(r => (
             <div key={r.id} className="card p-4">
@@ -254,7 +258,7 @@ export default function AssessmentsTab({ patientId }: { patientId: number }) {
                 <span className="text-sm text-gray-500">{new Date(r.created_at).toLocaleString()}</span>
                 {r.total_score !== undefined && (
                   <div className="flex items-center gap-2">
-                    <span className="font-bold">Score: {r.total_score}</span>
+                    <span className="font-bold">{t('assessments.score')}: {r.total_score}</span>
                     <span className={`badge ${getScoreColor(r.total_score, activeTab as any)} capitalize`}>{r.severity}</span>
                   </div>
                 )}
@@ -272,7 +276,7 @@ export default function AssessmentsTab({ patientId }: { patientId: number }) {
               {(activeTab === 'phq9' || activeTab === 'gad7') && (
                 <div className="mt-2 text-sm text-gray-500">
                   Detailed answers stored in record.
-                  {r.suicide_risk_score > 0 && <div className="mt-2 text-red-600 font-bold">⚠️ Suicide Risk Flagged (Score: {r.suicide_risk_score})</div>}
+                  {r.suicide_risk_score > 0 && <div className="mt-2 text-red-600 font-bold">⚠️ {t('assessments.suicideRisk')} ({t('assessments.score')}: {r.suicide_risk_score})</div>}
                 </div>
               )}
             </div>

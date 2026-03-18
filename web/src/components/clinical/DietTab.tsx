@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 import { Plus, Trash2, RefreshCw } from 'lucide-react';
 import { authHeader } from '../../utils/auth';
 
@@ -16,6 +17,7 @@ interface Diet {
 }
 
 export default function DietTab({ patientId }: { patientId: number }) {
+  const { t } = useTranslation(['clinical']);
   const [diets, setDiets] = useState<Diet[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -78,44 +80,44 @@ export default function DietTab({ patientId }: { patientId: number }) {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Diet Plan</h2>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('diet.title')}</h2>
         <div className="flex gap-2">
-          <button onClick={fetchDiets} className="btn-ghost" title="Refresh">
+          <button onClick={fetchDiets} className="btn-ghost" title={t('common.refresh')}>
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
           <button onClick={() => setShowAdd(true)} className="btn-primary">
-            <Plus className="w-4 h-4" /> Add Diet
+            <Plus className="w-4 h-4" /> {t('diet.add')}
           </button>
         </div>
       </div>
 
       {showAdd && (
         <div className="card p-4 border border-indigo-100 dark:border-indigo-900/30 bg-indigo-50/50 dark:bg-indigo-900/10 mb-4">
-          <h3 className="font-medium text-indigo-900 dark:text-indigo-300 mb-3">Add Diet Entry</h3>
+          <h3 className="font-medium text-indigo-900 dark:text-indigo-300 mb-3">{t('diet.new')}</h3>
           <form onSubmit={handleAdd} className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="md:col-span-2">
-              <label className="label">Diet Name *</label>
+              <label className="label">{t('diet.name')} {t('common.required')}</label>
               <input type="text" required value={form.diet_name} onChange={e => setForm({ ...form, diet_name: e.target.value })} className="input" placeholder="e.g. Diabetic Diet" />
             </div>
             <div>
-              <label className="label">Quantity</label>
+              <label className="label">{t('diet.quantity')}</label>
               <input type="text" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} className="input" placeholder="e.g. 1" />
             </div>
             <div>
-              <label className="label">Unit</label>
+              <label className="label">{t('diet.unit')}</label>
               <input type="text" value={form.unit} onChange={e => setForm({ ...form, unit: e.target.value })} className="input" placeholder="e.g. Bowl, Cup" />
             </div>
             <div className="md:col-span-2">
-              <label className="label">Feeding Time</label>
+              <label className="label">{t('diet.time')}</label>
               <input type="text" value={form.feeding_time} onChange={e => setForm({ ...form, feeding_time: e.target.value })} className="input" placeholder="e.g. Breakfast, 8:00 AM" />
             </div>
             <div className="md:col-span-2">
-              <label className="label">Remarks</label>
+              <label className="label">{t('diet.remarks')}</label>
               <input type="text" value={form.remarks} onChange={e => setForm({ ...form, remarks: e.target.value })} className="input" placeholder="Any notes..." />
             </div>
             <div className="md:col-span-4 flex justify-end gap-2 mt-2">
-              <button type="button" onClick={() => setShowAdd(false)} className="btn-ghost">Cancel</button>
-              <button type="submit" disabled={saving} className="btn-primary">{saving ? 'Saving...' : 'Save Diet'}</button>
+              <button type="button" onClick={() => setShowAdd(false)} className="btn-ghost">{t('common.cancel')}</button>
+              <button type="submit" disabled={saving} className="btn-primary">{saving ? 'Saving...' : t('diet.save')}</button>
             </div>
           </form>
         </div>
@@ -125,19 +127,19 @@ export default function DietTab({ patientId }: { patientId: number }) {
         <table className="table-base">
           <thead>
             <tr>
-              <th>Diet Name</th>
-              <th>Quantity</th>
-              <th>Unit</th>
-              <th>Feeding Time</th>
-              <th>Remarks</th>
-              <th className="text-right">Actions</th>
+              <th>{t('diet.name')}</th>
+              <th>{t('diet.quantity')}</th>
+              <th>{t('diet.unit')}</th>
+              <th>{t('diet.time')}</th>
+              <th>{t('diet.remarks')}</th>
+              <th className="text-right">{t('common.actions')}</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={6} className="text-center py-4 text-gray-500">Loading...</td></tr>
+              <tr><td colSpan={6} className="text-center py-4 text-gray-500">{t('common.loading')}</td></tr>
             ) : diets.length === 0 ? (
-              <tr><td colSpan={6} className="text-center py-8 text-gray-500">No diet records.</td></tr>
+              <tr><td colSpan={6} className="text-center py-8 text-gray-500">{t('diet.none')}</td></tr>
             ) : (
               diets.map(d => (
                 <tr key={d.id}>
@@ -147,7 +149,7 @@ export default function DietTab({ patientId }: { patientId: number }) {
                   <td>{d.feeding_time || '-'}</td>
                   <td>{d.remarks || '-'}</td>
                   <td className="text-right">
-                    <button onClick={() => handleDelete(d.id)} className="text-red-500 hover:bg-red-50 p-1.5 rounded" title="Delete">
+                    <button onClick={() => handleDelete(d.id)} className="text-red-500 hover:bg-red-50 p-1.5 rounded" title={t('common.delete')}>
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </td>

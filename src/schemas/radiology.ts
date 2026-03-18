@@ -161,3 +161,8 @@ export const pacsQuerySchema = z.object({
   from_date: z.string().optional(),
   to_date: z.string().optional(),
 });
+
+export const uploadUrlSchema = z.object({
+  file_name: z.string().max(255).optional(),
+  content_type: z.string().max(100).optional(),
+});

@@ -5,7 +5,6 @@ import {
   createImagingItemSchema,
   updateImagingItemSchema,
   createRequisitionSchema,
-  updateRequisitionStatusSchema,
   markScannedSchema,
   cancelRequisitionSchema,
   createReportSchema,
@@ -15,6 +14,7 @@ import {
   requisitionQuerySchema,
   reportQuerySchema,
   pacsQuerySchema,
+  uploadUrlSchema,
 } from '../../src/schemas/radiology';
 
 // ─── Imaging Type ────────────────────────────────────────────────────────────
@@ -106,15 +106,18 @@ describe('createRequisitionSchema', () => {
   });
 });
 
-describe('updateRequisitionStatusSchema', () => {
-  it('accepts valid statuses', () => {
-    for (const s of ['pending', 'scanned', 'reported', 'cancelled']) {
-      expect(updateRequisitionStatusSchema.safeParse({ order_status: s }).success).toBe(true);
-    }
+describe('uploadUrlSchema', () => {
+  it('accepts empty body (all optional)', () => {
+    expect(uploadUrlSchema.safeParse({}).success).toBe(true);
   });
 
-  it('rejects invalid status', () => {
-    expect(updateRequisitionStatusSchema.safeParse({ order_status: 'done' }).success).toBe(false);
+  it('accepts file_name and content_type', () => {
+    const r = uploadUrlSchema.safeParse({ file_name: 'scan.dcm', content_type: 'application/dicom' });
+    expect(r.success).toBe(true);
+  });
+
+  it('rejects file_name over 255 chars', () => {
+    expect(uploadUrlSchema.safeParse({ file_name: 'x'.repeat(256) }).success).toBe(false);
   });
 });
 

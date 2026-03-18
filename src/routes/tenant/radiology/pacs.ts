@@ -2,23 +2,17 @@ import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { zValidator } from '@hono/zod-validator';
 import type { Env, Variables } from '../../../types';
-import { requireTenantId } from '../../../lib/context-helpers';
+import { requireTenantId, parseId } from '../../../lib/context-helpers';
 import { requireRole } from '../../../middleware/rbac';
-import { createDicomStudySchema, pacsQuerySchema } from '../../../schemas/radiology';
+import { createDicomStudySchema, pacsQuerySchema, uploadUrlSchema } from '../../../schemas/radiology';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 const RAD_READ = ['hospital_admin', 'doctor', 'md', 'nurse', 'reception'];
 const RAD_SCAN = ['hospital_admin', 'doctor', 'md', 'nurse'];
 
-function parseId(v: string, label = 'ID'): number {
-  const n = parseInt(v, 10);
-  if (isNaN(n) || n <= 0) throw new HTTPException(400, { message: `Invalid ${label}` });
-  return n;
-}
-
 // ═══════════════════════════════════════════════════════════════════════════════
-// LIST DICOM STUDIES
+// LIST DICOM STUDIES  (F-04: added is_active filter)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 app.get('/', requireRole(...RAD_READ), zValidator('query', pacsQuerySchema), async (c) => {
@@ -26,7 +20,7 @@ app.get('/', requireRole(...RAD_READ), zValidator('query', pacsQuerySchema), asy
   const { page, limit, patient_id, modality, from_date, to_date } = c.req.valid('query');
   const offset = (page - 1) * limit;
 
-  let where = 'WHERE tenant_id = ?';
+  let where = 'WHERE tenant_id = ? AND is_active = 1';
   const binds: unknown[] = [tenantId];
 
   if (patient_id) { where += ' AND patient_id = ?';   binds.push(patient_id); }
@@ -55,7 +49,7 @@ app.get('/', requireRole(...RAD_READ), zValidator('query', pacsQuerySchema), asy
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// GET STUDY DETAIL
+// GET STUDY DETAIL  (F-12: configurable OHIF URL)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 app.get('/:id', requireRole(...RAD_READ), async (c) => {
@@ -63,16 +57,20 @@ app.get('/:id', requireRole(...RAD_READ), async (c) => {
   const id = parseId(c.req.param('id'), 'Study ID');
 
   const study = await c.env.DB.prepare(
-    'SELECT * FROM radiology_dicom_studies WHERE id = ? AND tenant_id = ?',
+    'SELECT * FROM radiology_dicom_studies WHERE id = ? AND tenant_id = ? AND is_active = 1',
   ).bind(id, tenantId).first();
 
   if (!study) throw new HTTPException(404, { message: 'Study not found' });
 
-  // Return OHIF viewer URL for the study
+  // F-12: Use configurable OHIF base URL from env, fallback to note
   const studyUid = (study as Record<string, unknown>).study_instance_uid as string;
-  const viewerUrl = studyUid ? `https://viewer.ohif.org/viewer/${studyUid}` : null;
+  const ohifBase = (c.env as unknown as Record<string, unknown>).OHIF_BASE_URL as string | undefined;
+  const viewerUrl = studyUid && ohifBase ? `${ohifBase}/viewer/${studyUid}` : null;
 
-  return c.json({ study: { ...study, viewer_url: viewerUrl } });
+  return c.json({
+    study: { ...study, viewer_url: viewerUrl },
+    ...(viewerUrl ? {} : { note: 'Set OHIF_BASE_URL env var to enable viewer links' }),
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -116,16 +114,30 @@ app.post('/', requireRole(...RAD_SCAN), zValidator('json', createDicomStudySchem
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// GET R2 UPLOAD URL (presigned — for future DICOM upload flow)
+// SOFT DELETE STUDY
 // ═══════════════════════════════════════════════════════════════════════════════
 
-app.post('/upload-url', requireRole(...RAD_SCAN), async (c) => {
-  const body = await c.req.json<{ file_name?: string; content_type?: string }>();
+app.delete('/:id', requireRole(...RAD_SCAN), async (c) => {
+  const tenantId = requireTenantId(c);
+  const id = parseId(c.req.param('id'), 'Study ID');
+
+  const r = await c.env.DB.prepare(
+    `UPDATE radiology_dicom_studies SET is_active = 0, updated_at = datetime('now') WHERE id = ? AND tenant_id = ? AND is_active = 1`,
+  ).bind(id, tenantId).run();
+
+  if (!r.meta.changes) throw new HTTPException(404, { message: 'Study not found' });
+  return c.json({ success: true });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// GET R2 UPLOAD URL  (F-05: validated with Zod)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+app.post('/upload-url', requireRole(...RAD_SCAN), zValidator('json', uploadUrlSchema), async (c) => {
+  const body = c.req.valid('json');
   const fileName = body.file_name ?? `dicom-${crypto.randomUUID()}.dcm`;
   const key = `dicom/${requireTenantId(c)}/${crypto.randomUUID()}/${fileName}`;
 
-  // If R2 binding is available, generate presigned URL via R2
-  // For now return the key (clients use R2 API directly or via Workers R2 binding)
   return c.json({
     key,
     message: 'Use this key to upload to R2 via PUT /api/radiology/upload/:key',

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 import { Plus, Trash2, RefreshCw } from 'lucide-react';
 import { authHeader } from '../../utils/auth';
 
@@ -15,6 +16,7 @@ interface Glucose {
 }
 
 export default function GlucoseTab({ patientId }: { patientId: number }) {
+  const { t } = useTranslation(['clinical']);
   const [readings, setReadings] = useState<Glucose[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -90,34 +92,34 @@ export default function GlucoseTab({ patientId }: { patientId: number }) {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Glucose Monitoring</h2>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('glucose.title')}</h2>
         <div className="flex gap-2">
-          <button onClick={fetchReadings} className="btn-ghost" title="Refresh">
+          <button onClick={fetchReadings} className="btn-ghost" title={t('common.refresh')}>
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
           <button onClick={() => setShowAdd(true)} className="btn-primary">
-            <Plus className="w-4 h-4" /> Add Reading
+            <Plus className="w-4 h-4" /> {t('glucose.add')}
           </button>
         </div>
       </div>
 
       {showAdd && (
         <div className="card p-4 border border-indigo-100 dark:border-indigo-900/30 bg-indigo-50/50 dark:bg-indigo-900/10 mb-4">
-          <h3 className="font-medium text-indigo-900 dark:text-indigo-300 mb-3">New Blood Sugar Reading</h3>
+          <h3 className="font-medium text-indigo-900 dark:text-indigo-300 mb-3">{t('glucose.new')}</h3>
           <form onSubmit={handleAdd} className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
-              <label className="label">Value *</label>
+              <label className="label">{t('glucose.value')} {t('common.required')}</label>
               <input type="number" step="0.1" required value={form.sugar_value} onChange={e => setForm({ ...form, sugar_value: e.target.value })} className="input" placeholder="e.g. 110" />
             </div>
             <div>
-              <label className="label">Unit</label>
+              <label className="label">{t('glucose.unit')}</label>
               <select value={form.unit} onChange={e => setForm({ ...form, unit: e.target.value })} className="input">
                 <option value="mg/dL">mg/dL</option>
                 <option value="mmol/L">mmol/L</option>
               </select>
             </div>
             <div>
-              <label className="label">Type</label>
+              <label className="label">{t('glucose.type')}</label>
               <select value={form.bsl_type} onChange={e => setForm({ ...form, bsl_type: e.target.value as any })} className="input">
                 <option value="Random">Random</option>
                 <option value="Fasting">Fasting (FBS)</option>
@@ -125,12 +127,12 @@ export default function GlucoseTab({ patientId }: { patientId: number }) {
               </select>
             </div>
             <div>
-              <label className="label">Measurement Time *</label>
+              <label className="label">{t('glucose.time')} {t('common.required')}</label>
               <input type="datetime-local" required value={form.measurement_time} onChange={e => setForm({ ...form, measurement_time: e.target.value })} className="input" />
             </div>
             <div className="md:col-span-4 flex justify-end gap-2 mt-2">
-              <button type="button" onClick={() => setShowAdd(false)} className="btn-ghost">Cancel</button>
-              <button type="submit" disabled={saving} className="btn-primary">{saving ? 'Saving...' : 'Save Reading'}</button>
+              <button type="button" onClick={() => setShowAdd(false)} className="btn-ghost">{t('common.cancel')}</button>
+              <button type="submit" disabled={saving} className="btn-primary">{saving ? 'Saving...' : t('glucose.save')}</button>
             </div>
           </form>
         </div>
@@ -140,18 +142,18 @@ export default function GlucoseTab({ patientId }: { patientId: number }) {
         <table className="table-base">
           <thead>
             <tr>
-              <th>Time</th>
-              <th>Value</th>
-              <th>Unit</th>
-              <th>Type</th>
-              <th className="text-right">Actions</th>
+              <th>{t('glucose.time')}</th>
+              <th>{t('glucose.value')}</th>
+              <th>{t('glucose.unit')}</th>
+              <th>{t('glucose.type')}</th>
+              <th className="text-right">{t('common.actions')}</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={5} className="text-center py-4 text-gray-500">Loading...</td></tr>
+              <tr><td colSpan={5} className="text-center py-4 text-gray-500">{t('common.loading')}</td></tr>
             ) : readings.length === 0 ? (
-              <tr><td colSpan={5} className="text-center py-8 text-gray-500">No glucose readings recorded.</td></tr>
+              <tr><td colSpan={5} className="text-center py-8 text-gray-500">{t('glucose.none')}</td></tr>
             ) : (
               readings.map(r => (
                 <tr key={r.id}>
@@ -164,7 +166,7 @@ export default function GlucoseTab({ patientId }: { patientId: number }) {
                     </span>
                   </td>
                   <td className="text-right">
-                    <button onClick={() => handleDelete(r.id)} className="text-red-500 hover:bg-red-50 p-1.5 rounded" title="Delete">
+                    <button onClick={() => handleDelete(r.id)} className="text-red-500 hover:bg-red-50 p-1.5 rounded" title={t('common.delete')}>
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </td>

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   Brain, ListChecks, Stethoscope, BookOpen, UtensilsCrossed, Droplet, Search
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import DashboardLayout from '../components/DashboardLayout';
 import ProblemListTab from '../components/clinical/ProblemListTab';
 import DiagnosisTab from '../components/clinical/DiagnosisTab';
@@ -10,21 +11,20 @@ import AssessmentsTab from '../components/clinical/AssessmentsTab';
 import DietTab from '../components/clinical/DietTab';
 import GlucoseTab from '../components/clinical/GlucoseTab';
 
-const TABS = [
-  { key: 'problems', label: 'Problem List', icon: <ListChecks className="w-4 h-4" /> },
-  { key: 'diagnosis', label: 'Diagnosis', icon: <Stethoscope className="w-4 h-4" /> },
-  { key: 'history', label: 'History', icon: <BookOpen className="w-4 h-4" /> },
-  { key: 'assessments', label: 'Assessments', icon: <Brain className="w-4 h-4" /> },
-  { key: 'diet', label: 'Diet', icon: <UtensilsCrossed className="w-4 h-4" /> },
-  { key: 'glucose', label: 'Glucose', icon: <Droplet className="w-4 h-4" /> },
-] as const;
-
-type TabKey = typeof TABS[number]['key'];
-
 export default function ClinicalAssessments({ role = 'doctor' }: { role?: string }) {
-  const [activeTab, setActiveTab] = useState<TabKey>('problems');
+  const { t } = useTranslation(['clinical']);
+  const [activeTab, setActiveTab] = useState<string>('problems');
   const [patientId, setPatientId] = useState<number | ''>('');
   const [filterInput, setFilterInput] = useState('');
+
+  const TABS = [
+    { key: 'problems', label: t('tabs.problems'), icon: <ListChecks className="w-4 h-4" /> },
+    { key: 'diagnosis', label: t('tabs.diagnosis'), icon: <Stethoscope className="w-4 h-4" /> },
+    { key: 'history', label: t('tabs.history'), icon: <BookOpen className="w-4 h-4" /> },
+    { key: 'assessments', label: t('tabs.assessments'), icon: <Brain className="w-4 h-4" /> },
+    { key: 'diet', label: t('tabs.diet'), icon: <UtensilsCrossed className="w-4 h-4" /> },
+    { key: 'glucose', label: t('tabs.glucose'), icon: <Droplet className="w-4 h-4" /> },
+  ];
 
   const handleSearch = () => {
     if (filterInput) setPatientId(Number(filterInput));
@@ -40,8 +40,8 @@ export default function ClinicalAssessments({ role = 'doctor' }: { role?: string
               <Brain className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="page-title">Clinical Assessments</h1>
-              <p className="section-subtitle">Comprehensive patient clinical evaluation and tracking</p>
+              <h1 className="page-title">{t('title')}</h1>
+              <p className="section-subtitle">{t('subtitle')}</p>
             </div>
           </div>
         </div>
@@ -52,16 +52,16 @@ export default function ClinicalAssessments({ role = 'doctor' }: { role?: string
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="number"
-              placeholder="Search by Patient ID..."
+              placeholder={t('searchPlaceholder')}
               value={filterInput}
               onChange={e => setFilterInput(e.target.value)}
               className="input pl-9 w-64"
             />
           </div>
-          <button onClick={handleSearch} className="btn-primary">Load Patient</button>
+          <button onClick={handleSearch} className="btn-primary">{t('loadPatient')}</button>
           {patientId && (
             <button onClick={() => { setPatientId(''); setFilterInput(''); }} className="btn-ghost text-sm">
-              Clear
+              {t('clear')}
             </button>
           )}
         </div>
@@ -99,8 +99,8 @@ export default function ClinicalAssessments({ role = 'doctor' }: { role?: string
         ) : (
           <div className="card p-12 flex flex-col items-center justify-center text-gray-500 min-h-[400px]">
             <Search className="w-12 h-12 mb-4 text-gray-300 dark:text-gray-700" />
-            <p className="text-lg font-medium text-gray-900 dark:text-white">No Patient Selected</p>
-            <p className="text-sm mt-1">Please enter a Patient ID above to view their clinical records.</p>
+            <p className="text-lg font-medium text-gray-900 dark:text-white">{t('noPatientSelected')}</p>
+            <p className="text-sm mt-1">{t('noPatientDesc')}</p>
           </div>
         )}
       </div>

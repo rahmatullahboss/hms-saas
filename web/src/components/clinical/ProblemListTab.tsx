@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 import { Plus, Trash2, CheckCircle, RefreshCw } from 'lucide-react';
 import { authHeader } from '../../utils/auth';
 
@@ -18,6 +19,7 @@ interface Problem {
 }
 
 export default function ProblemListTab({ patientId }: { patientId: number }) {
+  const { t } = useTranslation(['clinical']);
   const [problems, setProblems] = useState<Problem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -94,48 +96,48 @@ export default function ProblemListTab({ patientId }: { patientId: number }) {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Active Problems</h2>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('problems.active')}</h2>
         <div className="flex gap-2">
-          <button onClick={fetchProblems} className="btn-ghost" title="Refresh">
+          <button onClick={fetchProblems} className="btn-ghost" title={t('common.refresh')}>
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
           <button onClick={() => setShowAdd(true)} className="btn-primary">
-            <Plus className="w-4 h-4" /> Add Problem
+            <Plus className="w-4 h-4" /> {t('problems.add')}
           </button>
         </div>
       </div>
 
       {showAdd && (
         <div className="card p-4 border border-indigo-100 dark:border-indigo-900/30 bg-indigo-50/50 dark:bg-indigo-900/10 mb-4">
-          <h3 className="font-medium text-indigo-900 dark:text-indigo-300 mb-3">New Problem</h3>
+          <h3 className="font-medium text-indigo-900 dark:text-indigo-300 mb-3">{t('problems.new')}</h3>
           <form onSubmit={handleAdd} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="label">Description *</label>
+              <label className="label">{t('problems.description')} {t('common.required')}</label>
               <input type="text" required value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} className="input" placeholder="e.g. Essential hypertension" />
             </div>
             <div>
-              <label className="label">ICD-10 Code</label>
+              <label className="label">{t('problems.icd10')}</label>
               <input type="text" value={form.icd10_code} onChange={e => setForm({ ...form, icd10_code: e.target.value })} className="input" placeholder="e.g. I10" />
             </div>
             <div>
-              <label className="label">Severity</label>
+              <label className="label">{t('problems.severity')}</label>
               <select value={form.severity} onChange={e => setForm({ ...form, severity: e.target.value as any })} className="input">
-                <option value="mild">Mild</option>
-                <option value="moderate">Moderate</option>
-                <option value="severe">Severe</option>
+                <option value="mild">{t('history.mild') || 'Mild'}</option>
+                <option value="moderate">{t('history.moderate') || 'Moderate'}</option>
+                <option value="severe">{t('history.severe') || 'Severe'}</option>
               </select>
             </div>
             <div>
-              <label className="label">Onset Date</label>
+              <label className="label">{t('problems.onsetDate')}</label>
               <input type="date" value={form.beg_date} onChange={e => setForm({ ...form, beg_date: e.target.value })} className="input" />
             </div>
             <div className="md:col-span-2">
-              <label className="label">Comments</label>
+              <label className="label">{t('problems.comments')}</label>
               <input type="text" value={form.comments} onChange={e => setForm({ ...form, comments: e.target.value })} className="input" placeholder="Additional notes..." />
             </div>
             <div className="md:col-span-2 flex justify-end gap-2 mt-2">
-              <button type="button" onClick={() => setShowAdd(false)} className="btn-ghost">Cancel</button>
-              <button type="submit" disabled={saving} className="btn-primary">{saving ? 'Saving...' : 'Save Problem'}</button>
+              <button type="button" onClick={() => setShowAdd(false)} className="btn-ghost">{t('common.cancel')}</button>
+              <button type="submit" disabled={saving} className="btn-primary">{saving ? 'Saving...' : t('problems.save')}</button>
             </div>
           </form>
         </div>
@@ -145,19 +147,19 @@ export default function ProblemListTab({ patientId }: { patientId: number }) {
         <table className="table-base">
           <thead>
             <tr>
-              <th>Description</th>
-              <th>ICD-10</th>
-              <th>Severity</th>
-              <th>Status</th>
-              <th>Onset Date</th>
-              <th className="text-right">Actions</th>
+              <th>{t('problems.description')}</th>
+              <th>{t('problems.icd10')}</th>
+              <th>{t('problems.severity')}</th>
+              <th>{t('problems.status')}</th>
+              <th>{t('problems.onsetDate')}</th>
+              <th className="text-right">{t('common.actions')}</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={6} className="text-center py-4 text-gray-500">Loading...</td></tr>
+              <tr><td colSpan={6} className="text-center py-4 text-gray-500">{t('common.loading')}</td></tr>
             ) : problems.length === 0 ? (
-              <tr><td colSpan={6} className="text-center py-8 text-gray-500">No problems recorded.</td></tr>
+              <tr><td colSpan={6} className="text-center py-8 text-gray-500">{t('problems.none')}</td></tr>
             ) : (
               problems.map(p => (
                 <tr key={p.id}>
@@ -187,11 +189,11 @@ export default function ProblemListTab({ patientId }: { patientId: number }) {
                   <td className="text-right">
                     <div className="flex items-center justify-end gap-2">
                       {p.status === 'active' && (
-                        <button onClick={() => handleResolve(p.id)} className="text-emerald-600 hover:bg-emerald-50 p-1.5 rounded" title="Mark Resolved">
+                        <button onClick={() => handleResolve(p.id)} className="text-emerald-600 hover:bg-emerald-50 p-1.5 rounded" title={t('problems.resolve')}>
                           <CheckCircle className="w-4 h-4" />
                         </button>
                       )}
-                      <button onClick={() => handleDelete(p.id)} className="text-red-500 hover:bg-red-50 p-1.5 rounded" title="Delete">
+                      <button onClick={() => handleDelete(p.id)} className="text-red-500 hover:bg-red-50 p-1.5 rounded" title={t('common.delete')}>
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 import { Plus, Trash2, Search, RefreshCw } from 'lucide-react';
 import { authHeader } from '../../utils/auth';
 
@@ -19,6 +20,7 @@ interface ICD10Search {
 }
 
 export default function DiagnosisTab({ patientId }: { patientId: number }) {
+  const { t } = useTranslation(['clinical']);
   const [diagnoses, setDiagnoses] = useState<Diagnosis[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -122,32 +124,32 @@ export default function DiagnosisTab({ patientId }: { patientId: number }) {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Current Diagnoses</h2>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{t('diagnosis.current')}</h2>
         <div className="flex gap-2">
-          <button onClick={fetchDiagnoses} className="btn-ghost" title="Refresh">
+          <button onClick={fetchDiagnoses} className="btn-ghost" title={t('common.refresh')}>
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
           <button onClick={() => setShowAdd(true)} className="btn-primary">
-            <Plus className="w-4 h-4" /> Add Diagnosis
+            <Plus className="w-4 h-4" /> {t('diagnosis.add')}
           </button>
         </div>
       </div>
 
       {showAdd && (
         <div className="card p-4 border border-indigo-100 dark:border-indigo-900/30 bg-indigo-50/50 dark:bg-indigo-900/10 mb-4">
-          <h3 className="font-medium text-indigo-900 dark:text-indigo-300 mb-3">Add New Diagnosis</h3>
+          <h3 className="font-medium text-indigo-900 dark:text-indigo-300 mb-3">{t('diagnosis.new')}</h3>
           <div className="mb-4 relative">
-            <label className="label">Search ICD-10</label>
+            <label className="label">{t('diagnosis.searchIcd10')}</label>
             <div className="relative">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
-                placeholder="Type code or description to search..."
+                placeholder={t('diagnosis.searchPlaceholder')}
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 className="input pl-9"
               />
-              {searching && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">Searching...</span>}
+              {searching && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">{t('common.loading')}</span>}
             </div>
             {searchResults.length > 0 && (
               <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
@@ -167,25 +169,25 @@ export default function DiagnosisTab({ patientId }: { patientId: number }) {
 
           <form onSubmit={handleAdd} className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="label">ICD-10 Code *</label>
+              <label className="label">ICD-10 Code {t('common.required')}</label>
               <input type="text" required value={form.icd10_code} onChange={e => setForm({ ...form, icd10_code: e.target.value })} className="input" />
             </div>
             <div className="md:col-span-2">
-              <label className="label">Description *</label>
+              <label className="label">{t('problems.description')} {t('common.required')}</label>
               <input type="text" required value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} className="input" />
             </div>
             <div>
-              <label className="label">Diagnosis Type</label>
+              <label className="label">{t('diagnosis.type')}</label>
               <select value={form.diagnosis_type} onChange={e => setForm({ ...form, diagnosis_type: e.target.value as any })} className="input">
-                <option value="primary">Primary</option>
-                <option value="secondary">Secondary</option>
-                <option value="admitting">Admitting</option>
-                <option value="discharge">Discharge</option>
+                <option value="primary">{t('diagnosis.primary')}</option>
+                <option value="secondary">{t('diagnosis.secondary')}</option>
+                <option value="admitting">{t('diagnosis.admitting')}</option>
+                <option value="discharge">{t('diagnosis.discharge')}</option>
               </select>
             </div>
             <div className="md:col-span-3 flex justify-end gap-2 mt-2">
-              <button type="button" onClick={() => setShowAdd(false)} className="btn-ghost">Cancel</button>
-              <button type="submit" disabled={saving} className="btn-primary">{saving ? 'Saving...' : 'Save Diagnosis'}</button>
+              <button type="button" onClick={() => setShowAdd(false)} className="btn-ghost">{t('common.cancel')}</button>
+              <button type="submit" disabled={saving} className="btn-primary">{saving ? 'Saving...' : t('diagnosis.save')}</button>
             </div>
           </form>
         </div>
@@ -196,17 +198,17 @@ export default function DiagnosisTab({ patientId }: { patientId: number }) {
           <thead>
             <tr>
               <th>ICD-10 Code</th>
-              <th>Description</th>
-              <th>Type</th>
-              <th>Date Recorded</th>
-              <th className="text-right">Actions</th>
+              <th>{t('problems.description')}</th>
+              <th>{t('diagnosis.type')}</th>
+              <th>{t('diagnosis.date')}</th>
+              <th className="text-right">{t('common.actions')}</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={5} className="text-center py-4 text-gray-500">Loading...</td></tr>
+              <tr><td colSpan={5} className="text-center py-4 text-gray-500">{t('common.loading')}</td></tr>
             ) : diagnoses.length === 0 ? (
-              <tr><td colSpan={5} className="text-center py-8 text-gray-500">No diagnoses recorded.</td></tr>
+              <tr><td colSpan={5} className="text-center py-8 text-gray-500">{t('diagnosis.none')}</td></tr>
             ) : (
               diagnoses.map(d => (
                 <tr key={d.id}>
@@ -214,12 +216,12 @@ export default function DiagnosisTab({ patientId }: { patientId: number }) {
                   <td>{d.description}</td>
                   <td>
                     <span className={`badge ${getTypeBadgeColor(d.diagnosis_type)} capitalize`}>
-                      {d.diagnosis_type}
+                      {t(`diagnosis.${d.diagnosis_type}`) || d.diagnosis_type}
                     </span>
                   </td>
                   <td>{new Date(d.created_at).toLocaleDateString()}</td>
                   <td className="text-right">
-                    <button onClick={() => handleDelete(d.id)} className="text-red-500 hover:bg-red-50 p-1.5 rounded" title="Delete">
+                    <button onClick={() => handleDelete(d.id)} className="text-red-500 hover:bg-red-50 p-1.5 rounded" title={t('common.delete')}>
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </td>
