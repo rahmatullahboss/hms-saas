@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, X } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../../components/DashboardLayout';
@@ -22,6 +22,19 @@ export default function PurchaseOrderForm({ role = 'hospital_admin' }: { role?: 
     discountAmount: '0', discountPct: '0', vatAmount: '0', adjustment: '0',
   });
   const [lines, setLines] = useState<POItem[]>([{ itemId: '', itemName: '', quantity: '1', standardRate: '0', vatAmount: '0', remarks: '' }]);
+
+  // Quick-add supplier modal
+  const [showSupplierModal, setShowSupplierModal] = useState(false);
+  const [supplierSaving, setSupplierSaving] = useState(false);
+  const [supplierForm, setSupplierForm] = useState({ name: '', contactNo: '', email: '', city: '' });
+
+  const fetchSuppliers = async () => {
+    const token = localStorage.getItem('hms_token');
+    try {
+      const { data } = await axios.get('/api/pharmacy/pharmacy-suppliers', { headers: { Authorization: `Bearer ${token}` } });
+      setSuppliers(data.suppliers ?? []);
+    } catch { /* ignore */ }
+  };
 
   useEffect(() => {
     const token = localStorage.getItem('hms_token');
@@ -84,6 +97,30 @@ export default function PurchaseOrderForm({ role = 'hospital_admin' }: { role?: 
     } finally { setSaving(false); }
   };
 
+  const handleQuickAddSupplier = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!supplierForm.name.trim()) { toast.error('Supplier name required'); return; }
+    setSupplierSaving(true);
+    try {
+      const token = localStorage.getItem('hms_token');
+      const { data } = await axios.post('/api/pharmacy/pharmacy-suppliers', {
+        name: supplierForm.name,
+        contactNo: supplierForm.contactNo || undefined,
+        email: supplierForm.email || undefined,
+        city: supplierForm.city || undefined,
+      }, { headers: { Authorization: `Bearer ${token}` } });
+      toast.success('Supplier created');
+      setShowSupplierModal(false);
+      setSupplierForm({ name: '', contactNo: '', email: '', city: '' });
+      // Refresh suppliers and auto-select the new one
+      await fetchSuppliers();
+      if (data.id) setForm(prev => ({ ...prev, supplierId: String(data.id) }));
+    } catch (err: unknown) {
+      const msg = axios.isAxiosError(err) ? err.response?.data?.error : 'Failed to create supplier';
+      toast.error(msg || 'Failed');
+    } finally { setSupplierSaving(false); }
+  };
+
   return (
     <DashboardLayout role={role}>
       <div className="space-y-5 max-w-4xl mx-auto">
@@ -96,10 +133,16 @@ export default function PurchaseOrderForm({ role = 'hospital_admin' }: { role?: 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="sm:col-span-1">
                 <label className="label">{t('supplier', { defaultValue: 'Supplier' })} *</label>
-                <select className="input" required value={form.supplierId} onChange={e => setForm({...form, supplierId: e.target.value})}>
-                  <option value="">{t('selectSupplier', { defaultValue: 'Select supplier…' })}</option>
-                  {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
+                <div className="flex gap-2">
+                  <select className="input flex-1" required value={form.supplierId} onChange={e => setForm({...form, supplierId: e.target.value})}>
+                    <option value="">{t('selectSupplier', { defaultValue: 'Select supplier…' })}</option>
+                    {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                  <button type="button" onClick={() => setShowSupplierModal(true)}
+                    className="btn-secondary px-2.5 shrink-0" title={t('quickAddSupplier', { defaultValue: 'Quick add supplier' })}>
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
               <div><label className="label">{t('poDate', { defaultValue: 'PO Date' })} *</label><input className="input" type="date" required value={form.poDate} onChange={e => setForm({...form, poDate: e.target.value})} /></div>
               <div><label className="label">{t('expectedDelivery', { defaultValue: 'Expected Delivery' })}</label><input className="input" type="date" value={form.expectedDelivery} onChange={e => setForm({...form, expectedDelivery: e.target.value})} /></div>
@@ -137,6 +180,30 @@ export default function PurchaseOrderForm({ role = 'hospital_admin' }: { role?: 
             <button type="submit" disabled={saving} className="btn-primary">{saving ? t('creating', { defaultValue: 'Creating…' }) : t('createPO', { defaultValue: 'Create Purchase Order' })}</button>
           </div>
         </form>
+
+        {/* Quick-Add Supplier Modal */}
+        {showSupplierModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-modal w-full max-w-sm">
+              <div className="flex items-center justify-between p-4 border-b border-[var(--color-border)]">
+                <h3 className="font-semibold">{t('quickAddSupplier', { defaultValue: 'Quick Add Supplier' })}</h3>
+                <button onClick={() => setShowSupplierModal(false)} className="btn-ghost p-1.5"><X className="w-5 h-5" /></button>
+              </div>
+              <form onSubmit={handleQuickAddSupplier} className="p-4 space-y-3">
+                <div><label className="label">{t('supplierName', { defaultValue: 'Supplier Name' })} *</label><input className="input" required value={supplierForm.name} onChange={e => setSupplierForm({...supplierForm, name: e.target.value})} placeholder="e.g. Square Pharmaceuticals" autoFocus /></div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><label className="label">{t('contactNo', { defaultValue: 'Contact No' })}</label><input className="input" value={supplierForm.contactNo} onChange={e => setSupplierForm({...supplierForm, contactNo: e.target.value})} placeholder="01712xxxxxx" /></div>
+                  <div><label className="label">{t('city', { defaultValue: 'City' })}</label><input className="input" value={supplierForm.city} onChange={e => setSupplierForm({...supplierForm, city: e.target.value})} placeholder="Dhaka" /></div>
+                </div>
+                <div><label className="label">{t('email', { defaultValue: 'Email' })}</label><input className="input" type="email" value={supplierForm.email} onChange={e => setSupplierForm({...supplierForm, email: e.target.value})} /></div>
+                <div className="flex justify-end gap-2 pt-1">
+                  <button type="button" onClick={() => setShowSupplierModal(false)} className="btn-secondary text-sm">{t('cancel', { ns: 'common', defaultValue: 'Cancel' })}</button>
+                  <button type="submit" disabled={supplierSaving} className="btn-primary text-sm">{supplierSaving ? '…' : t('addSupplier', { defaultValue: 'Add Supplier' })}</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );

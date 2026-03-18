@@ -14,8 +14,8 @@ interface LowStockAlert {
 }
 
 interface ExpiringAlert {
-  id: number; medicine_id: number; medicine_name?: string;
-  batch_number: string; quantity_available: number; expiry_date?: string;
+  id: number; item_id: number; item_name?: string;
+  batch_no: string; available_qty: number; expiry_date?: string;
 }
 
 export default function PharmacyOverview({ role = 'hospital_admin' }: { role?: string }) {
@@ -159,10 +159,10 @@ export default function PharmacyOverview({ role = 'hospital_admin' }: { role?: s
                     <tr><td colSpan={4} className="py-12 text-center text-[var(--color-text-muted)]">✓ {t('noExpiring', { defaultValue: 'No items expiring soon' })}</td></tr>
                   ) : expiring.map(s => (
                     <tr key={s.id}>
-                      <td className="font-medium">{s.medicine_name ?? '—'}</td>
-                      <td className="text-[var(--color-text-secondary)] font-mono text-xs">{s.batch_number}</td>
+                      <td className="font-medium">{s.item_name ?? '—'}</td>
+                      <td className="text-[var(--color-text-secondary)] font-mono text-xs">{s.batch_no}</td>
                       <td className="text-[var(--color-text-secondary)] text-sm">{s.expiry_date ? new Date(s.expiry_date).toLocaleDateString() : '—'}</td>
-                      <td className="text-right font-data"><span className="text-red-600 font-semibold">{s.quantity_available}</span></td>
+                      <td className="text-right font-data"><span className="text-red-600 font-semibold">{s.available_qty}</span></td>
                     </tr>
                   ))}
                 </tbody>

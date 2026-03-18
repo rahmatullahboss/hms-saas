@@ -436,16 +436,17 @@ pharmacyRoutes.get('/alerts/low-stock', requireRole(...PHARM_READ), async (c) =>
   const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   try {
-    const medicines = await db.$client.prepare(`
-      SELECT m.id, m.name, m.reorder_level, COALESCE(SUM(b.quantity_available), 0) as stock_qty
-      FROM medicines m
-      LEFT JOIN medicine_stock_batches b ON m.id = b.medicine_id AND b.tenant_id = m.tenant_id
-      WHERE m.tenant_id = ? AND m.is_active = 1
-      GROUP BY m.id
-      HAVING stock_qty <= m.reorder_level
+    const items = await db.$client.prepare(`
+      SELECT i.id, i.name, i.reorder_level,
+             COALESCE(SUM(s.available_qty), 0) as stock_qty
+      FROM pharmacy_items i
+      LEFT JOIN pharmacy_stock s ON i.id = s.item_id AND s.tenant_id = i.tenant_id AND s.is_active = 1
+      WHERE i.tenant_id = ? AND i.is_active = 1
+      GROUP BY i.id
+      HAVING stock_qty <= i.reorder_level
       ORDER BY stock_qty ASC
     `).bind(tenantId).all();
-    return c.json({ alerts: medicines.results });
+    return c.json({ alerts: items.results });
   } catch {
     throw new HTTPException(500, { message: 'Failed to fetch low stock alerts' });
   }
@@ -457,13 +458,15 @@ pharmacyRoutes.get('/alerts/expiring', requireRole(...PHARM_READ), async (c) => 
   const days = Math.max(0, Math.min(365, Number(c.req.query('days') || 30)));
   try {
     const batches = await db.$client.prepare(`
-      SELECT b.*, m.name as medicine_name
-      FROM medicine_stock_batches b
-      JOIN medicines m ON b.medicine_id = m.id
-      WHERE b.tenant_id = ? AND b.quantity_available > 0
-        AND b.expiry_date IS NOT NULL
-        AND julianday(b.expiry_date) - julianday('now') <= ?
-      ORDER BY b.expiry_date ASC
+      SELECT s.id, s.item_id, i.name as item_name,
+             s.batch_no, s.available_qty, s.expiry_date
+      FROM pharmacy_stock s
+      JOIN pharmacy_items i ON s.item_id = i.id
+      WHERE s.tenant_id = ? AND s.available_qty > 0
+        AND s.is_active = 1
+        AND s.expiry_date IS NOT NULL
+        AND julianday(s.expiry_date) - julianday('now') <= ?
+      ORDER BY s.expiry_date ASC
     `).bind(tenantId, days).all();
     return c.json({ alerts: batches.results, daysWindow: days });
   } catch {
