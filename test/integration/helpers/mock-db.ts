@@ -58,6 +58,8 @@ interface MockBound {
   all<T = Record<string, unknown>>(): Promise<{ results: T[]; success: boolean; meta: object }>;
   first<T = Record<string, unknown>>(): Promise<T | null>;
   run(): Promise<{ success: boolean; meta: { last_row_id: number; changes: number; duration: number } }>;
+  /** Drizzle internally calls raw() to get column values as arrays instead of objects */
+  raw<T = unknown[]>(): Promise<T[]>;
 }
 
 // ─── Row-ID counter (resets per `createMockDB` call) ──────────────────────
@@ -344,6 +346,14 @@ export function createMockDB(options: MockDBOptions = {}): MockDB {
           },
         };
       },
+      async raw<T = unknown[]>() {
+        queries.push({ sql, params, method: 'all' });
+        const table = extractTableName(sql);
+        const rows = table ? filterRows(sql, params, tables[table] ?? []) : [];
+        const finalRows = (rows.length === 0 && universalFallback && table) ? [FALLBACK_ROW] : rows;
+        // raw() returns array-of-arrays (column values) instead of array-of-objects
+        return finalRows.map((row) => Object.values(row)) as T[];
+      },
     };
   }
 
@@ -375,6 +385,11 @@ export function createMockDB(options: MockDBOptions = {}): MockDB {
                   },
                 };
               },
+              async raw<T = unknown[]>() {
+                queries.push({ sql, params, method: 'all' });
+                const rows = override.results ?? [];
+                return rows.map((row) => Object.values(row)) as T[];
+              },
             };
             return bound;
           }
@@ -391,11 +406,11 @@ export function createMockDB(options: MockDBOptions = {}): MockDB {
     dump() {
       return Promise.resolve(new ArrayBuffer(0));
     },
-    /** Execute a batch of statements — calls run() on each and records their queries */
+    /** Execute a batch of statements — calls all() on each to match real D1 batch behaviour */
     async batch(statements: Array<MockBound>) {
       const results = [];
       for (const stmt of statements) {
-        results.push(await stmt.run());
+        results.push(await stmt.all());
       }
       return results;
     },
