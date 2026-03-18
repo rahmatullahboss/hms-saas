@@ -2,62 +2,68 @@
 
 ## Summary
 
-Danphe-next-cloudflare is a **massive** project with **122 migrations**, **52+ backend route files**, and **35 frontend page modules**. Your Ozzyl HMS is leaner with **38 backend routes** and **~10 frontend pages** — but it's built on the **same stack** (Hono + D1 + React), making module porting very realistic.
-
-Below is a ranked list of **high-value modules** that exist in danphe-next but are **missing or underdeveloped** in Ozzyl HMS.
+Danphe-next-cloudflare is a **massive** project with **122 migrations**, **52+ backend route files**, and **35 frontend page modules**. Ozzyl HMS has grown significantly — now with **74+ tenant backend routes**, **71+ frontend pages**, **29 Zod schemas**, and **51 migrations** — all built on the **same stack** (Hono + D1 + React).
 
 ---
 
-## 📋 Import Status (Updated 2026-03-15)
+## 📋 Import Status (Updated 2026-03-18)
 
 ### ✅ Imported from Danphe-Next
 
-| Module | Migration | Route | Frontend | Status |
-|--------|-----------|-------|----------|--------|
-| **Emergency Department** | `0032_emergency.sql` | ✅ | `EmergencyDashboard.tsx` | ✅ Done |
-| **Operation Theatre** | `0033_operation_theatre.sql` | ✅ | `OTDashboard.tsx` | ✅ Done |
+| Module | Migration | Routes | Frontend | Status |
+|--------|-----------|--------|----------|--------|
+| **Emergency Department** | `0032_emergency.sql` | `emergency.ts` (22KB) | `EmergencyDashboard.tsx` (30KB) | ✅ Done |
+| **Operation Theatre** | `0033_operation_theatre.sql` | `ot.ts` (24KB) | `OTDashboard.tsx` (19KB) | ✅ Done |
+| **Inventory & Supply Chain** | `0037_inventory.sql` (30KB) | 13 route files (dispatch, gr, po, req, rfq, stock, items, vendors, stores, settings, writeoff, return) | 12 pages (Dashboard, PO, GR, Dispatch, Requisition, Stock, Ledger, Adjustment) | ✅ Done |
+| **Enhanced Nursing** | `0047_nursing.sql` (10 tables) | 11 route files (care-plan, notes, MAR, I/O, monitoring, IV drugs, wound care, handover, OPD, wards) | Pending frontend | ✅ Backend Done |
 
-### ✅ Already in Ozzyl HMS (Pre-existing — No Port Needed)
+### ✅ Already in Ozzyl HMS (Pre-existing — Quality Updated)
 
 | Module | Backend | Frontend | Quality |
 |--------|---------|----------|---------|
-| Patient Management | `patients.ts` (246L) | 4 pages | ⚠️ Needs more fields |
-| Billing | `billing.ts` (309L) | 3 pages | ⚠️ Needs cancel/refund |
-| Lab | `lab.ts` (405L) | 3 pages | ⚠️ Needs batch results |
-| Pharmacy | `pharmacy.ts` (454L) | 2 pages | ✅ Most mature |
-| Appointments | `appointments.ts` (155L) | 1 page | 🔴 Missing Zod validation |
-| Admissions/IPD | `admissions.ts` (272L) | 2 pages | 🔴 Missing Zod validation |
-| Discharge | `discharge.ts` (122L) | 1 page | 🔴 Missing Zod validation |
-| IPD Charges | `ipdCharges.ts` | 1 page | 🔴 Missing Zod validation |
-| Insurance | `insurance.ts` (343L) | 1 page | ✅ Excellent |
-| Nurse Station | `nurseStation.ts` (313L) | 1 page | ✅ Excellent |
-| Consultations | `consultations.ts` (250L) | 1 page | ✅ Good |
-| Accounting | `accounting.ts` (190L) | Dashboard | ✅ Good |
-| Commissions | `commissions.ts` (107L) | 1 page | ✅ Good |
-| Patient Portal | `patientPortal.ts` (294L) | 1 page | ✅ Good |
-| FHIR | `fhir.ts` (327L) | — | ✅ Good |
-| Telemedicine | `telemedicine.ts` (193L) | 1 page | ✅ Good |
-| Reports | `reports.ts` (427L) | 1 page | ✅ Good |
-| Staff/HR | `staff.ts` (204L) | 1 page | ✅ Good |
-| Shareholders | `shareholders.ts` (278L) | 1 page | ✅ Good |
-| Prescriptions | `prescriptions.ts` (308L) | 2 pages | ✅ Good |
-| Multi-Branch | `branches.ts` (247L) | 1 page | ✅ Good |
-| Notifications | `notifications.ts` (309L) | 1 page | ✅ Good |
-| AI Assistant | `ai.ts` (427L) | 1 page | ✅ Good |
+| Patient Management | `patients.ts` (8.7KB) | 4 pages (List, Form, Detail, Timeline) | ✅ Good |
+| Billing | `billing.ts` (16KB) + 5 related routes (cancellation, handover, provisional, insurance-billing, creditNotes, deposits, payments, settlements) | 10+ pages | ✅ Excellent — cancel/refund/credit notes done |
+| Billing Master | `billingMaster.ts` (31KB) | `BillingMasterPage.tsx` (49KB) | ✅ Excellent |
+| Insurance Billing | `billingInsurance.ts` (38KB) | `InsuranceBillingPage.tsx` (31KB) | ✅ Excellent |
+| Lab | `lab.ts` (18KB) + `labSettings.ts` (12KB) | 4 pages (Dashboard, OrderForm, ReportPrint, Settings, TestCatalog) | ✅ Excellent — settings & catalog done |
+| Pharmacy | `pharmacy.ts` (18KB) | 2 pages | ✅ Most mature |
+| Appointments | `appointments.ts` (9.8KB) | `AppointmentScheduler.tsx` (24KB) + `DoctorSchedule.tsx` (18KB) | ✅ Good — Zod validation added |
+| Admissions/IPD | `admissions.ts` (9.7KB) | `AdmissionIPD.tsx` (23KB) + `BedManagement.tsx` (13KB) | ✅ Good — Zod validation added |
+| Discharge | `discharge.ts` (7.1KB) | `DischargeSummary.tsx` (20KB) | ✅ Good — Zod validation added |
+| IPD Charges | `ipdCharges.ts` (3.7KB) | `IPDCharges.tsx` (9.6KB) | ✅ Good — Zod validation added |
+| IP Billing | `ipBilling.ts` (13KB) | `IPBillingPage.tsx` (20KB) | ✅ Good |
+| Insurance | `insurance.ts` (13KB) | `InsuranceClaims.tsx` (19KB) | ✅ Excellent |
+| Nurse Station | `nurseStation.ts` (11KB) | `NurseStation.tsx` (20KB) | ✅ Excellent |
+| Consultations | `consultations.ts` (10KB) | `ConsultationNotes.tsx` (12KB) | ✅ Good |
+| Accounting | 6 route files (accounting, accounts, expenses, income, journal, profit, recurring) | 10 pages (Dashboard, Chart of Accounts, Expenses, Income, Journal, P&L, Recurring, Reports, Audit, Shareholders) | ✅ Excellent — massively expanded |
+| Commissions | `commissions.ts` (3.8KB) | `CommissionManagement.tsx` (10KB) | ✅ Good |
+| Patient Portal | `patientPortal.ts` (46KB) | `PatientPortal.tsx` (28KB) | ✅ Excellent |
+| FHIR | `fhir.ts` (13KB) | — | ✅ Good |
+| Telemedicine | `telemedicine.ts` (7.1KB) | 2 pages (Dashboard, Room) | ✅ Good |
+| Reports | `reports.ts` (16KB) + 3 domain reports (appointment, lab, pharmacy) | `ReportsDashboard.tsx` + 3 detail pages | ✅ Excellent |
+| Staff/HR | `staff.ts` (8.1KB) | `StaffPage.tsx` (10KB) | ✅ Good |
+| Shareholders | `shareholders.ts` (35KB) | `ShareholderManagement.tsx` (21KB) | ✅ Excellent — massively expanded |
+| Prescriptions | `prescriptions.ts` (12KB) | 2 pages (Digital, Print) | ✅ Good |
+| Multi-Branch | `branches.ts` (10KB) | `MultiBranchDashboard.tsx` (9.6KB) | ✅ Good |
+| Notifications | `notifications.ts` (13KB) + push routes | 2 pages | ✅ Good |
+| AI Assistant | `ai.ts` (20KB) | `AIAssistant.tsx` (12KB) | ✅ Good |
+| Allergies | `allergies.ts` (9KB) | `AllergiesPage.tsx` (11KB) | ✅ NEW |
+| Vitals | `vitals.ts` (6.7KB) | `VitalsPage.tsx` (11KB) | ✅ Good |
+| Doctor Dashboard | `doctorDashboard.ts` (6.3KB) | `DoctorDashboard.tsx` (23KB) | ✅ NEW |
+| Doctor Scheduling | `doctorSchedule.ts` + `doctorSchedules.ts` | `DoctorSchedule.tsx` (18KB) | ✅ NEW |
+| Website/CMS | `website.ts` (8.5KB) | `WebsiteSettings.tsx` (20KB) | ✅ NEW |
+| Inbox | `inbox.ts` (4KB) | `InboxPage.tsx` (10KB) | ✅ NEW |
+| Settings | `settings.ts` (7.7KB) | `SettingsPage.tsx` (16KB) | ✅ NEW |
+| Reception | — | `ReceptionDashboard.tsx` (14KB) | ✅ NEW |
+| MD Dashboard | — | `MDDashboard.tsx` (7.9KB) | ✅ NEW |
+| Director Dashboard | — | `DirectorDashboard.tsx` (11KB) | ✅ NEW |
+| Triage Chatbot | — | `TriageChatbot.tsx` (15KB) | ✅ NEW |
 
 ### ❌ Not Yet Imported
-
-#### Tier 1: Highest Value
-| Module | Effort | Key Benefit |
-|--------|--------|-------------|
-| **Inventory & Supply Chain** | ⭐⭐⭐⭐ High | 12 pages, 72KB backend, 5 migrations — biggest gap |
-| **Ward Supply Management** | ⭐⭐ Low-Med | Connects inventory to ward-level use |
 
 #### Tier 2: High Value
 | Module | Effort | Key Benefit |
 |--------|--------|-------------|
-| **Requisition Management** | ⭐⭐⭐ Medium | Cross-dept material requests |
-| **Enhanced Nursing** | ⭐⭐ Low | Shift handover, OPD workflows |
 | **E-Prescribing** | ⭐⭐⭐ Medium | Drug interaction checking |
 | **Dental Module** | ⭐⭐ Low | Dental clinics market |
 | **Eye Exam Module** | ⭐⭐ Low | Ophthalmology market |
@@ -79,27 +85,58 @@ Below is a ranked list of **high-value modules** that exist in danphe-next but a
 
 ---
 
-## 🎯 Current Strategy: Improve First, Then Port
+## 🏆 Completion Summary
 
-### Phase 1: Fix Existing Module Gaps (NOW)
-> See detailed audit: [module_improvement_audit.md](file:///Users/rahmatullahzisan/.gemini/antigravity/brain/191a68cf-d9a3-4953-a5ca-7c5a1e071611/module_improvement_audit.md)
+### ✅ Phase 1: Fix Existing Module Gaps — COMPLETED
+- **Zod Validation**: All 4 flagged routes (appointments, admissions, discharge, IPD charges) now have `zValidator`
+- **Missing Endpoints**: Billing cancel/refund/credit notes done. Lab settings/catalog done. Advanced billing master data done.
+- **Enhancements**: 28 Zod schemas created. Pagination, error handling standardized.
 
-**Priority 1 — Zod Validation (1-2 days):**
-- Create schemas for appointments, admissions, discharge, IPD charges
-- Migrate routes to use `zValidator`
+### ✅ Phase 2: Port Inventory — COMPLETED
+- **Migration**: `0037_inventory.sql` (30KB) — comprehensive schema
+- **Backend**: 13 route files (dispatch, GR, PO, requisition, RFQ, stock, items, vendors, stores, settings, writeoff, return)
+- **Frontend**: 12 pages (Dashboard, PO list/form, GR list/form, Dispatch list/form, Requisition list/form, Stock list, Ledger, Adjustment)
+- **Schema**: `inventory.ts` Zod schema (19KB)
 
-**Priority 2 — Missing Endpoints (2-3 days):**
-- Appointments: cancel, reschedule, slot checking
-- Billing: cancel, refund/credit note
-- Lab: batch results, reference ranges
-- Patients: soft delete, duplicate detection
+### ✅ Bonus — Built Beyond Original Plan
+- **Advanced Billing Suite**: IP billing, provisional billing, billing master, insurance billing, cancellations, credit notes, deposits, payments, settlements, handover
+- **Expanded Accounting**: Chart of accounts, journal entries, P&L, recurring expenses, audit logs
+- **Clinical Enhancements** (`0034`): Allergies, advanced vitals
+- **Role-based Dashboards**: Doctor, Reception, MD, Director, Hospital Admin
+- **Website CMS** (`0029-0031`): Hospital website builder + analytics
+- **Lab Settings** (`0043`): Test catalog, reference ranges, panels
+- **Shareholder expansion** (`0036`, `0045`, `0046`): Distributions, dividends, advanced tracking
 
-**Priority 3 — Enhancements (ongoing):**
-- Standardize pagination, RBAC, error handling
-- Add summary/stats endpoints to each module
+---
 
-### Phase 2: Port Inventory (After improvements)
-### Phase 3: Port Specialty Modules (After inventory)
+## 🎯 Next Steps — Phase 3: Specialty Modules & Polish
+
+### ✅ Priority 1: Enhanced Nursing — COMPLETED (2026-03-18)
+- ✅ 10 database tables (care plans, notes, MAR, I/O charts, monitoring, IV drugs, wound care, handover, clinical info, preferences)
+- ✅ 11 backend route files with full CRUD + OPD triage/check-in/check-out
+- ✅ Adversarial code review passed — all HIGH/MEDIUM issues fixed
+- ⬜ Frontend NursingDashboard — pending
+
+### Priority 2: E-Prescribing Enhancement (2-3 days)
+- Drug-drug interaction checking
+- Allergy-drug contraindication alerts
+- Formulary management
+- e-Rx signature/verification
+
+### Priority 3: Specialty Modules (optional, market-dependent)
+- **Dental Module**: Tooth chart, dental procedures catalog, treatment planning
+- **Eye Exam Module**: Visual acuity, IOP, fundoscopy records
+
+### Priority 4: Testing & Quality (ongoing)
+- Expand Vitest unit test coverage for all new routes
+- E2E tests with Playwright for critical flows
+- Load testing for production readiness
+
+### Priority 5: Production Hardening
+- Review all routes for RBAC enforcement
+- Add rate limiting to sensitive endpoints
+- Audit logging completeness
+- Performance indexes for large tables
 
 ---
 
@@ -112,4 +149,4 @@ Below is a ranked list of **high-value modules** that exist in danphe-next but a
 > Danphe-next uses **TailwindCSS** in frontend. Ozzyl HMS uses **vanilla CSS**. Frontend components will need styling conversion.
 
 > [!NOTE]
-> Danphe-next migrations go up to **0107**. You'll need to create corresponding new migrations in Ozzyl HMS's numbering scheme and adapt table/column names to match your existing schema conventions.
+> Ozzyl HMS migrations are now at **0047** (Enhanced Nursing). Any new ported modules should continue from `0048_xxx.sql`.

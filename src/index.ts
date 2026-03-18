@@ -77,6 +77,7 @@ import labSettingsRoutes from './routes/tenant/labSettings';
 import reportLabRoutes from './routes/tenant/reportLab';
 import reportPharmacyRoutes from './routes/tenant/reportPharmacy';
 import reportAppointmentRoutes from './routes/tenant/reportAppointment';
+import nursingRoutes from './routes/tenant/nursing';
 import hospitalSiteRoutes from './routes/public/hospitalSite';
 
 import type { Env } from './types';
@@ -306,6 +307,7 @@ app.route('/api/lab-settings', labSettingsRoutes);
 app.route('/api/reports/lab', reportLabRoutes);
 app.route('/api/reports/pharmacy', reportPharmacyRoutes);
 app.route('/api/reports/appointment', reportAppointmentRoutes);
+app.route('/api/nursing', nursingRoutes);
 
 
 // ─── Not Found handler ──────────────────────────────────────────────
