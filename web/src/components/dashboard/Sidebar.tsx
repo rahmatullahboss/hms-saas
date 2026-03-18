@@ -6,7 +6,7 @@ import {
   BookOpen, FileText, Video, ChevronRight,
   BedDouble, Stethoscope, Calendar, Shield, ClipboardList,
   Globe, Siren, Scissors, Heart, ShieldAlert, ArrowRightLeft, HeartPulse,
-  XCircle, Handshake, CreditCard, Layers, Beaker, BarChart3, MessageSquare, HelpCircle, Briefcase, Brain, Scan,
+  XCircle, Handshake, CreditCard, Layers, Beaker, BarChart3, MessageSquare, HelpCircle, Briefcase, Brain, Scan, ShoppingCart, AlertTriangle, RefreshCw,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -199,10 +199,37 @@ export default function Sidebar({ role, onLogout }: SidebarProps) {
     ],
     pharmacist: [
       {
+        groupKey: 'Pharmacy',
         items: [
-          { labelKey: 'dashboard', path: 'pharmacy/dashboard', icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
-          { labelKey: 'inventory',  path: 'pharmacy/inventory', icon: <Pill            className="w-4.5 h-4.5" /> },
-          { labelKey: 'helpCenter', path: 'pharmacy/help',      icon: <HelpCircle      className="w-4.5 h-4.5" /> },
+          { labelKey: 'dashboard',       path: 'pharmacy/dashboard',   icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
+          { labelKey: 'invoices',        path: 'pharmacy/invoices',    icon: <Receipt          className="w-4.5 h-4.5" /> },
+          { labelKey: 'prescriptions',   path: 'pharmacy/prescriptions', icon: <ClipboardList  className="w-4.5 h-4.5" /> },
+        ],
+      },
+      {
+        groupKey: 'Procurement',
+        items: [
+          { labelKey: 'purchaseOrders',  path: 'pharmacy/po',          icon: <ShoppingCart     className="w-4.5 h-4.5" /> },
+          { labelKey: 'goodsReceipts',   path: 'pharmacy/grn',         icon: <Package          className="w-4.5 h-4.5" /> },
+          { labelKey: 'suppliers',       path: 'pharmacy/suppliers',   icon: <Handshake        className="w-4.5 h-4.5" /> },
+        ],
+      },
+      {
+        groupKey: 'Inventory',
+        items: [
+          { labelKey: 'stock',           path: 'pharmacy/stock',       icon: <Layers           className="w-4.5 h-4.5" /> },
+          { labelKey: 'items',           path: 'pharmacy/items',       icon: <Pill             className="w-4.5 h-4.5" /> },
+          { labelKey: 'writeOffs',       path: 'pharmacy/write-offs',  icon: <XCircle          className="w-4.5 h-4.5" /> },
+          { labelKey: 'dispatches',      path: 'pharmacy/dispatches',  icon: <ArrowRightLeft   className="w-4.5 h-4.5" /> },
+          { labelKey: 'narcoticRegister', path: 'pharmacy/narcotics',  icon: <ShieldAlert      className="w-4.5 h-4.5" /> },
+        ],
+      },
+      {
+        groupKey: 'Finance',
+        items: [
+          { labelKey: 'deposits',        path: 'pharmacy/deposits',    icon: <Wallet           className="w-4.5 h-4.5" /> },
+          { labelKey: 'settlements',     path: 'pharmacy/settlements', icon: <CreditCard       className="w-4.5 h-4.5" /> },
+          { labelKey: 'helpCenter',      path: 'pharmacy/help',        icon: <HelpCircle       className="w-4.5 h-4.5" /> },
         ],
       },
     ],

@@ -27,6 +27,24 @@ import AuditLogs from './pages/accounting/AuditLogs';
 import RecurringExpenses from './pages/accounting/RecurringExpenses';
 import ChartOfAccounts from './pages/accounting/ChartOfAccounts';
 import PharmacyDashboard from './pages/PharmacyDashboard';
+import PharmacyOverview from './pages/pharmacy/PharmacyOverview';
+import PharmItemList from './pages/pharmacy/ItemList';
+import PharmCategoryList from './pages/pharmacy/CategoryList';
+import PharmGenericList from './pages/pharmacy/GenericList';
+import PharmSupplierList from './pages/pharmacy/SupplierList';
+import PharmPurchaseOrderList from './pages/pharmacy/PurchaseOrderList';
+import PharmPurchaseOrderForm from './pages/pharmacy/PurchaseOrderForm';
+import PharmGoodsReceiptList from './pages/pharmacy/GoodsReceiptList';
+import PharmGoodsReceiptForm from './pages/pharmacy/GoodsReceiptForm';
+import PharmStockList from './pages/pharmacy/StockList';
+import PharmInvoiceList from './pages/pharmacy/InvoiceList';
+import PharmInvoiceForm from './pages/pharmacy/InvoiceForm';
+import PharmDepositList from './pages/pharmacy/DepositList';
+import PharmSettlementList from './pages/pharmacy/SettlementList';
+import PharmPrescriptionList from './pages/pharmacy/PrescriptionList';
+import PharmNarcoticRegister from './pages/pharmacy/NarcoticRegister';
+import PharmWriteOffList from './pages/pharmacy/WriteOffList';
+import PharmDispatchList from './pages/pharmacy/DispatchList';
 import BillingDashboard from './pages/BillingDashboard';
 import ShareholderManagement from './pages/accounting/ShareholderManagement';
 import JournalEntries from './pages/accounting/JournalEntries';
@@ -172,7 +190,25 @@ function App() {
             <Route path="tests" element={<LaboratoryDashboard role="hospital_admin" />} />
             <Route path="billing" element={<BillingDashboard role="hospital_admin" />} />
             <Route path="billing/:billId/print" element={<BillPrint role="hospital_admin" />} />
-            <Route path="pharmacy" element={<PharmacyDashboard role="hospital_admin" />} />
+            {/* ─── Pharmacy (full module) ──────────────────────────── */}
+            <Route path="pharmacy" element={<PharmacyOverview role="hospital_admin" />} />
+            <Route path="pharmacy/items" element={<PharmItemList role="hospital_admin" />} />
+            <Route path="pharmacy/categories" element={<PharmCategoryList role="hospital_admin" />} />
+            <Route path="pharmacy/generics" element={<PharmGenericList role="hospital_admin" />} />
+            <Route path="pharmacy/suppliers" element={<PharmSupplierList role="hospital_admin" />} />
+            <Route path="pharmacy/stock" element={<PharmStockList role="hospital_admin" />} />
+            <Route path="pharmacy/po" element={<PharmPurchaseOrderList role="hospital_admin" />} />
+            <Route path="pharmacy/po/new" element={<PharmPurchaseOrderForm role="hospital_admin" />} />
+            <Route path="pharmacy/grn" element={<PharmGoodsReceiptList role="hospital_admin" />} />
+            <Route path="pharmacy/grn/new" element={<PharmGoodsReceiptForm role="hospital_admin" />} />
+            <Route path="pharmacy/invoices" element={<PharmInvoiceList role="hospital_admin" />} />
+            <Route path="pharmacy/invoices/new" element={<PharmInvoiceForm role="hospital_admin" />} />
+            <Route path="pharmacy/deposits" element={<PharmDepositList role="hospital_admin" />} />
+            <Route path="pharmacy/settlements" element={<PharmSettlementList role="hospital_admin" />} />
+            <Route path="pharmacy/prescriptions" element={<PharmPrescriptionList role="hospital_admin" />} />
+            <Route path="pharmacy/narcotics" element={<PharmNarcoticRegister role="hospital_admin" />} />
+            <Route path="pharmacy/write-offs" element={<PharmWriteOffList role="hospital_admin" />} />
+            <Route path="pharmacy/dispatches" element={<PharmDispatchList role="hospital_admin" />} />
             <Route path="accounting" element={<AccountingDashboard role="hospital_admin" />} />
             <Route path="income" element={<IncomeList role="hospital_admin" />} />
             <Route path="expenses" element={<ExpenseList role="hospital_admin" />} />
@@ -312,7 +348,24 @@ function App() {
 
           {/* ─── Pharmacist ──────────────────────────────────────────── */}
           <Route element={<ProtectedRoute allowedRoles={['pharmacist', 'hospital_admin']} />}>
-            <Route path="pharmacy/dashboard" element={<PharmacyDashboard />} />
+            <Route path="pharmacy/dashboard" element={<PharmacyOverview />} />
+            <Route path="pharmacy/items" element={<PharmItemList />} />
+            <Route path="pharmacy/categories" element={<PharmCategoryList />} />
+            <Route path="pharmacy/generics" element={<PharmGenericList />} />
+            <Route path="pharmacy/suppliers" element={<PharmSupplierList />} />
+            <Route path="pharmacy/stock" element={<PharmStockList />} />
+            <Route path="pharmacy/po" element={<PharmPurchaseOrderList />} />
+            <Route path="pharmacy/po/new" element={<PharmPurchaseOrderForm />} />
+            <Route path="pharmacy/grn" element={<PharmGoodsReceiptList />} />
+            <Route path="pharmacy/grn/new" element={<PharmGoodsReceiptForm />} />
+            <Route path="pharmacy/invoices" element={<PharmInvoiceList />} />
+            <Route path="pharmacy/invoices/new" element={<PharmInvoiceForm />} />
+            <Route path="pharmacy/deposits" element={<PharmDepositList />} />
+            <Route path="pharmacy/settlements" element={<PharmSettlementList />} />
+            <Route path="pharmacy/prescriptions" element={<PharmPrescriptionList />} />
+            <Route path="pharmacy/narcotics" element={<PharmNarcoticRegister />} />
+            <Route path="pharmacy/write-offs" element={<PharmWriteOffList />} />
+            <Route path="pharmacy/dispatches" element={<PharmDispatchList />} />
             <Route path="pharmacy/help" element={<HelpCenterPage />} />
           </Route>
 
