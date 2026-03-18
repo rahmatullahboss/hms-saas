@@ -2,9 +2,9 @@
 // LanguageToggle — injected once by Layout.astro.
 // Exposes window.setLang(lang) and dispatches 'langchange' events.
 ---
-<script is:inline>
+<script>
   // ── i18n dictionary (inlined for zero-fetch) ─────────────────────────────
-  const dict = {
+  const dict: Record<string, Record<string, string>> = {
     en: {
       'nav.announce': '🎉 Founding Hospital Program: Free setup for the first 10 hospitals —',
       'nav.announce.link': 'Apply now →',
@@ -15,7 +15,7 @@
       'nav.login': 'Login',
       'nav.cta': '⚡ Free Setup',
       'hero.badge': "Bangladesh's First Cloud-Native HMS",
-      'hero.h1': 'Complete Digital Solution for Your Hospital',
+      'hero.h1': 'Complete Digital Solution for Your Hospital — Zero Server',
       'hero.p': '20+ modules: OPD · Billing · Lab · Pharmacy · AI · Telemedicine — all in one. bKash & Nagad supported. Runs on 3G. Made in Bangladesh 🇧🇩',
       'hero.cta.primary': 'Apply for Free Setup',
       'hero.cta.secondary': 'View Live Demo',
@@ -39,9 +39,9 @@
       'pain.2.p': 'Appointments on WhatsApp groups, billing over the phone — no system, no records, no accountability.',
       'pain.3.h': '💰 Billing Errors & Revenue Leaks',
       'pain.3.p': 'Daily calculation mistakes, duplicate bills — outstanding balances untracked, lakhs lost every month.',
-      'pain.link': 'Ozzyl HMS solves all three problems — in one system',
+      'pain.link': 'HMS SaaS solves all three problems — in one system',
       'sol.eyebrow': 'Why Different',
-      'sol.h2': 'Why is Ozzyl HMS Different?',
+      'sol.h2': 'Why is HMS SaaS Different?',
       'sol.sub': 'Three features no other HMS in Bangladesh has',
       'sol.1.h': '☁️ Cloud-Native — Zero Server',
       'sol.1.li1': 'Runs on Cloudflare global edge',
@@ -77,8 +77,8 @@
       'feat.tab.digital': 'Digital',
       'feat.tab.enterprise': 'Enterprise',
       'feat.compare.old': 'The Old Way',
-      'feat.compare.new': 'With Ozzyl HMS',
-      'feat.compare.title': 'Old Way vs Ozzyl HMS',
+      'feat.compare.new': 'With HMS SaaS',
+      'feat.compare.title': 'Old Way vs HMS SaaS',
       'feat.old.1': 'Paper records & files',
       'feat.old.2': 'WhatsApp for coordination',
       'feat.old.3': 'Separate billing software',
@@ -293,9 +293,9 @@
       'found.form.neterror': 'Network error — please try again.',
       'found.secure': 'Your information is completely secure',
       'story.eyebrow': 'Founder Story',
-      'story.h2': 'Who Built Ozzyl HMS?',
+      'story.h2': 'Who Built HMS SaaS?',
       'story.p1': 'My name is <strong>Rahmatullah Zisan</strong>. I am a Bangladeshi software developer.',
-      'story.p2': "I built Ozzyl HMS because I saw that Bangladesh's hospitals lack proper software. What exists is either very expensive or not designed for Bangladesh.",
+      'story.p2': "I built HMS SaaS because I saw that Bangladesh's hospitals lack proper software. What exists is either very expensive or not designed for Bangladesh.",
       'story.p3': 'This software is fully <strong>cloud-native</strong>, running on Cloudflare\'s global edge, designed entirely <strong>for Bangladesh</strong> — in Bangla, with bKash/Nagad payments, on 3G internet.',
       'story.contact': 'Talk Directly to the Founder:',
       'story.wa.btn': '💬 WhatsApp: +880 1739-416661',
@@ -313,31 +313,28 @@
       'price.s.badge': 'Small Clinics',
       'price.s.name': 'Starter',
       'price.s.beds': '< 25 beds',
-      'price.s.f1': 'OPD + Reception + Billing',
-      'price.s.f2': 'Laboratory + Pharmacy',
-      'price.s.f3': 'Patient Management',
-      'price.s.f4': '5 Staff accounts',
-      'price.s.f5': 'Bangla + English',
-      'price.s.f6': 'Email support',
+      'price.s.f1': 'OPD + Billing',
+      'price.s.f2': 'Basic Lab',
+      'price.s.f3': 'Pharmacy',
+      'price.s.f4': '3 Staff accounts',
+      'price.s.f5': 'Email support',
       'price.s.cta': 'Start Free Trial',
-      'price.addon.ai': '+ AI Assistant ৳1,500/mo',
-      'price.addon.tele': '+ Telemedicine ৳2,000/mo',
-      'price.annual.note': '💡 Annual billing = 10 months price for 12 months. Save 2 months!',
-      'price.nosetup': '30-day free trial · No setup fee · Cancel anytime',
       'price.p.badge': 'MOST POPULAR',
       'price.p.name': 'Professional',
       'price.p.beds': '< 100 beds',
       'price.p.f1': 'Everything in Starter',
       'price.p.f2': 'Full IPD + Nurse Station',
-      'price.p.f3': 'Full Accounting + Reports',
-      'price.p.f4': 'AI + Telemedicine included',
-      'price.p.f5': '20 Staff accounts',
+      'price.p.f3': 'Full Accounting',
+      'price.p.f4': 'Telemedicine',
+      'price.p.f5': '15 Staff accounts',
       'price.p.f6': 'Doctor Scheduling',
       'price.p.f7': 'Multi-branch support',
       'price.p.f8': 'Priority support',
       'price.p.cta': 'Start Free Trial',
       'price.e.badge': 'Large Hospitals',
       'price.e.name': 'Enterprise',
+      'price.e.price': 'Custom',
+      'price.e.period': 'Pricing',
       'price.e.beds': '100+ beds / Multi-branch',
       'price.e.f1': 'Everything in Professional',
       'price.e.f2': 'AI Medical Assistant',
@@ -345,9 +342,7 @@
       'price.e.f4': 'Custom branding',
       'price.e.f5': 'SLA guarantee',
       'price.e.f6': 'Dedicated onboarding',
-      'price.e.f7': 'FHIR R4 Interoperability',
-      'price.e.f8': 'API Access',
-      'price.e.cta': 'Start Free Trial',
+      'price.e.cta': 'Contact Us',
       'price.pay.bkash': 'bKash',
       'price.pay.nagad': 'Nagad',
       'price.pay.bank': 'Bank Transfer',
@@ -381,7 +376,7 @@
       'footer.product': 'Product',
       'footer.company': 'Company',
       'footer.contact': 'Contact',
-      'footer.copy': '© 2026 Ozzyl HMS · Built with',
+      'footer.copy': '© 2026 HMS SaaS · Built with',
       'footer.copy.country': 'in Bangladesh',
       'footer.powered': 'Powered by Cloudflare',
       'footer.col.product': 'Product',
@@ -410,7 +405,7 @@
       'nav.login': 'লগইন',
       'nav.cta': '⚡ ফ্রি সেটআপ',
       'hero.badge': 'বাংলাদেশের প্রথম ক্লাউড-নেটিভ হাসপাতাল সিস্টেম',
-      'hero.h1': 'আপনার হাসপাতালের সম্পূর্ণ ডিজিটাল সমাধান',
+      'hero.h1': 'আপনার হাসপাতালের সম্পূর্ণ ডিজিটাল সমাধান — কোনো সার্ভার ছাড়াই',
       'hero.p': '২০+ মডিউল: ওপিডি · বিলিং · ল্যাব · ফার্মেসি · এআই · টেলিমেডিসিন — এক সিস্টেমে। বিকাশ ও নগদ পেমেন্ট সাপোর্ট। 3G-তে চলে। বাংলাদেশে তৈরি 🇧🇩',
       'hero.cta.primary': 'ফ্রি সেটআপের জন্য আবেদন করুন',
       'hero.cta.secondary': 'লাইভ ডেমো দেখুন',
@@ -708,31 +703,28 @@
       'price.s.badge': 'ছোট ক্লিনিক',
       'price.s.name': 'স্টার্টার',
       'price.s.beds': '২৫ বেডের কম',
-      'price.s.f1': 'ওপিডি + রিসেপশন + বিলিং',
-      'price.s.f2': 'ল্যাবরেটরি + ফার্মেসি',
-      'price.s.f3': 'রোগী ব্যবস্থাপনা',
-      'price.s.f4': '৫ স্টাফ অ্যাকাউন্ট',
-      'price.s.f5': 'বাংলা + ইংলিশ',
-      'price.s.f6': 'ইমেইল সাপোর্ট',
+      'price.s.f1': 'ওপিডি + বিলিং',
+      'price.s.f2': 'বেসিক ল্যাব',
+      'price.s.f3': 'ফার্মেসি',
+      'price.s.f4': '৩ স্টাফ অ্যাকাউন্ট',
+      'price.s.f5': 'ইমেইল সাপোর্ট',
       'price.s.cta': 'ফ্রি ট্রায়াল শুরু করুন',
-      'price.addon.ai': '+ এআই সহকারী ৳১,৫০০/মাস',
-      'price.addon.tele': '+ টেলিমেডিসিন ৳২,০০০/মাস',
-      'price.annual.note': '💡 বার্ষিক বিলিং = ১২ মাসে ১০ মাসের দাম। ২ মাস সাশ্রয়!',
-      'price.nosetup': '৩০ দিন ফ্রি ট্রায়াল · কোনো সেটআপ ফি নেই · যেকোনো সময় বাতিল',
       'price.p.badge': 'সবচেয়ে জনপ্রিয়',
       'price.p.name': 'প্রফেশনাল',
       'price.p.beds': '১০০ বেডের কম',
       'price.p.f1': 'স্টার্টারের সব কিছু',
       'price.p.f2': 'ফুল আইপিডি + নার্স স্টেশন',
-      'price.p.f3': 'ফুল অ্যাকাউন্টিং + রিপোর্ট',
-      'price.p.f4': 'এআই + টেলিমেডিসিন অন্তর্ভুক্ত',
-      'price.p.f5': '২০ স্টাফ অ্যাকাউন্ট',
+      'price.p.f3': 'ফুল অ্যাকাউন্টিং',
+      'price.p.f4': 'টেলিমেডিসিন',
+      'price.p.f5': '১৫ স্টাফ অ্যাকাউন্ট',
       'price.p.f6': 'ডাক্তার শিডিউলিং',
       'price.p.f7': 'মাল্টি-ব্রাঞ্চ সাপোর্ট',
       'price.p.f8': 'প্রায়োরিটি সাপোর্ট',
       'price.p.cta': 'ফ্রি ট্রায়াল শুরু করুন',
       'price.e.badge': 'বড় হাসপাতাল',
       'price.e.name': 'এন্টারপ্রাইজ',
+      'price.e.price': 'কাস্টম',
+      'price.e.period': 'মূল্য',
       'price.e.beds': '১০০+ বেড / মাল্টি-ব্রাঞ্চ',
       'price.e.f1': 'প্রফেশনালের সব কিছু',
       'price.e.f2': 'এআই মেডিকেল সহকারী',
@@ -740,9 +732,7 @@
       'price.e.f4': 'কাস্টম ব্র্যান্ডিং',
       'price.e.f5': 'এসএলএ গ্যারান্টি',
       'price.e.f6': 'নিবেদিত অনবোর্ডিং',
-      'price.e.f7': 'এফএইচআইআর আর৪ ইন্টারঅপারেবিলিটি',
-      'price.e.f8': 'এপিআই অ্যাক্সেস',
-      'price.e.cta': 'ফ্রি ট্রায়াল শুরু করুন',
+      'price.e.cta': 'যোগাযোগ করুন',
       'price.pay.bkash': 'বিকাশ',
       'price.pay.nagad': 'নগদ',
       'price.pay.bank': 'ব্যাংক ট্রান্সফার',
@@ -776,7 +766,7 @@
       'footer.product': 'পণ্য',
       'footer.company': 'কোম্পানি',
       'footer.contact': 'যোগাযোগ',
-      'footer.copy': '© 2026 Ozzyl HMS · তৈরি হয়েছে',
+      'footer.copy': '© 2026 HMS SaaS · তৈরি হয়েছে',
       'footer.copy.country': 'বাংলাদেশে',
       'footer.powered': 'ক্লাউডফ্লেয়ার দ্বারা পরিচালিত',
       'footer.col.product': 'প্রদুক্ট',
@@ -797,13 +787,15 @@
     },
   };
 
-  function applyLang(lang) {
+  type Lang = 'en' | 'bn';
+
+  function applyLang(lang: Lang) {
     // Update html lang attr
     document.documentElement.lang = lang === 'bn' ? 'bn' : 'en';
 
     // Update all data-i18n text nodes
-    document.querySelectorAll('[data-i18n]').forEach(el => {
-      const key = el.dataset.i18n;
+    document.querySelectorAll<HTMLElement>('[data-i18n]').forEach(el => {
+      const key = el.dataset.i18n!;
       const val = dict[lang][key];
       if (val !== undefined) {
         if (val.includes('<')) {
@@ -815,8 +807,8 @@
     });
 
     // Update placeholders
-    document.querySelectorAll('[data-i18n-ph]').forEach(el => {
-      const key = el.dataset.i18nPh;
+    document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('[data-i18n-ph]').forEach(el => {
+      const key = (el as HTMLElement).dataset.i18nPh!;
       const val = dict[lang][key];
       if (val !== undefined) el.placeholder = val;
     });
@@ -839,7 +831,7 @@
 
   // ── Boot ────────────────────────────────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', () => {
-    const saved = localStorage.getItem('hms-lang') ?? 'bn';
+    const saved = (localStorage.getItem('hms-lang') as Lang | null) ?? 'bn';
     applyLang(saved);
 
     document.getElementById('lang-btn-en')?.addEventListener('click', () => applyLang('en'));
@@ -847,5 +839,5 @@
   });
 
   // Expose for programmatic use
-  window.setLang = applyLang;
+  (window as any).setLang = applyLang;
 </script>

@@ -43,11 +43,11 @@ export const i18n = {
     'pain.2.p': 'Appointments on WhatsApp groups, billing over the phone — no system, no records, no accountability.',
     'pain.3.h': '💰 Billing Errors & Revenue Leaks',
     'pain.3.p': 'Daily calculation mistakes, duplicate bills — outstanding balances untracked, lakhs lost every month.',
-    'pain.link': 'Ozzyl HMS solves all three problems — in one system',
+    'pain.link': 'HMS SaaS solves all three problems — in one system',
 
     // ── Solution Overview ─────────────────────────────────────────────────
     'sol.eyebrow': 'Why Different',
-    'sol.h2': 'Why is Ozzyl HMS Different?',
+    'sol.h2': 'Why is HMS SaaS Different?',
     'sol.sub': 'Three features no other HMS in Bangladesh has',
     'sol.1.h': '☁️ Cloud-Native — Zero Server',
     'sol.1.li1': 'Runs on Cloudflare global edge',
@@ -87,8 +87,8 @@ export const i18n = {
     'feat.tab.digital': 'Digital',
     'feat.tab.enterprise': 'Enterprise',
     'feat.compare.old': 'The Old Way',
-    'feat.compare.new': 'With Ozzyl HMS',
-    'feat.compare.title': 'Old Way vs Ozzyl HMS',
+    'feat.compare.new': 'With HMS SaaS',
+    'feat.compare.title': 'Old Way vs HMS SaaS',
 
     // ── Telemedicine & AI ────────────────────────────────────────────────
     'tele.eyebrow': 'Advanced Features',
@@ -129,9 +129,9 @@ export const i18n = {
 
     // ── Founder Story ────────────────────────────────────────────────────
     'story.eyebrow': 'Founder Story',
-    'story.h2': 'Who Built Ozzyl HMS?',
+    'story.h2': 'Who Built HMS SaaS?',
     'story.p1': 'My name is <strong>Rahmatullah Zisan</strong>. I am a Bangladeshi software developer.',
-    'story.p2': "I built Ozzyl HMS because I saw that Bangladesh's hospitals lack proper software. What exists is either very expensive or not designed for Bangladesh.",
+    'story.p2': "I built HMS SaaS because I saw that Bangladesh's hospitals lack proper software. What exists is either very expensive or not designed for Bangladesh.",
     'story.p3': 'This software is fully <strong>cloud-native</strong>, running on Cloudflare\'s global edge, designed entirely <strong>for Bangladesh</strong> — in Bangla, with bKash/Nagad payments, on 3G internet.',
     'story.contact': 'Talk Directly to the Founder:',
     'story.wa.btn': '💬 WhatsApp: +880 1739-416661',

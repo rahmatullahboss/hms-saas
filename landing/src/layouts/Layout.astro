@@ -1,6 +1,5 @@
 ---
 import LanguageToggle from '../components/LanguageToggle.astro';
-import '../styles/global.css';
 
 export interface Props {
   title?: string;
@@ -44,39 +43,25 @@ const {
       }
     </script>
 
-    <!-- Fonts: self-hosted for CDN caching + zero external requests -->
-    <link rel="preload" href="/fonts/figtree-var.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="preload" href="/fonts/noto-sans-bengali-var.woff2" as="font" type="font/woff2" crossorigin />
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
 
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 
-    <!-- Google Analytics 4: deferred until first user interaction -->
+    <!-- Google Analytics 4 -->
     <!-- TODO: Replace G-XXXXXXXXXX with your real GA4 Measurement ID -->
-    <script is:inline>
-      (function(){
-        var GA_ID = 'G-XXXXXXXXXX';
-        var loaded = false;
-        function loadGA() {
-          if (loaded) return;
-          loaded = true;
-          var s = document.createElement('script');
-          s.src = 'https://www.googletagmanager.com/gtag/js?id=' + GA_ID;
-          s.async = true;
-          document.head.appendChild(s);
-          window.dataLayer = window.dataLayer || [];
-          function gtag(){dataLayer.push(arguments);}
-          window.gtag = gtag;
-          gtag('js', new Date());
-          gtag('config', GA_ID, { send_page_view: true });
-        }
-        // Load after first scroll, click, or touch — not during initial paint
-        ['scroll','mousedown','touchstart','keydown'].forEach(function(e){
-          window.addEventListener(e, loadGA, {once: true, passive: true});
-        });
-        // Fallback: load after 5s even with no interaction
-        setTimeout(loadGA, 5000);
-      })();
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-XXXXXXXXXX');
     </script>
   </head>
   <body class="bg-white text-gray-900 font-sans antialiased">
