@@ -9,10 +9,10 @@
 | Metric | **Ozzyl HMS** | **danphe-next-cf** | **DanpheEMR** | **OpenEMR** |
 |--------|:---:|:---:|:---:|:---:|
 | Stack | Hono+D1+React | Hono+D1+React | .NET+SQL Server+Angular | PHP+MySQL |
-| Backend Routes | 64+ files | 52 files + 17 dirs | 40+ modules | 100+ modules |
+| Backend Routes | 70+ files | 52 files + 17 dirs | 40+ modules | 100+ modules |
 | Migrations | 53 | 122 | Manual SQL | Manual SQL |
-| Frontend Pages | 72+ | 35 page dirs | 60+ Angular modules | 100+ PHP pages |
-| Tests | 373+ (Vitest) | Present | Limited | Some |
+| Frontend Pages | 75+ | 35 page dirs | 60+ Angular modules | 100+ PHP pages |
+| Tests | 500+ (Vitest) | Present | Limited | Some |
 | Languages | 2 (EN/BN) | 2 (EN/BN) | 2-3 | **30+** |
 | Maturity | ~6 months | ~1 year | **10+ years** | **20+ years** |
 | License | Proprietary SaaS | Custom | MIT | GPL-2.0 |
@@ -46,24 +46,24 @@ These are modules that **both** danphe-next AND OpenEMR have, but Ozzyl HMS does
 
 ---
 
-### 2. 🏥 Medical Records — ❌ MISSING
+### 2. 🏥 Medical Records — ✅ IMPLEMENTED
 
 | System | Status |
 |--------|--------|
 | danphe-next | [medical-records.ts](file:///Users/rahmatullahzisan/Desktop/Dev/danphe-next-cloudflare/src/routes/medical-records.ts) (14KB) + frontend page |
 | DanpheEMR | Full Medical Record module |
 | OpenEMR | Comprehensive EHR |
-| **Ozzyl HMS** | **❌ অনুপস্থিত** |
+| **Ozzyl HMS** | **✅ সম্পূর্ণ — migration 0050 + routes + frontend + 64 tests + adversarial review fixed** |
 
-> [!WARNING]
-> Medical Records module মানে patient er সকল clinical data centralized. Birth/death certificate, disease registry, MR number assignment, document scanning — এগুলো হাসপাতালের compliance এর অংশ।
-
-**যা দরকার**:
-- MR number management
-- Document scanning/upload
-- Birth & death certificate generation
-- Record request & release tracking
-- ICD-10 disease registry
+**যা আছে**:
+- ✅ MR number management (file_number)
+- ✅ Document upload/records (R2-ready)
+- ✅ Birth & death certificate generation (auto cert numbers + UNIQUE index)
+- ✅ ICD-10 disease registry (seed data auto-clone per tenant)
+- ✅ Final diagnosis linking (bulk ICD-10)
+- ✅ Referral tracking with pagination
+- ✅ RBAC (read/write/birth-death roles)
+- ✅ Adversarial review completed & all 10 findings fixed
 
 ---
 
@@ -84,61 +84,61 @@ These are modules that **both** danphe-next AND OpenEMR have, but Ozzyl HMS does
 
 ---
 
-### 4. 👩‍💼 HR / Payroll / Leave / Attendance — ❌ MISSING (শুধু basic Staff CRUD আছে)
+### 4. 👩‍💼 HR / Payroll / Leave / Attendance — ✅ IMPLEMENTED
 
 | System | Status |
 |--------|--------|
-| danphe-next | `hr/` dir: [payroll.ts](file:///Users/rahmatullahzisan/Desktop/Dev/danphe-next-cloudflare/src/routes/hr/payroll.ts) (21KB), [leave.ts](file:///Users/rahmatullahzisan/Desktop/Dev/danphe-next-cloudflare/src/routes/hr/leave.ts) (5KB), [attendance.ts](file:///Users/rahmatullahzisan/Desktop/Dev/danphe-next-cloudflare/src/routes/hr/attendance.ts) (5KB), [assignments.ts](file:///Users/rahmatullahzisan/Desktop/Dev/danphe-next-cloudflare/src/routes/hr/assignments.ts) (6KB) |
+| danphe-next | `hr/` dir: payroll, leave, attendance, assignments |
 | DanpheEMR | HR module |
 | OpenEMR | Basic staff management |
-| **Ozzyl HMS** | **⚠️ শুধু Staff CRUD + invitation — Payroll/Leave/Attendance নেই** |
+| **Ozzyl HMS** | **✅ migration 0049 + routes (payroll, leave, attendance) + frontend dashboard** |
 
-> [!WARNING]
-> Staff invite ও role assign আছে, কিন্তু salary structure, payroll generation, leave apply/approve, attendance tracking একদমই নেই। বাংলাদেশের হাসপাতালে these are daily operations.
-
-**যা দরকার**:
-- Employee profile with salary structure
-- Payroll generation (monthly)
-- Leave application/approval workflow
-- Attendance tracking (check-in/check-out)
-- Duty roster / shift management
+**যা আছে**:
+- ✅ Employee profile with salary structure (basic, allowances, deductions)
+- ✅ Payroll generation (monthly) with net salary calculation
+- ✅ Leave application/approval workflow (apply → approve/reject)
+- ✅ Attendance tracking (check-in/check-out)
+- ✅ HR Dashboard with tabs + KPI cards
+- ✅ RBAC (hospital_admin, md roles)
 
 ---
 
-### 5. 📝 Clinical Assessments & Problem List — ❌ MISSING
+### 5. 📝 Clinical Assessments & Problem List — ✅ IMPLEMENTED
 
 | System | Status |
 |--------|--------|
-| danphe-next | [clinical/assessments.ts](file:///Users/rahmatullahzisan/Desktop/Dev/danphe-next-cloudflare/src/routes/clinical/assessments.ts) (**101KB!**), [problem-list.ts](file:///Users/rahmatullahzisan/Desktop/Dev/danphe-next-cloudflare/src/routes/clinical/problem-list.ts) (9KB), [history.ts](file:///Users/rahmatullahzisan/Desktop/Dev/danphe-next-cloudflare/src/routes/clinical/history.ts) (12KB), [diagnosis.ts](file:///Users/rahmatullahzisan/Desktop/Dev/danphe-next-cloudflare/src/routes/clinical/diagnosis.ts) (3KB), [diet.ts](file:///Users/rahmatullahzisan/Desktop/Dev/danphe-next-cloudflare/src/routes/clinical/diet.ts) (5KB), [glucose.ts](file:///Users/rahmatullahzisan/Desktop/Dev/danphe-next-cloudflare/src/routes/clinical/glucose.ts) (5KB) |
+| danphe-next | assessments, problem-list, history, diagnosis, diet, glucose |
 | OpenEMR | Comprehensive problem list, assessments, clinical notes |
-| **Ozzyl HMS** | **❌ Consultation notes আছে but structured assessments নেই** |
+| **Ozzyl HMS** | **✅ migration 0050 + 6 route files + frontend tabs + tests** |
 
-> [!IMPORTANT]
-> Clinical assessments = structured patient evaluation forms. Problem list = ongoing medical issues tracking. এগুলো EMR এর backbone। তোমার শুধু free-text consultation notes আছে, structured clinical data entry নেই।
-
-**যা দরকার**:
-- Structured clinical assessment forms
-- Problem list (active/inactive/resolved)
-- Social history, family history, medical history
-- Review of systems (ROS)
-- Diet & nutrition tracking
-- Blood glucose monitoring
+**যা আছে**:
+- ✅ Structured clinical assessment forms (vitals, ROS, exam findings)
+- ✅ Problem list (active/inactive/resolved) with ICD-10 linking
+- ✅ Social history, family history, medical history
+- ✅ Diagnosis management (primary/secondary)
+- ✅ Diet & nutrition tracking
+- ✅ Blood glucose monitoring
+- ✅ Frontend dashboard with 6 tabs
+- ✅ Unit tests + E2E test specs
 
 ---
 
-### 6. 💊 Medication Administration Record (Clinical-grade) — ⚠️ PARTIAL
+### 6. 💊 Medication Administration Record (Clinical-grade) — ✅ IMPLEMENTED
 
 | System | Status |
 |--------|--------|
-| danphe-next | [clinical/medications.ts](file:///Users/rahmatullahzisan/Desktop/Dev/danphe-next-cloudflare/src/routes/clinical/medications.ts) (8KB) + [clinical/orders.ts](file:///Users/rahmatullahzisan/Desktop/Dev/danphe-next-cloudflare/src/routes/clinical/orders.ts) (7KB) |
+| danphe-next | medications.ts + orders.ts |
 | OpenEMR | Full medication list + eRx + WENO Exchange |
-| **Ozzyl HMS** | **⚠️ E-Prescribing আছে but clinical medication orders/tracking নেই** |
+| **Ozzyl HMS** | **✅ E-Prescribing + Clinical MAR + medication orders + reconciliation + adversarial review fixed** |
 
-HMS has e-prescribing with drug interactions, but lacks:
-- Clinical medication orders (not just prescriptions)
-- Medication reconciliation
-- Active medication list per patient
-- WENO/eRx network integration
+**যা আছে**:
+- ✅ E-Prescribing with drug interaction checking
+- ✅ Clinical medication orders (order → verify → dispense → administer)
+- ✅ Medication Administration Record (MAR) with barcode scanning
+- ✅ Medication reconciliation (on admission/discharge/transfer)
+- ✅ Audit trail for all medication events
+- ✅ Nursing dashboard integration (MAR tab)
+- ⬜ WENO/eRx network integration (USA-specific, not needed for BD)
 
 ---
 
@@ -282,20 +282,22 @@ These are features OpenEMR has that **neither** Ozzyl NOR danphe-next have:
 
 ### 🔴 Phase 1 — Must Have (Bangladesh Hospital Deal-Breakers)
 
-| # | Module | Effort | Why Critical |
+| # | Module | Status | Why Critical |
 |---|--------|--------|-------------|
-| 1 | **Radiology** | ⭐⭐⭐ High | প্রায় সব হাসপাতালে X-Ray/USG আছে |
-| 2 | **HR / Payroll / Attendance** | ⭐⭐⭐ High | প্রতিদিনের কাজ, হাসপাতাল চালাতে লাগে |
-| 3 | **Medical Records** | ⭐⭐ Medium | Regulatory compliance |
-| 4 | **Clinical Assessments** | ⭐⭐⭐ High | ডাক্তাররা structured form চায় |
+| 1 | **Radiology** | ❌ MISSING | প্রায় সব হাসপাতালে X-Ray/USG আছে |
+| 2 | ~~HR / Payroll / Attendance~~ | ✅ DONE | প্রতিদিনের কাজ, হাসপাতাল চালাতে লাগে |
+| 3 | ~~Medical Records~~ | ✅ DONE + Reviewed | Regulatory compliance |
+| 4 | ~~Clinical Assessments~~ | ✅ DONE + Tested | ডাক্তাররা structured form চায় |
+
+> **Phase 1 Progress: 3/4 complete (75%)** — শুধু Radiology বাকি!
 
 ### 🟡 Phase 2 — High Value (Market Expansion)
 
 | # | Module | Effort | Why Important |
 |---|--------|--------|-------------|
-| 5 | **Dental** | ⭐⭐ Low | ডেন্টাল ক্লিনিক market |
-| 6 | **Eye Exam** | ⭐⭐ Low | চক্ষু বিশেষজ্ঞ market |
-| 7 | **Vaccination** | ⭐⭐ Low | শিশু ও প্রাপ্তবয়স্ক টিকা |
+| 5 | **Vaccination** | ⭐⭐ Low | শিশু ও প্রাপ্তবয়স্ক টিকা |
+| 6 | **Dental** | ⭐⭐ Low | ডেন্টাল ক্লিনিক market |
+| 7 | **Eye Exam** | ⭐⭐ Low | চক্ষু বিশেষজ্ঞ market |
 | 8 | **SOAP Clinic Notes** | ⭐⭐ Medium | ডাক্তার productivity বাড়ায় |
 | 9 | **Dictation** | ⭐⭐ Medium | Voice-to-text notes |
 
@@ -321,7 +323,7 @@ These are features OpenEMR has that **neither** Ozzyl NOR danphe-next have:
 │ OpenEMR     ████████████████████████████████  100%  │
 │ danphe-next ██████████████████████████        80%   │
 │ DanpheEMR   ████████████████████████          75%   │
-│ Ozzyl HMS   █████████████████                 55%   │
+│ Ozzyl HMS   ████████████████████████          70%   │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -335,13 +337,12 @@ These are features OpenEMR has that **neither** Ozzyl NOR danphe-next have:
 7. **Unique features** — Website CMS, Triage Chatbot, Help Center
 
 ### তোমার দুর্বলতা (Weaknesses) 😬
-1. **Clinical depth কম** — Structured assessments, problem list, medical history নেই
-2. **Radiology সম্পূর্ণ missing** — Biggest single gap
-3. **HR/Payroll নেই** — হাসপাতাল operations এর জন্য critical
-4. **Specialty modules নেই** — Dental, Eye, Psychiatry
-5. **Interoperability limited** — FHIR basic আছে, HL7/CCDA নেই
-6. **Medical Records module নেই** — Compliance gap
-7. **Feature count কম** — ~55% coverage vs industry standard
+1. **Radiology সম্পূর্ণ missing** — Biggest remaining gap
+2. **Specialty modules নেই** — Dental, Eye, Psychiatry
+3. **Interoperability limited** — FHIR basic আছে, HL7/CCDA নেই
+4. **Vaccination module নেই** — শিশু ও প্রাপ্তবয়স্ক টিকা tracking
+5. **SOAP/Clinic Notes নেই** — Structured note templates missing
+6. **Feature count** — ~70% coverage, closing the gap
 
 > [!IMPORTANT]
-> **Bottom Line**: তোমার product এর **infrastructure ও architecture excellent** — AI, SaaS, testing, security সব best-in-class। কিন্তু **clinical feature depth** এ বড় gap আছে। Phase 1 (Radiology + HR + Medical Records + Clinical Assessments) complete করলে তুমি danphe-next এর কাছাকাছি পৌঁছে যাবে। তোমার AI + SaaS + Bangladesh optimization কোনো competitor এর কাছে নেই — সেটাই তোমার **unfair advantage**।
+> **Bottom Line**: Phase 1 এর **75% complete** — HR, Medical Records, Clinical Assessments, Clinical MAR সব implement ও adversarial review হয়ে গেছে। **শুধু Radiology বাকি**, সেটা complete করলে Phase 1 শেষ। তোমার AI + SaaS + Bangladesh optimization কোনো competitor এর কাছে নেই — সেটাই তোমার **unfair advantage**। Coverage 55% → **70%** এ উন্নীত হয়েছে।
