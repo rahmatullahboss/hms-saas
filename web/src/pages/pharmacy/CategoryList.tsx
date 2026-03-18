@@ -74,7 +74,7 @@ export default function CategoryList({ role = 'hospital_admin' }: { role?: strin
               <thead><tr><th>#</th><th>{t('name', { defaultValue: 'Name' })}</th><th>{t('description', { defaultValue: 'Description' })}</th><th>{t('status', { ns: 'common', defaultValue: 'Status' })}</th><th>{t('actions', { ns: 'common', defaultValue: 'Actions' })}</th></tr></thead>
               <tbody>
                 {loading ? ([...Array(4)].map((_, i) => <tr key={i}>{[...Array(5)].map((_, j) => <td key={j}><div className="skeleton h-4 w-full rounded" /></td>)}</tr>))
-                : categories.length === 0 ? (<tr><td colSpan={5} className="py-16 text-center text-[var(--color-text-muted)]">No categories yet</td></tr>)
+                : categories.length === 0 ? (<tr><td colSpan={5} className="py-16 text-center text-[var(--color-text-muted)]">{t('noCategories', { defaultValue: 'No categories yet' })}</td></tr>)
                 : categories.map((cat, idx) => (
                   <tr key={cat.id}>
                     <td className="text-[var(--color-text-muted)] text-sm">{idx + 1}</td>
@@ -95,13 +95,13 @@ export default function CategoryList({ role = 'hospital_admin' }: { role?: strin
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
             <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-modal w-full max-w-sm">
               <div className="flex items-center justify-between p-5 border-b border-[var(--color-border)]">
-                <h3 className="font-semibold">{editing ? 'Edit Category' : 'Add Category'}</h3>
+                <h3 className="font-semibold">{editing ? t('editCategory', { defaultValue: 'Edit Category' }) : t('addCategory', { defaultValue: 'Add Category' })}</h3>
                 <button onClick={() => setShowModal(false)} className="btn-ghost p-1.5"><X className="w-5 h-5" /></button>
               </div>
               <form onSubmit={handleSubmit} className="p-5 space-y-4">
-                <div><label className="label">Name *</label><input className="input" required value={form.name} onChange={e => setForm({...form, name: e.target.value})} /></div>
-                <div><label className="label">Description</label><textarea className="input" rows={2} value={form.description} onChange={e => setForm({...form, description: e.target.value})} /></div>
-                <div className="flex justify-end gap-3"><button type="button" onClick={() => setShowModal(false)} className="btn-secondary">Cancel</button><button type="submit" disabled={saving} className="btn-primary">{saving ? '…' : 'Save'}</button></div>
+                <div><label className="label">{t('name', { defaultValue: 'Name' })} *</label><input className="input" required value={form.name} onChange={e => setForm({...form, name: e.target.value})} /></div>
+                <div><label className="label">{t('description', { defaultValue: 'Description' })}</label><textarea className="input" rows={2} value={form.description} onChange={e => setForm({...form, description: e.target.value})} /></div>
+                <div className="flex justify-end gap-3"><button type="button" onClick={() => setShowModal(false)} className="btn-secondary">{t('cancel', { ns: 'common', defaultValue: 'Cancel' })}</button><button type="submit" disabled={saving} className="btn-primary">{saving ? '…' : t('save', { ns: 'common', defaultValue: 'Save' })}</button></div>
               </form>
             </div>
           </div>

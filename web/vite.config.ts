@@ -36,6 +36,9 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // Allow larger JS bundles to be precached (default is 2 MiB).
+        // Our single-chunk bundle is ~2.1 MB; set to 3 MiB headroom.
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         // Exclude HTML from precache so index.html is always fetched from the
         // network (served by the Cloudflare Worker). This ensures users always
         // get the latest JS bundle references after deployment.

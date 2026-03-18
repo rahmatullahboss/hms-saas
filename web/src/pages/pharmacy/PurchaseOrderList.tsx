@@ -58,10 +58,10 @@ export default function PurchaseOrderList({ role = 'hospital_admin' }: { role?: 
         <div className="card overflow-hidden">
           <div className="overflow-x-auto">
             <table className="table-base">
-              <thead><tr><th>PO #</th><th>Date</th><th>Supplier</th><th className="text-right">Amount (৳)</th><th>Status</th><th>Actions</th></tr></thead>
+              <thead><tr><th>PO #</th><th>{t('date', { defaultValue: 'Date' })}</th><th>{t('supplier', { defaultValue: 'Supplier' })}</th><th className="text-right">{t('total', { defaultValue: 'Amount (৳)' })}</th><th>{t('status', { ns: 'common', defaultValue: 'Status' })}</th><th>{t('actions', { ns: 'common', defaultValue: 'Actions' })}</th></tr></thead>
               <tbody>
                 {loading ? ([...Array(5)].map((_, i) => <tr key={i}>{[...Array(6)].map((_, j) => <td key={j}><div className="skeleton h-4 w-full rounded" /></td>)}</tr>))
-                : pos.length === 0 ? (<tr><td colSpan={6} className="py-16 text-center text-[var(--color-text-muted)]">No purchase orders</td></tr>)
+                : pos.length === 0 ? (<tr><td colSpan={6} className="py-16 text-center text-[var(--color-text-muted)]">{t('noPurchaseOrders', { defaultValue: 'No purchase orders' })}</td></tr>)
                 : pos.map(po => (
                   <tr key={po.id}>
                     <td className="font-medium font-mono text-sm">{po.po_no}</td>
