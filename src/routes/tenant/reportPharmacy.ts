@@ -3,6 +3,8 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { requireTenantId } from '../../lib/context-helpers';
 import type { Env, Variables } from '../../types';
+import { getDb } from '../../db';
+
 
 const dateRangeSchema = z.object({
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format, use YYYY-MM-DD').optional(),
@@ -22,6 +24,7 @@ const reportPharmacy = new Hono<{ Bindings: Env; Variables: Variables }>();
 // ─── Dispensing Summary ──────────────────────────────────────────────────────
 
 reportPharmacy.get('/dispensing-summary', zValidator('query', dateRangeSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const { startDate, endDate } = c.req.valid('query');
 
@@ -40,7 +43,7 @@ reportPharmacy.get('/dispensing-summary', zValidator('query', dateRangeSchema), 
   if (endDate) { sql += ' AND date(s.created_at) <= ?'; params.push(endDate); }
   sql += ' GROUP BY sale_date ORDER BY sale_date DESC';
 
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await db.$client.prepare(sql).bind(...params).all();
 
   const totalRevenue = results.reduce((s: number, r: any) => s + (r.revenue || 0), 0);
   const totalSales = results.reduce((s: number, r: any) => s + r.sale_count, 0);
@@ -51,9 +54,10 @@ reportPharmacy.get('/dispensing-summary', zValidator('query', dateRangeSchema), 
 // ─── Stock Value Report ──────────────────────────────────────────────────────
 
 reportPharmacy.get('/stock-value', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
 
-  const { results } = await c.env.DB.prepare(`
+  const { results } = await db.$client.prepare(`
     SELECT
       m.name as medicine_name,
       m.company,
@@ -74,12 +78,13 @@ reportPharmacy.get('/stock-value', async (c) => {
 // ─── Expiry Alert List ───────────────────────────────────────────────────────
 
 reportPharmacy.get('/expiry-alerts', zValidator('query', expirySchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const { days } = c.req.valid('query');
 
   // Check if expiry_date column exists (it may not in all setups)
   try {
-    const { results } = await c.env.DB.prepare(`
+    const { results } = await db.$client.prepare(`
       SELECT
         m.name as medicine_name,
         m.company,
@@ -110,6 +115,7 @@ reportPharmacy.get('/expiry-alerts', zValidator('query', expirySchema), async (c
 // ─── Top Dispensed Medicines ─────────────────────────────────────────────────
 
 reportPharmacy.get('/top-dispensed', zValidator('query', dateRangeWithLimitSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const { startDate, endDate, limit } = c.req.valid('query');
 
@@ -129,7 +135,7 @@ reportPharmacy.get('/top-dispensed', zValidator('query', dateRangeWithLimitSchem
   sql += ` GROUP BY si.medicine_name ORDER BY total_qty DESC LIMIT ?`;
   params.push(limit);
 
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await db.$client.prepare(sql).bind(...params).all();
   return c.json({ medicines: results });
 });
 

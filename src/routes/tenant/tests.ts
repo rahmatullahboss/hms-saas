@@ -2,6 +2,8 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { requireTenantId } from '../../lib/context-helpers';
 import { createTestSchema, updateTestResultSchema } from '../../schemas/clinical';
+import { getDb } from '../../db';
+
 
 const testRoutes = new Hono<{
   Bindings: { DB: D1Database };
@@ -10,6 +12,7 @@ const testRoutes = new Hono<{
 
 // Get all tests
 testRoutes.get('/', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const patientId = c.req.query('patient');
   const status = c.req.query('status');
@@ -30,7 +33,7 @@ testRoutes.get('/', async (c) => {
     
     query += ' ORDER BY t.date DESC';
     
-    const tests = await c.env.DB.prepare(query).bind(...params).all();
+    const tests = await db.$client.prepare(query).bind(...params).all();
     return c.json({ tests: tests.results });
   } catch (error) {
     return c.json({ error: 'Failed to fetch tests' }, 500);
@@ -39,11 +42,12 @@ testRoutes.get('/', async (c) => {
 
 // Create test for patient
 testRoutes.post('/', zValidator('json', createTestSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const { patientId, testName } = c.req.valid('json');
   
   try {
-    const result = await c.env.DB.prepare(
+    const result = await db.$client.prepare(
       'INSERT INTO tests (patient_id, test_name, status, tenant_id, date) VALUES (?, ?, ?, ?, datetime("now"))'
     ).bind(patientId, testName, 'pending', tenantId).run();
     
@@ -58,13 +62,14 @@ testRoutes.post('/', zValidator('json', createTestSchema), async (c) => {
 
 // Update test result
 testRoutes.put('/:id/result', zValidator('json', updateTestResultSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const id = c.req.param('id');
   const tenantId = requireTenantId(c);
   const { result } = c.req.valid('json');
   
   try {
     // Update test result — income is created via billing, not here
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       'UPDATE tests SET result = ?, status = ?, updated_at = datetime("now") WHERE id = ? AND tenant_id = ?'
     ).bind(result, 'completed', id, tenantId).run();
     

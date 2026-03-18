@@ -2,11 +2,14 @@ import { Hono } from "hono";
 import type { Env } from '../../../types';
 import { zValidator } from "@hono/zod-validator";
 import * as schemas from "../../../schemas/inventory";
+import { getDb } from '../../../db';
+
 
 const stores = new Hono<{ Bindings: Env; Variables: { tenantId?: string; userId?: string; role?: string } }>();
 
 // GET /stores
 stores.get("/", zValidator("query", schemas.listStoresSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const { page, limit, search, StoreType } = c.req.valid("query");
   const offset = (page - 1) * limit;
 
@@ -25,11 +28,11 @@ stores.get("/", zValidator("query", schemas.listStoresSchema), async (c) => {
   }
 
   const whereClause = conditions.join(" AND ");
-  const count = await c.env.DB.prepare(
+  const count = await db.$client.prepare(
     `SELECT COUNT(*) as total FROM InventoryStore WHERE ${whereClause}`
   ).bind(...params).first<{ total: number }>();
 
-  const results = await c.env.DB.prepare(
+  const results = await db.$client.prepare(
     `SELECT * FROM InventoryStore WHERE ${whereClause} LIMIT ? OFFSET ?`
   ).bind(...params, limit, offset).all();
 
@@ -41,12 +44,13 @@ stores.get("/", zValidator("query", schemas.listStoresSchema), async (c) => {
 
 // POST /stores
 stores.post("/", zValidator("json", schemas.createStoreSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const body = c.req.valid("json");
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
   const today = new Date().toISOString();
 
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO InventoryStore (tenant_id, StoreName, StoreCode, StoreType, Address, ContactPerson, ContactPhone, ParentStoreId, IsActive, CreatedBy, CreatedOn)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(

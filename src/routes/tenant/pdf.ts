@@ -14,6 +14,8 @@ import { HTTPException } from 'hono/http-exception';
 import { renderInvoiceHtml, renderPatientCardHtml } from '../../lib/pdf-bangla';
 import type { Env, Variables } from '../../types';
 import { requireTenantId } from '../../lib/context-helpers';
+import { getDb } from '../../db';
+
 
 const ALLOWED_PDF_ROLES = ['hospital_admin', 'reception', 'doctor', 'nurse'];
 
@@ -27,10 +29,11 @@ pdfRoutes.get('/invoice/:billId', async (c) => {
   if (!role || !ALLOWED_PDF_ROLES.includes(role)) {
     throw new HTTPException(403, { message: 'Insufficient permissions' });
   }
+  const db = getDb(c.env.DB);
 
   try {
     // Fetch bill from the actual 'bills' table (flat category amounts)
-    const bill = await c.env.DB.prepare(`
+    const bill = await db.$client.prepare(`
       SELECT b.id, b.invoice_no, b.test_bill, b.admission_bill,
              b.doctor_visit_bill, b.operation_bill, b.medicine_bill,
              b.discount, b.total, b.paid, b.due,
@@ -127,9 +130,10 @@ pdfRoutes.get('/patient-card/:patientId', async (c) => {
   if (!role || !ALLOWED_PDF_ROLES.includes(role)) {
     throw new HTTPException(403, { message: 'Insufficient permissions' });
   }
+  const db = getDb(c.env.DB);
 
   try {
-    const patient = await c.env.DB.prepare(`
+    const patient = await db.$client.prepare(`
       SELECT p.*,
              t.name as hospital_name
       FROM patients p

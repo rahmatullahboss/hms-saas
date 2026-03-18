@@ -6,7 +6,7 @@ import {
   BookOpen, FileText, Video, ChevronRight,
   BedDouble, Stethoscope, Calendar, Shield, ClipboardList,
   Globe, Siren, Scissors, Heart, ShieldAlert, ArrowRightLeft, HeartPulse,
-  XCircle, Handshake, CreditCard, Layers, Beaker, BarChart3, MessageSquare,
+  XCircle, Handshake, CreditCard, Layers, Beaker, BarChart3, MessageSquare, HelpCircle,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -136,6 +136,7 @@ export default function Sidebar({ role, onLogout }: SidebarProps) {
           { labelKey: 'systemAudit',        path: 'system-audit',        icon: <Shield          className="w-4.5 h-4.5" /> },
           { labelKey: 'website',            path: 'website',             icon: <Globe           className="w-4.5 h-4.5" /> },
           { labelKey: 'settings',           path: 'settings',            icon: <Settings        className="w-4.5 h-4.5" /> },
+          { labelKey: 'helpCenter',         path: 'help',                icon: <HelpCircle      className="w-4.5 h-4.5" /> },
         ],
       },
     ],
@@ -154,6 +155,7 @@ export default function Sidebar({ role, onLogout }: SidebarProps) {
           { labelKey: 'appointments', path: 'reception/appointments', icon: <Calendar        className="w-4.5 h-4.5" /> },
           { labelKey: 'patients',     path: 'reception/patients',     icon: <Users           className="w-4.5 h-4.5" /> },
           { labelKey: 'billing',      path: 'reception/billing',      icon: <Receipt         className="w-4.5 h-4.5" /> },
+          { labelKey: 'helpCenter',   path: 'reception/help',         icon: <HelpCircle      className="w-4.5 h-4.5" /> },
         ],
       },
     ],
@@ -170,6 +172,7 @@ export default function Sidebar({ role, onLogout }: SidebarProps) {
           { labelKey: 'audit',      path: 'md/audit',       icon: <FileText        className="w-4.5 h-4.5" /> },
           { labelKey: 'staff',      path: 'md/staff',       icon: <UserCog         className="w-4.5 h-4.5" /> },
           { labelKey: 'profit',     path: 'md/profit',      icon: <TrendingUp      className="w-4.5 h-4.5" /> },
+          { labelKey: 'helpCenter', path: 'md/help',        icon: <HelpCircle      className="w-4.5 h-4.5" /> },
         ],
       },
     ],
@@ -185,6 +188,7 @@ export default function Sidebar({ role, onLogout }: SidebarProps) {
           { labelKey: 'shareholders', path: 'director/shareholders', icon: <Users           className="w-4.5 h-4.5" /> },
           { labelKey: 'profit',       path: 'director/profit',       icon: <TrendingUp      className="w-4.5 h-4.5" /> },
           { labelKey: 'settings',     path: 'director/settings',     icon: <Settings        className="w-4.5 h-4.5" /> },
+          { labelKey: 'helpCenter',   path: 'director/help',         icon: <HelpCircle      className="w-4.5 h-4.5" /> },
         ],
       },
     ],
@@ -193,6 +197,7 @@ export default function Sidebar({ role, onLogout }: SidebarProps) {
         items: [
           { labelKey: 'dashboard', path: 'pharmacy/dashboard', icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
           { labelKey: 'inventory',  path: 'pharmacy/inventory', icon: <Pill            className="w-4.5 h-4.5" /> },
+          { labelKey: 'helpCenter', path: 'pharmacy/help',      icon: <HelpCircle      className="w-4.5 h-4.5" /> },
         ],
       },
     ],

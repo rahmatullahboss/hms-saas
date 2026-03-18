@@ -3,6 +3,8 @@ import { zValidator } from '@hono/zod-validator';
 import { createAuditLog } from '../../lib/accounting-helpers';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 import { createAccountSchema, updateAccountSchema } from '../../schemas/accounting';
+import { getDb } from '../../db';
+
 
 const accountsRoutes = new Hono<{
   Bindings: {
@@ -19,6 +21,7 @@ const accountsRoutes = new Hono<{
 }>();
 
 accountsRoutes.get('/', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const { type } = c.req.query();
 
@@ -33,7 +36,7 @@ accountsRoutes.get('/', async (c) => {
   query += ' ORDER BY code';
 
   try {
-    const result = await c.env.DB.prepare(query).bind(...params).all();
+    const result = await db.$client.prepare(query).bind(...params).all();
     return c.json({ accounts: result.results });
   } catch (error) {
     console.error('Error fetching accounts:', error);
@@ -42,6 +45,7 @@ accountsRoutes.get('/', async (c) => {
 });
 
 accountsRoutes.post('/', zValidator('json', createAccountSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const role = c.get('role');
@@ -52,7 +56,7 @@ accountsRoutes.post('/', zValidator('json', createAccountSchema), async (c) => {
   }
 
   try {
-    const existing = await c.env.DB.prepare(`
+    const existing = await db.$client.prepare(`
       SELECT id FROM chart_of_accounts WHERE code = ? AND tenant_id = ?
     `).bind(code, tenantId).first();
 
@@ -60,7 +64,7 @@ accountsRoutes.post('/', zValidator('json', createAccountSchema), async (c) => {
       return c.json({ error: 'Account code already exists' }, 400);
     }
 
-    const result = await c.env.DB.prepare(`
+    const result = await db.$client.prepare(`
       INSERT INTO chart_of_accounts (code, name, type, parent_id, tenant_id)
       VALUES (?, ?, ?, ?, ?)
     `).bind(code, name, type, parent_id || null, tenantId).run();
@@ -86,11 +90,12 @@ accountsRoutes.post('/', zValidator('json', createAccountSchema), async (c) => {
 });
 
 accountsRoutes.get('/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = c.req.param('id');
 
   try {
-    const result = await c.env.DB.prepare(`
+    const result = await db.$client.prepare(`
       SELECT * FROM chart_of_accounts WHERE id = ? AND tenant_id = ?
     `).bind(id, tenantId).first();
 
@@ -106,6 +111,7 @@ accountsRoutes.get('/:id', async (c) => {
 });
 
 accountsRoutes.put('/:id', zValidator('json', updateAccountSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const role = c.get('role');
@@ -117,7 +123,7 @@ accountsRoutes.put('/:id', zValidator('json', updateAccountSchema), async (c) =>
   }
 
   try {
-    const existing = await c.env.DB.prepare(`
+    const existing = await db.$client.prepare(`
       SELECT * FROM chart_of_accounts WHERE id = ? AND tenant_id = ?
     `).bind(id, tenantId).first();
 
@@ -125,7 +131,7 @@ accountsRoutes.put('/:id', zValidator('json', updateAccountSchema), async (c) =>
       return c.json({ error: 'Account not found' }, 404);
     }
 
-    await c.env.DB.prepare(`
+    await db.$client.prepare(`
       UPDATE chart_of_accounts SET name = ?, type = ?, is_active = ?
       WHERE id = ? AND tenant_id = ?
     `).bind(
@@ -155,16 +161,17 @@ accountsRoutes.put('/:id', zValidator('json', updateAccountSchema), async (c) =>
 });
 
 accountsRoutes.get('/verify-balance', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
 
   try {
-    const debitSum = await c.env.DB.prepare(`
+    const debitSum = await db.$client.prepare(`
       SELECT COALESCE(SUM(amount), 0) as total FROM journal_entries
       WHERE debit_account_id IN (SELECT id FROM chart_of_accounts WHERE tenant_id = ?)
       AND is_deleted = 0
     `).bind(tenantId).first<{ total: number }>();
 
-    const creditSum = await c.env.DB.prepare(`
+    const creditSum = await db.$client.prepare(`
       SELECT COALESCE(SUM(amount), 0) as total FROM journal_entries
       WHERE credit_account_id IN (SELECT id FROM chart_of_accounts WHERE tenant_id = ?)
       AND is_deleted = 0
@@ -187,6 +194,7 @@ accountsRoutes.get('/verify-balance', async (c) => {
 });
 
 accountsRoutes.delete('/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const role = c.get('role');
@@ -197,7 +205,7 @@ accountsRoutes.delete('/:id', async (c) => {
   }
 
   try {
-    const existing = await c.env.DB.prepare(`
+    const existing = await db.$client.prepare(`
       SELECT * FROM chart_of_accounts WHERE id = ? AND tenant_id = ?
     `).bind(id, tenantId).first();
 
@@ -205,7 +213,7 @@ accountsRoutes.delete('/:id', async (c) => {
       return c.json({ error: 'Account not found' }, 404);
     }
 
-    await c.env.DB.prepare(`
+    await db.$client.prepare(`
       DELETE FROM chart_of_accounts WHERE id = ? AND tenant_id = ?
     `).bind(id, tenantId).run();
 

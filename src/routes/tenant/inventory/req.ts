@@ -3,11 +3,14 @@ import type { Env } from '../../../types';
 import { zValidator } from "@hono/zod-validator";
 import * as schemas from "../../../schemas/inventory";
 import { generateSequenceNo } from "../../../utils/sequence";
+import { getDb } from '../../../db';
+
 
 const req = new Hono<{ Bindings: Env; Variables: { tenantId?: string; userId?: string; role?: string } }>();
 
 // GET /req
 req.get("/", zValidator("query", schemas.listRequisitionsSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const { page, limit, RequestingStoreId, SourceStoreId, RequisitionStatus, Priority, FromDate, ToDate } = c.req.valid("query");
   const offset = (page - 1) * limit;
 
@@ -23,11 +26,11 @@ req.get("/", zValidator("query", schemas.listRequisitionsSchema), async (c) => {
   if (ToDate) { conditions.push("R.RequisitionDate <= ?"); params.push(ToDate); }
 
   const whereClause = conditions.join(" AND ");
-  const count = await c.env.DB.prepare(
+  const count = await db.$client.prepare(
     `SELECT COUNT(*) as total FROM InventoryRequisition R WHERE ${whereClause}`
   ).bind(...params).first<{ total: number }>();
 
-  const results = await c.env.DB.prepare(`
+  const results = await db.$client.prepare(`
     SELECT R.*, S1.StoreName as RequestingStoreName, S2.StoreName as SourceStoreName
     FROM InventoryRequisition R
     JOIN InventoryStore S1 ON R.RequestingStoreId = S1.StoreId
@@ -42,11 +45,12 @@ req.get("/", zValidator("query", schemas.listRequisitionsSchema), async (c) => {
 
 // GET /req/:id
 req.get("/:id", async (c) => {
+  const db = getDb(c.env.DB);
   const id = parseInt(c.req.param("id"));
   if (isNaN(id)) return c.json({ error: "Invalid ID" }, 400);
   const tenantId = c.get("tenantId");
 
-  const requisition = await c.env.DB.prepare(`
+  const requisition = await db.$client.prepare(`
     SELECT R.*, S1.StoreName as RequestingStoreName, S2.StoreName as SourceStoreName
     FROM InventoryRequisition R
     LEFT JOIN InventoryStore S1 ON R.RequestingStoreId = S1.StoreId
@@ -56,7 +60,7 @@ req.get("/:id", async (c) => {
 
   if (!requisition) return c.json({ error: "Requisition not found" }, 404);
 
-  const { results: items } = await c.env.DB.prepare(`
+  const { results: items } = await db.$client.prepare(`
     SELECT ri.*, i.ItemName FROM InventoryRequisitionItem ri
     LEFT JOIN InventoryItem i ON ri.ItemId = i.ItemId
     WHERE ri.RequisitionId = ? AND ri.tenant_id = ?
@@ -67,6 +71,7 @@ req.get("/:id", async (c) => {
 
 // POST /req
 req.post("/", zValidator("json", schemas.createRequisitionSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const body = c.req.valid("json");
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
@@ -75,7 +80,7 @@ req.post("/", zValidator("json", schemas.createRequisitionSchema), async (c) => 
   const nextReqNo = await generateSequenceNo(c.env.DB, 'REQ', 'InventoryRequisition', 'RequisitionNo', tenantId);
 
   // Insert Header
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO InventoryRequisition (tenant_id, RequisitionNo, RequisitionDate, RequestingStoreId, SourceStoreId, DepartmentId, Priority, RequiredDate, Remarks, RequisitionStatus, CreatedBy, CreatedOn)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
@@ -87,7 +92,7 @@ req.post("/", zValidator("json", schemas.createRequisitionSchema), async (c) => 
   const batchOps: D1PreparedStatement[] = [];
 
   for (const item of body.Items) {
-    batchOps.push(c.env.DB.prepare(`
+    batchOps.push(db.$client.prepare(`
       INSERT INTO InventoryRequisitionItem (tenant_id, RequisitionId, ItemId, RequestedQuantity, ApprovedQuantity, RequisitionItemStatus, Remarks, CreatedBy, CreatedOn)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
@@ -96,13 +101,14 @@ req.post("/", zValidator("json", schemas.createRequisitionSchema), async (c) => 
     ));
   }
 
-  if (batchOps.length > 0) await c.env.DB.batch(batchOps);
+  if (batchOps.length > 0) await db.$client.batch(batchOps);
 
   return c.json({ message: "Requisition created", RequisitionId: reqId, RequisitionNo: nextReqNo }, 201);
 });
 
 // PUT /req/:id (Approve/Cancel)
 req.put("/:id", zValidator("json", schemas.updateRequisitionSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const id = c.req.param("id");
   const body = c.req.valid("json");
   const tenantId = c.get('tenantId');
@@ -120,7 +126,7 @@ req.put("/:id", zValidator("json", schemas.updateRequisitionSchema), async (c) =
       params.push(userId ?? null, new Date().toISOString(), body.CancelRemarks || null);
 
       // Also cancel items (scoped)
-      await c.env.DB.prepare(
+      await db.$client.prepare(
         "UPDATE InventoryRequisitionItem SET RequisitionItemStatus = 'cancelled' WHERE RequisitionId = ? AND tenant_id = ?"
       ).bind(id, tenantId).run();
     }
@@ -128,7 +134,7 @@ req.put("/:id", zValidator("json", schemas.updateRequisitionSchema), async (c) =
 
   if (updates.length > 0) {
     params.push(id, tenantId);
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       `UPDATE InventoryRequisition SET ${updates.join(", ")} WHERE RequisitionId = ? AND tenant_id = ?`
     ).bind(...params).run();
   }
@@ -138,12 +144,13 @@ req.put("/:id", zValidator("json", schemas.updateRequisitionSchema), async (c) =
 
 // PUT /req/:id/items/:itemId/approve
 req.put("/:id/items/:itemId/approve", zValidator("json", schemas.approveRequisitionItemSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const reqId = c.req.param("id");
   const itemId = c.req.param("itemId");
   const tenantId = c.get("tenantId");
   const body = c.req.valid("json");
 
-  await c.env.DB.prepare(`
+  await db.$client.prepare(`
     UPDATE InventoryRequisitionItem
     SET ApprovedQuantity = ?, RequisitionItemStatus = 'approved'
     WHERE RequisitionItemId = ? AND RequisitionId = ? AND tenant_id = ?

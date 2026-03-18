@@ -11,6 +11,8 @@ import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 
 // ── Additional inline schemas (not in schema file to keep it simple) ──
 import { z } from 'zod';
+import { getDb } from '../../db';
+
 
 // ── XSS sanitization helper ──
 function stripHtml(input: string): string {
@@ -97,6 +99,7 @@ const shareholderRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 /** GET /api/shareholders/settings — return shareholder-related settings */
 shareholderRoutes.get('/settings', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
 
   const SHAREHOLDER_KEYS = [
@@ -105,7 +108,7 @@ shareholderRoutes.get('/settings', async (c) => {
     'tds_applicable', 'tax_rate',
   ];
 
-  const { results } = await c.env.DB.prepare(
+  const { results } = await db.$client.prepare(
     `SELECT key, value FROM settings WHERE tenant_id = ? AND key IN (${SHAREHOLDER_KEYS.map(() => '?').join(',')})`,
   ).bind(tenantId, ...SHAREHOLDER_KEYS).all<{ key: string; value: string }>();
 
@@ -120,6 +123,7 @@ shareholderRoutes.get('/settings', async (c) => {
 
 /** PUT /api/shareholders/settings — upsert shareholder settings */
 shareholderRoutes.put('/settings', zValidator('json', updateShareholderSettingsSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const body = c.req.valid('json');
 
@@ -129,14 +133,14 @@ shareholderRoutes.put('/settings', zValidator('json', updateShareholderSettingsS
   }
 
   const statements = entries.map(([key, value]) =>
-    c.env.DB.prepare(
+    db.$client.prepare(
       `INSERT INTO settings (key, value, tenant_id, updated_at)
        VALUES (?, ?, ?, datetime('now'))
        ON CONFLICT(key, tenant_id) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
     ).bind(key, String(value), tenantId),
   );
 
-  await c.env.DB.batch(statements);
+  await db.$client.batch(statements);
   return c.json({ message: 'Settings updated successfully' });
 });
 
@@ -146,6 +150,7 @@ shareholderRoutes.put('/settings', zValidator('json', updateShareholderSettingsS
 
 /** GET /api/shareholders — list with search, pagination, filters */
 shareholderRoutes.get('/', zValidator('query', listShareholderSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const { page, limit, search, type, isActive } = c.req.valid('query');
   const offset = (page - 1) * limit;
@@ -178,9 +183,9 @@ shareholderRoutes.get('/', zValidator('query', listShareholderSchema), async (c)
   const countParams = params.slice(0, -2);
 
   const [shareholders, totalResult, totals] = await Promise.all([
-    c.env.DB.prepare(query).bind(...params).all(),
-    c.env.DB.prepare(countQuery).bind(...countParams).first<{ total: number }>(),
-    c.env.DB.prepare(
+    db.$client.prepare(query).bind(...params).all(),
+    db.$client.prepare(countQuery).bind(...countParams).first<{ total: number }>(),
+    db.$client.prepare(
       `SELECT type, SUM(share_count) as shares, SUM(investment) as investment, COUNT(*) as count
        FROM shareholders WHERE tenant_id = ? AND is_active = 1 GROUP BY type`,
     ).bind(tenantId).all(),
@@ -195,18 +200,19 @@ shareholderRoutes.get('/', zValidator('query', listShareholderSchema), async (c)
 
 /** POST /api/shareholders — create with share cap enforcement */
 shareholderRoutes.post('/', zValidator('json', createShareholderSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const data = c.req.valid('json');
 
   try {
     // 1. Fetch settings + live share counts in parallel
     const [maxTotalRow, maxInvestorRow, maxOwnerRow, currentTotalRow, investorRow, ownerRow] = await Promise.all([
-      c.env.DB.prepare("SELECT value FROM settings WHERE key = 'max_total_shares' AND tenant_id = ?").bind(tenantId).first<{ value: string }>(),
-      c.env.DB.prepare("SELECT value FROM settings WHERE key = 'max_investor_shares' AND tenant_id = ?").bind(tenantId).first<{ value: string }>(),
-      c.env.DB.prepare("SELECT value FROM settings WHERE key = 'max_owner_shares' AND tenant_id = ?").bind(tenantId).first<{ value: string }>(),
-      c.env.DB.prepare('SELECT COALESCE(SUM(share_count), 0) as total FROM shareholders WHERE tenant_id = ? AND is_active = 1').bind(tenantId).first<{ total: number }>(),
-      c.env.DB.prepare("SELECT COALESCE(SUM(share_count), 0) as total FROM shareholders WHERE tenant_id = ? AND is_active = 1 AND type IN ('investor', 'profit')").bind(tenantId).first<{ total: number }>(),
-      c.env.DB.prepare("SELECT COALESCE(SUM(share_count), 0) as total FROM shareholders WHERE tenant_id = ? AND is_active = 1 AND type = 'owner'").bind(tenantId).first<{ total: number }>(),
+      db.$client.prepare("SELECT value FROM settings WHERE key = 'max_total_shares' AND tenant_id = ?").bind(tenantId).first<{ value: string }>(),
+      db.$client.prepare("SELECT value FROM settings WHERE key = 'max_investor_shares' AND tenant_id = ?").bind(tenantId).first<{ value: string }>(),
+      db.$client.prepare("SELECT value FROM settings WHERE key = 'max_owner_shares' AND tenant_id = ?").bind(tenantId).first<{ value: string }>(),
+      db.$client.prepare('SELECT COALESCE(SUM(share_count), 0) as total FROM shareholders WHERE tenant_id = ? AND is_active = 1').bind(tenantId).first<{ total: number }>(),
+      db.$client.prepare("SELECT COALESCE(SUM(share_count), 0) as total FROM shareholders WHERE tenant_id = ? AND is_active = 1 AND type IN ('investor', 'profit')").bind(tenantId).first<{ total: number }>(),
+      db.$client.prepare("SELECT COALESCE(SUM(share_count), 0) as total FROM shareholders WHERE tenant_id = ? AND is_active = 1 AND type = 'owner'").bind(tenantId).first<{ total: number }>(),
     ]);
 
     const maxTotal = parseInt(maxTotalRow?.value ?? '300');
@@ -241,7 +247,7 @@ shareholderRoutes.post('/', zValidator('json', createShareholderSchema), async (
     }
 
     // 4. Insert
-    const result = await c.env.DB.prepare(
+    const result = await db.$client.prepare(
       `INSERT INTO shareholders (name, address, phone, email, nid, share_count, type, investment,
         bank_name, bank_account_no, bank_branch, routing_no,
         share_value_bdt, is_active, user_id, nominee_name, nominee_contact, tenant_id)
@@ -280,6 +286,7 @@ shareholderRoutes.post('/', zValidator('json', createShareholderSchema), async (
 
 /** POST /api/shareholders/bulk-import — import multiple shareholders from PDF data */
 shareholderRoutes.post('/bulk-import', zValidator('json', bulkImportSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const { shareholders: items, skipDuplicates } = c.req.valid('json');
@@ -290,10 +297,10 @@ shareholderRoutes.post('/bulk-import', zValidator('json', bulkImportSchema), asy
   try {
     // 1. Fetch settings + current share counts (single query for atomicity)
     const [settingsRows, currentShares] = await Promise.all([
-      c.env.DB.prepare(
+      db.$client.prepare(
         "SELECT key, value FROM settings WHERE key IN ('max_total_shares','max_investor_shares','max_owner_shares') AND tenant_id = ?"
       ).bind(tenantId).all<{ key: string; value: string }>(),
-      c.env.DB.prepare(
+      db.$client.prepare(
         `SELECT 
           COALESCE(SUM(share_count), 0) as total,
           COALESCE(SUM(CASE WHEN type IN ('investor','profit','doctor','shareholder') THEN share_count ELSE 0 END), 0) as investor,
@@ -345,14 +352,14 @@ shareholderRoutes.post('/bulk-import', zValidator('json', bulkImportSchema), asy
 
       if (nidsToCheck.length > 0) {
         const placeholders = nidsToCheck.map(() => '?').join(',');
-        const existing = await c.env.DB.prepare(
+        const existing = await db.$client.prepare(
           `SELECT nid FROM shareholders WHERE tenant_id = ? AND nid IN (${placeholders})`
         ).bind(tenantId, ...nidsToCheck).all<{ nid: string }>();
         for (const row of existing.results) dbDuplicates.add(`nid:${row.nid}`);
       }
       if (phonesToCheck.length > 0) {
         const placeholders = phonesToCheck.map(() => '?').join(',');
-        const existing = await c.env.DB.prepare(
+        const existing = await db.$client.prepare(
           `SELECT phone FROM shareholders WHERE tenant_id = ? AND phone IN (${placeholders})`
         ).bind(tenantId, ...phonesToCheck).all<{ phone: string }>();
         for (const row of existing.results) dbDuplicates.add(`phone:${row.phone}`);
@@ -400,7 +407,7 @@ shareholderRoutes.post('/bulk-import', zValidator('json', bulkImportSchema), asy
       const investment = item.investment ?? (item.shareValueBdt ? item.shareCount * item.shareValueBdt : 0);
 
       statements.push(
-        c.env.DB.prepare(
+        db.$client.prepare(
           `INSERT OR IGNORE INTO shareholders (name, address, phone, email, nid, share_count, type, investment,
             bank_name, bank_account_no, bank_branch, routing_no,
             share_value_bdt, is_active, user_id, nominee_name, nominee_contact, tenant_id)
@@ -436,7 +443,7 @@ shareholderRoutes.post('/bulk-import', zValidator('json', bulkImportSchema), asy
 
     // 5. Execute batch insert (atomic via D1 batch)
     if (statements.length > 0) {
-      await c.env.DB.batch(statements);
+      await db.$client.batch(statements);
     }
 
     const successCount = finalResults.filter(r => r.status === 'imported').length;
@@ -457,12 +464,13 @@ shareholderRoutes.post('/bulk-import', zValidator('json', bulkImportSchema), asy
 
 /** PUT /api/shareholders/:id — dynamic update with cap re-validation */
 shareholderRoutes.put('/:id', zValidator('json', updateShareholderSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = c.req.param('id');
   const data = c.req.valid('json');
 
   try {
-    const existing = await c.env.DB.prepare(
+    const existing = await db.$client.prepare(
       'SELECT * FROM shareholders WHERE id = ? AND tenant_id = ?',
     ).bind(id, tenantId).first<Record<string, unknown>>();
     if (!existing) throw new HTTPException(404, { message: 'Shareholder not found' });
@@ -470,8 +478,8 @@ shareholderRoutes.put('/:id', zValidator('json', updateShareholderSchema), async
     // If updating shares, validate against cap
     if (data.shareCount !== undefined) {
       const [maxTotalRow, otherSharesRow] = await Promise.all([
-        c.env.DB.prepare("SELECT value FROM settings WHERE key = 'max_total_shares' AND tenant_id = ?").bind(tenantId).first<{ value: string }>(),
-        c.env.DB.prepare('SELECT COALESCE(SUM(share_count), 0) as total FROM shareholders WHERE tenant_id = ? AND is_active = 1 AND id != ?').bind(tenantId, id).first<{ total: number }>(),
+        db.$client.prepare("SELECT value FROM settings WHERE key = 'max_total_shares' AND tenant_id = ?").bind(tenantId).first<{ value: string }>(),
+        db.$client.prepare('SELECT COALESCE(SUM(share_count), 0) as total FROM shareholders WHERE tenant_id = ? AND is_active = 1 AND id != ?').bind(tenantId, id).first<{ total: number }>(),
       ]);
       const maxShares = parseInt(maxTotalRow?.value ?? '300');
       const otherTotal = otherSharesRow?.total ?? 0;
@@ -513,7 +521,7 @@ shareholderRoutes.put('/:id', zValidator('json', updateShareholderSchema), async
     updates.push("updated_at = datetime('now')");
     params.push(id, tenantId!);
 
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       `UPDATE shareholders SET ${updates.join(', ')} WHERE id = ? AND tenant_id = ?`,
     ).bind(...params).run();
 
@@ -530,12 +538,13 @@ shareholderRoutes.put('/:id', zValidator('json', updateShareholderSchema), async
 
 /** GET /api/shareholders/calculate?month=YYYY-MM — preview dividend calculation */
 shareholderRoutes.get('/calculate', zValidator('query', calculateDividendSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const month = c.req.valid('query').month;
 
   try {
     // Settings
-    const settingsResult = await c.env.DB.prepare(
+    const settingsResult = await db.$client.prepare(
       'SELECT key, value FROM settings WHERE tenant_id = ?',
     ).bind(tenantId).all<{ key: string; value: string }>();
     const settings: Record<string, string> = {};
@@ -549,10 +558,10 @@ shareholderRoutes.get('/calculate', zValidator('query', calculateDividendSchema)
 
     // Revenue & Expenses
     const [incomeRow, expenseRow] = await Promise.all([
-      c.env.DB.prepare(
+      db.$client.prepare(
         `SELECT COALESCE(SUM(amount), 0) as total FROM income WHERE strftime('%Y-%m', date) = ? AND tenant_id = ?`,
       ).bind(month, tenantId).first<{ total: number }>(),
-      c.env.DB.prepare(
+      db.$client.prepare(
         `SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE strftime('%Y-%m', date) = ? AND tenant_id = ?`,
       ).bind(month, tenantId).first<{ total: number }>(),
     ]);
@@ -570,7 +579,7 @@ shareholderRoutes.get('/calculate', zValidator('query', calculateDividendSchema)
     const tdsRate = tdsApplicable ? taxRate / 100 : 0;
 
     // Per-shareholder breakdown
-    const shareholders = await c.env.DB.prepare(
+    const shareholders = await db.$client.prepare(
       'SELECT id, name, share_count, type, share_value_bdt FROM shareholders WHERE tenant_id = ? AND is_active = 1 ORDER BY type, name',
     ).bind(tenantId).all<{ id: number; name: string; share_count: number; type: string; share_value_bdt: number | null }>();
 
@@ -608,19 +617,20 @@ shareholderRoutes.get('/calculate', zValidator('query', calculateDividendSchema)
 
 /** POST /api/shareholders/distribute — finalize + create per-person distribution records */
 shareholderRoutes.post('/distribute', zValidator('json', finalizeDividendSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const { month, notes, items } = c.req.valid('json');
 
   try {
     // Prevent double distribution
-    const existing = await c.env.DB.prepare(
+    const existing = await db.$client.prepare(
       'SELECT id FROM profit_distributions WHERE month = ? AND tenant_id = ?',
     ).bind(month, tenantId).first();
     if (existing) throw new HTTPException(409, { message: `Profit already distributed for ${month}` });
 
     // Fetch settings
-    const settingsResult = await c.env.DB.prepare(
+    const settingsResult = await db.$client.prepare(
       'SELECT key, value FROM settings WHERE tenant_id = ?',
     ).bind(tenantId).all<{ key: string; value: string }>();
     const settings: Record<string, string> = {};
@@ -633,8 +643,8 @@ shareholderRoutes.post('/distribute', zValidator('json', finalizeDividendSchema)
 
     // Calculate from income/expenses
     const [incomeRow, expenseRow] = await Promise.all([
-      c.env.DB.prepare(`SELECT COALESCE(SUM(amount), 0) as total FROM income WHERE strftime('%Y-%m', date) = ? AND tenant_id = ?`).bind(month, tenantId).first<{ total: number }>(),
-      c.env.DB.prepare(`SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE strftime('%Y-%m', date) = ? AND tenant_id = ?`).bind(month, tenantId).first<{ total: number }>(),
+      db.$client.prepare(`SELECT COALESCE(SUM(amount), 0) as total FROM income WHERE strftime('%Y-%m', date) = ? AND tenant_id = ?`).bind(month, tenantId).first<{ total: number }>(),
+      db.$client.prepare(`SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE strftime('%Y-%m', date) = ? AND tenant_id = ?`).bind(month, tenantId).first<{ total: number }>(),
     ]);
 
     const profit = (incomeRow?.total || 0) - (expenseRow?.total || 0);
@@ -642,7 +652,7 @@ shareholderRoutes.post('/distribute', zValidator('json', finalizeDividendSchema)
     const distributable = Math.max(0, Math.round((profit - retainedAmount) * (profitPct / 100)));
 
     // Create distribution header
-    const distResult = await c.env.DB.prepare(
+    const distResult = await db.$client.prepare(
       `INSERT INTO profit_distributions (month, total_profit, distributable_profit, profit_percentage,
         retained_amount, retained_percent, tds_applicable, tax_rate, notes, status,
         approved_by, approved_at, tenant_id)
@@ -655,7 +665,7 @@ shareholderRoutes.post('/distribute', zValidator('json', finalizeDividendSchema)
     // Create per-shareholder payout records via batch for atomicity & D1 performance
     const totalDistributed = items.reduce((sum, item) => sum + item.netPayable, 0);
     const payoutStmts = items.map(item =>
-      c.env.DB.prepare(
+      db.$client.prepare(
         `INSERT INTO shareholder_distributions
            (distribution_id, shareholder_id, share_count, per_share_amount, distribution_amount,
             gross_dividend, tax_deducted, net_payable, paid_status, tenant_id)
@@ -666,7 +676,7 @@ shareholderRoutes.post('/distribute', zValidator('json', finalizeDividendSchema)
       ),
     );
     if (payoutStmts.length > 0) {
-      await c.env.DB.batch(payoutStmts);
+      await db.$client.batch(payoutStmts);
     }
 
     return c.json({
@@ -689,9 +699,10 @@ shareholderRoutes.post('/distribute', zValidator('json', finalizeDividendSchema)
 
 /** GET /api/shareholders/distributions — list all distribution periods */
 shareholderRoutes.get('/distributions', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   try {
-    const distributions = await c.env.DB.prepare(
+    const distributions = await db.$client.prepare(
       'SELECT * FROM profit_distributions WHERE tenant_id = ? ORDER BY month DESC',
     ).bind(tenantId).all();
     return c.json({ distributions: distributions.results });
@@ -703,16 +714,17 @@ shareholderRoutes.get('/distributions', async (c) => {
 
 /** GET /api/shareholders/distributions/:id — per-person breakdown */
 shareholderRoutes.get('/distributions/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = c.req.param('id');
 
   try {
-    const distribution = await c.env.DB.prepare(
+    const distribution = await db.$client.prepare(
       'SELECT * FROM profit_distributions WHERE id = ? AND tenant_id = ?',
     ).bind(id, tenantId).first();
     if (!distribution) throw new HTTPException(404, { message: 'Distribution not found' });
 
-    const details = await c.env.DB.prepare(
+    const details = await db.$client.prepare(
       `SELECT sd.*, s.name as shareholder_name, s.type, s.bank_name, s.bank_account_no
        FROM shareholder_distributions sd
        JOIN shareholders s ON sd.shareholder_id = s.id
@@ -729,18 +741,19 @@ shareholderRoutes.get('/distributions/:id', async (c) => {
 
 /** POST /api/shareholders/distributions/:id/pay/:shareholderId — mark as paid */
 shareholderRoutes.post('/distributions/:id/pay/:shareholderId', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const { id, shareholderId } = c.req.param();
 
   try {
-    const record = await c.env.DB.prepare(
+    const record = await db.$client.prepare(
       `SELECT sd.* FROM shareholder_distributions sd
        JOIN profit_distributions pd ON sd.distribution_id = pd.id
        WHERE sd.distribution_id = ? AND sd.shareholder_id = ? AND pd.tenant_id = ?`,
     ).bind(id, shareholderId, tenantId).first();
     if (!record) throw new HTTPException(404, { message: 'Distribution record not found' });
 
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       `UPDATE shareholder_distributions SET paid_status = 'paid', paid_date = date('now')
        WHERE distribution_id = ? AND shareholder_id = ? AND tenant_id = ?`,
     ).bind(id, shareholderId, tenantId).run();
@@ -758,10 +771,11 @@ shareholderRoutes.post('/distributions/:id/pay/:shareholderId', async (c) => {
 
 /** GET /api/shareholders/my-profile — shareholder sees their own profile */
 shareholderRoutes.get('/my-profile', async (c) => {
+  const db = getDb(c.env.DB);
   const userId = requireUserId(c);
   const tenantId = requireTenantId(c);
 
-  const shareholder = await c.env.DB.prepare(
+  const shareholder = await db.$client.prepare(
     'SELECT * FROM shareholders WHERE user_id = ? AND tenant_id = ? AND is_active = 1',
   ).bind(userId, tenantId).first();
 
@@ -773,10 +787,11 @@ shareholderRoutes.get('/my-profile', async (c) => {
 
 /** GET /api/shareholders/my-dividends — shareholder sees their dividend history */
 shareholderRoutes.get('/my-dividends', async (c) => {
+  const db = getDb(c.env.DB);
   const userId = requireUserId(c);
   const tenantId = requireTenantId(c);
 
-  const shareholder = await c.env.DB.prepare(
+  const shareholder = await db.$client.prepare(
     'SELECT id FROM shareholders WHERE user_id = ? AND tenant_id = ?',
   ).bind(userId, tenantId).first<{ id: number }>();
 
@@ -784,7 +799,7 @@ shareholderRoutes.get('/my-dividends', async (c) => {
     throw new HTTPException(404, { message: 'No shareholder profile linked' });
   }
 
-  const { results } = await c.env.DB.prepare(
+  const { results } = await db.$client.prepare(
     `SELECT sd.id, sd.distribution_id, sd.shareholder_id,
        sd.gross_dividend, sd.tax_deducted, sd.net_payable,
        sd.paid_status as status, sd.paid_date,

@@ -11,11 +11,14 @@ import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { Env, Variables } from '../../types';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
+import { getDb } from '../../db';
+
 
 const inboxRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // ─── GET / — List notifications (newest first, paginated) ─────────────────────
 inboxRoutes.get('/', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const limit = Math.min(Number(c.req.query('limit')) || 20, 50);
@@ -36,17 +39,18 @@ inboxRoutes.get('/', async (c) => {
   sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
   params.push(limit, offset);
 
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await db.$client.prepare(sql).bind(...params).all();
 
   return c.json({ notifications: results ?? [] });
 });
 
 // ─── GET /unread-count — Badge count ──────────────────────────────────────────
 inboxRoutes.get('/unread-count', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
 
-  const row = await c.env.DB.prepare(`
+  const row = await db.$client.prepare(`
     SELECT COUNT(*) as count FROM notifications
     WHERE tenant_id = ? AND (user_id = ? OR user_id IS NULL) AND is_read = 0
   `).bind(tenantId, Number(userId)).first<{ count: number }>();
@@ -56,11 +60,12 @@ inboxRoutes.get('/unread-count', async (c) => {
 
 // ─── PATCH /:id/read — Mark single as read ────────────────────────────────────
 inboxRoutes.patch('/:id/read', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const id = c.req.param('id');
 
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     UPDATE notifications SET is_read = 1
     WHERE id = ? AND tenant_id = ? AND (user_id = ? OR user_id IS NULL)
   `).bind(id, tenantId, Number(userId)).run();
@@ -74,10 +79,11 @@ inboxRoutes.patch('/:id/read', async (c) => {
 
 // ─── PATCH /read-all — Mark all as read ───────────────────────────────────────
 inboxRoutes.patch('/read-all', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
 
-  await c.env.DB.prepare(`
+  await db.$client.prepare(`
     UPDATE notifications SET is_read = 1
     WHERE tenant_id = ? AND (user_id = ? OR user_id IS NULL) AND is_read = 0
   `).bind(tenantId, Number(userId)).run();
@@ -87,11 +93,12 @@ inboxRoutes.patch('/read-all', async (c) => {
 
 // ─── DELETE /:id — Delete notification ────────────────────────────────────────
 inboxRoutes.delete('/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const id = c.req.param('id');
 
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     DELETE FROM notifications
     WHERE id = ? AND tenant_id = ? AND (user_id = ? OR user_id IS NULL)
   `).bind(id, tenantId, Number(userId)).run();

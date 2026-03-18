@@ -3,6 +3,8 @@ import { zValidator } from '@hono/zod-validator';
 import { createAuditLog } from '../../lib/accounting-helpers';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 import { createJournalEntrySchema } from '../../schemas/accounting';
+import { getDb } from '../../db';
+
 
 const journalRoutes = new Hono<{
   Bindings: {
@@ -19,6 +21,7 @@ const journalRoutes = new Hono<{
 }>();
 
 journalRoutes.get('/', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const { startDate, endDate, accountId } = c.req.query();
 
@@ -51,7 +54,7 @@ journalRoutes.get('/', async (c) => {
   query += ' ORDER BY j.entry_date DESC, j.id DESC';
 
   try {
-    const result = await c.env.DB.prepare(query).bind(...params).all();
+    const result = await db.$client.prepare(query).bind(...params).all();
     return c.json({ journalEntries: result.results });
   } catch (error) {
     console.error('Error fetching journal entries:', error);
@@ -60,6 +63,7 @@ journalRoutes.get('/', async (c) => {
 });
 
 journalRoutes.post('/', zValidator('json', createJournalEntrySchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const { entry_date, reference, description, debit_account_id, credit_account_id, amount } = c.req.valid('json');
@@ -69,11 +73,11 @@ journalRoutes.post('/', zValidator('json', createJournalEntrySchema), async (c) 
   }
 
   try {
-    const debitAccount = await c.env.DB.prepare(`
+    const debitAccount = await db.$client.prepare(`
       SELECT id, is_active FROM chart_of_accounts WHERE id = ? AND tenant_id = ?
     `).bind(debit_account_id, tenantId).first();
 
-    const creditAccount = await c.env.DB.prepare(`
+    const creditAccount = await db.$client.prepare(`
       SELECT id, is_active FROM chart_of_accounts WHERE id = ? AND tenant_id = ?
     `).bind(credit_account_id, tenantId).first();
 
@@ -85,7 +89,7 @@ journalRoutes.post('/', zValidator('json', createJournalEntrySchema), async (c) 
       return c.json({ error: 'Cannot use inactive accounts' }, 400);
     }
 
-    const result = await c.env.DB.prepare(`
+    const result = await db.$client.prepare(`
       INSERT INTO journal_entries (entry_date, reference, description, debit_account_id, credit_account_id, amount, tenant_id, created_by)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(entry_date, reference || null, description || null, debit_account_id, credit_account_id, amount, tenantId, userId).run();
@@ -111,11 +115,12 @@ journalRoutes.post('/', zValidator('json', createJournalEntrySchema), async (c) 
 });
 
 journalRoutes.get('/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = c.req.param('id');
 
   try {
-    const result = await c.env.DB.prepare(`
+    const result = await db.$client.prepare(`
       SELECT j.*, 
              da.code as debit_code, da.name as debit_name,
              ca.code as credit_code, ca.name as credit_name,
@@ -139,6 +144,7 @@ journalRoutes.get('/:id', async (c) => {
 });
 
 journalRoutes.delete('/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const role = c.get('role');
@@ -149,7 +155,7 @@ journalRoutes.delete('/:id', async (c) => {
   }
 
   try {
-    const existing = await c.env.DB.prepare(`
+    const existing = await db.$client.prepare(`
       SELECT * FROM journal_entries WHERE id = ? AND tenant_id = ? AND is_deleted = 0
     `).bind(id, tenantId).first();
 
@@ -157,7 +163,7 @@ journalRoutes.delete('/:id', async (c) => {
       return c.json({ error: 'Journal entry not found' }, 404);
     }
 
-    await c.env.DB.prepare(`
+    await db.$client.prepare(`
       UPDATE journal_entries SET is_deleted = 1 WHERE id = ? AND tenant_id = ?
     `).bind(id, tenantId).run();
 

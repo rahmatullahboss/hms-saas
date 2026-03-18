@@ -4,6 +4,8 @@ import { zValidator } from '@hono/zod-validator';
 import { HTTPException } from 'hono/http-exception';
 import type { Env, Variables } from '../../types';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
+import { getDb } from '../../db';
+
 
 const discharge = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -29,11 +31,12 @@ const upsertSummarySchema = z.object({
 // ─── GET /api/discharge/:admissionId — get or init summary ────────────────────
 
 discharge.get('/:admissionId', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const admissionId = parseInt(c.req.param('admissionId'));
 
   // Get admission details for context
-  const admission = await c.env.DB.prepare(`
+  const admission = await db.$client.prepare(`
     SELECT a.*, p.name as patient_name, p.patient_code, p.date_of_birth, p.gender,
            b.ward_name, b.bed_number,
            s.name as doctor_name,
@@ -50,7 +53,7 @@ discharge.get('/:admissionId', async (c) => {
   }
 
   // Get discharge summary (may not exist yet)
-  const summary = await c.env.DB.prepare(
+  const summary = await db.$client.prepare(
     `SELECT * FROM discharge_summaries WHERE admission_id = ? AND tenant_id = ?`
   ).bind(admissionId, tenantId).first<Record<string, unknown>>();
 
@@ -78,13 +81,14 @@ discharge.get('/:admissionId', async (c) => {
 // ─── PUT /api/discharge/:admissionId — create or update ──────────────────────
 
 discharge.put('/:admissionId', zValidator('json', upsertSummarySchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const safeUserId = requireUserId(c);
   const admissionId = parseInt(c.req.param('admissionId'));
   const data = c.req.valid('json');
 
   // Verify admission belongs to tenant
-  const admission = await c.env.DB.prepare(
+  const admission = await db.$client.prepare(
     `SELECT id, patient_id FROM admissions WHERE id = ? AND tenant_id = ?`
   ).bind(admissionId, tenantId).first<{ id: number; patient_id: number }>();
 
@@ -92,7 +96,7 @@ discharge.put('/:admissionId', zValidator('json', upsertSummarySchema), async (c
     throw new HTTPException(404, { message: 'Admission not found' });
   }
 
-  const existing = await c.env.DB.prepare(
+  const existing = await db.$client.prepare(
     `SELECT id FROM discharge_summaries WHERE admission_id = ? AND tenant_id = ?`
   ).bind(admissionId, tenantId).first<{ id: number }>();
 
@@ -108,7 +112,7 @@ discharge.put('/:admissionId', zValidator('json', upsertSummarySchema), async (c
 
   if (!existing) {
     // INSERT
-    await c.env.DB.prepare(`
+    await db.$client.prepare(`
       INSERT INTO discharge_summaries
         (tenant_id, admission_id, patient_id,
          admission_diagnosis, final_diagnosis, treatment_summary,
@@ -152,13 +156,13 @@ discharge.put('/:admissionId', zValidator('json', upsertSummarySchema), async (c
       }
     }
 
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       `UPDATE discharge_summaries SET ${sets.join(', ')} WHERE admission_id = ? AND tenant_id = ?`
     ).bind(...vals, admissionId, tenantId).run();
   }
 
   // Audit log
-  await c.env.DB.prepare(`
+  await db.$client.prepare(`
     INSERT INTO audit_log (tenant_id, user_id, action, entity, entity_id, details)
     VALUES (?, ?, 'upsert', 'discharge_summary', ?, ?)
   `).bind(tenantId, safeUserId, admissionId, `status=${data.status ?? 'draft'}`).run();

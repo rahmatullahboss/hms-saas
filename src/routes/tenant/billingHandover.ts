@@ -4,12 +4,15 @@ import { zValidator } from '@hono/zod-validator';
 import { HTTPException } from 'hono/http-exception';
 import type { Env, Variables } from '../../types';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
+import { getDb } from '../../db';
+
 
 const handover = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // ─── GET / — list handovers ─────────────────────────────────────────────────
 
 handover.get('/', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const { status, staff_id } = c.req.query();
 
@@ -27,17 +30,18 @@ handover.get('/', async (c) => {
   if (staff_id) { sql += ' AND (h.handover_by = ? OR h.handover_to = ?)'; params.push(staff_id, staff_id); }
   sql += ' ORDER BY h.created_at DESC LIMIT 100';
 
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await db.$client.prepare(sql).bind(...params).all();
   return c.json({ handovers: results });
 });
 
 // ─── GET /pending — pending handovers for me ────────────────────────────────
 
 handover.get('/pending/:staffId', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const staffId = parseInt(c.req.param('staffId'));
 
-  const { results } = await c.env.DB.prepare(`
+  const { results } = await db.$client.prepare(`
     SELECT h.*, s.name as handover_by_name
     FROM billing_handovers h LEFT JOIN staff s ON h.handover_by = s.id
     WHERE h.tenant_id = ? AND h.handover_to = ? AND h.status = 'pending'
@@ -55,6 +59,7 @@ handover.post('/', zValidator('json', z.object({
   handover_type: z.enum(['cashier', 'counter', 'department']).default('cashier'),
   remarks: z.string().optional(),
 })), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
@@ -64,7 +69,7 @@ handover.post('/', zValidator('json', z.object({
     throw new HTTPException(400, { message: 'Cannot create handover to yourself' });
   }
 
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO billing_handovers (tenant_id, handover_type, handover_by, handover_to, handover_amount, due_amount, remarks)
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `).bind(tenantId, data.handover_type, userId, data.handover_to, data.handover_amount, data.due_amount, data.remarks || null).run();
@@ -75,12 +80,13 @@ handover.post('/', zValidator('json', z.object({
 // ─── PUT /:id/receive — confirm receipt ──────────────────────────────────────
 
 handover.put('/:id/receive', zValidator('json', z.object({ remarks: z.string().optional() })), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const id = parseInt(c.req.param('id'));
   const { remarks } = c.req.valid('json');
 
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     UPDATE billing_handovers SET status = 'received', received_by = ?, received_at = datetime('now'), received_remarks = ?
     WHERE id = ? AND tenant_id = ? AND status = 'pending'
   `).bind(userId, remarks || null, id, tenantId).run();
@@ -92,27 +98,29 @@ handover.put('/:id/receive', zValidator('json', z.object({ remarks: z.string().o
 // ─── PUT /:id/verify — admin verify ──────────────────────────────────────────
 
 handover.put('/:id/verify', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = parseInt(c.req.param('id'));
 
-  await c.env.DB.prepare("UPDATE billing_handovers SET status = 'verified' WHERE id = ? AND tenant_id = ?").bind(id, tenantId).run();
+  await db.$client.prepare("UPDATE billing_handovers SET status = 'verified' WHERE id = ? AND tenant_id = ?").bind(id, tenantId).run();
   return c.json({ message: 'Handover verified' });
 });
 
 // ─── GET /report/daily — daily collection vs handover report ─────────────────
 
 handover.get('/report/daily', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const date = c.req.query('date') || new Date().toISOString().slice(0, 10);
   const staffId = c.req.query('staff_id');
   if (!staffId) throw new HTTPException(400, { message: 'staff_id required' });
 
-  const collections = await c.env.DB.prepare(`
+  const collections = await db.$client.prepare(`
     SELECT COALESCE(SUM(paid), 0) as total_collection
     FROM bills WHERE tenant_id = ? AND date(created_at) = ? AND created_by = ? AND status IN ('paid', 'partially_paid')
   `).bind(tenantId, date, staffId).first<{ total_collection: number }>();
 
-  const handovers = await c.env.DB.prepare(`
+  const handovers = await db.$client.prepare(`
     SELECT COALESCE(SUM(handover_amount), 0) as total_handover
     FROM billing_handovers WHERE tenant_id = ? AND date(created_at) = ? AND handover_by = ?
   `).bind(tenantId, date, staffId).first<{ total_handover: number }>();

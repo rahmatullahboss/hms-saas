@@ -4,6 +4,8 @@ import { HTTPException } from 'hono/http-exception';
 import { createDoctorSchema, updateDoctorSchema } from '../../schemas/doctor';
 import type { Env, Variables } from '../../types';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
+import { getDb } from '../../db';
+
 
 type AppContext = Context<{ Bindings: Env; Variables: Variables }>;
 
@@ -17,9 +19,10 @@ async function triggerSiteReRender(
   c: { env: Env; executionCtx: ExecutionContext },
   tenantId: string
 ): Promise<void> {
+  const db = getDb(c.env.DB);
   try {
     // Only re-render if the tenant has a website enabled
-    const config = await c.env.DB.prepare(
+    const config = await db.$client.prepare(
       `SELECT wc.is_enabled, t.subdomain FROM website_config wc
        JOIN tenants t ON wc.tenant_id = t.id
        WHERE wc.tenant_id = ? AND wc.is_enabled = 1`
@@ -37,6 +40,7 @@ async function triggerSiteReRender(
 
 // GET /api/doctors — list all active doctors
 doctorRoutes.get('/', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const search = c.req.query('search') || '';
 
@@ -51,7 +55,7 @@ doctorRoutes.get('/', async (c) => {
     }
 
     query += ' ORDER BY name';
-    const doctors = await c.env.DB.prepare(query).bind(...params).all();
+    const doctors = await db.$client.prepare(query).bind(...params).all();
     return c.json({ doctors: doctors.results });
   } catch {
     throw new HTTPException(500, { message: 'Failed to fetch doctors' });
@@ -60,23 +64,24 @@ doctorRoutes.get('/', async (c) => {
 
 // GET /api/doctors/dashboard — doctor's own dashboard data
 doctorRoutes.get('/dashboard', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   if (!tenantId || !userId) throw new HTTPException(401, { message: 'Auth required' });
 
   try {
     // Find doctor linked to this user
-    const doctor = await c.env.DB.prepare(
+    const doctor = await db.$client.prepare(
       `SELECT id, name, specialty, qualifications, consultation_fee
        FROM doctors WHERE user_id = ? AND tenant_id = ? AND is_active = 1 LIMIT 1`
     ).bind(userId, tenantId).first();
 
     if (!doctor) {
       // Also try matching by name from users table
-      const user = await c.env.DB.prepare('SELECT name FROM users WHERE id = ? AND tenant_id = ?')
+      const user = await db.$client.prepare('SELECT name FROM users WHERE id = ? AND tenant_id = ?')
         .bind(userId, tenantId).first<{ name: string }>();
       if (user) {
-        const byName = await c.env.DB.prepare(
+        const byName = await db.$client.prepare(
           `SELECT id, name, specialty, qualifications, consultation_fee
            FROM doctors WHERE name = ? AND tenant_id = ? AND is_active = 1 LIMIT 1`
         ).bind(user.name, tenantId).first();
@@ -96,11 +101,12 @@ doctorRoutes.get('/dashboard', async (c) => {
 
 // Helper to build dashboard response
 async function buildDashboard(c: AppContext, doctor: Record<string, unknown>, tenantId: string) {
+  const db = getDb(c.env.DB);
   const doctorId = doctor.id as number;
   const today = new Date().toISOString().split('T')[0];
 
   // Today's appointments (queue)
-  const { results: queue } = await c.env.DB.prepare(`
+  const { results: queue } = await db.$client.prepare(`
     SELECT a.id, a.patient_id, a.token_no, a.appt_time, a.visit_type, a.status, a.chief_complaint,
            p.name AS patient_name, p.patient_code, p.date_of_birth, p.gender
     FROM appointments a
@@ -117,19 +123,19 @@ async function buildDashboard(c: AppContext, doctor: Record<string, unknown>, te
 
   // Yesterday count
   const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-  const yesterdayRow = await c.env.DB.prepare(
+  const yesterdayRow = await db.$client.prepare(
     `SELECT COUNT(*) AS cnt FROM appointments WHERE doctor_id = ? AND tenant_id = ? AND appt_date = ?`
   ).bind(doctorId, tenantId, yesterday).first<{ cnt: number }>();
 
   // Visit types breakdown
-  const { results: visitTypes } = await c.env.DB.prepare(`
+  const { results: visitTypes } = await db.$client.prepare(`
     SELECT visit_type, COUNT(*) AS count FROM appointments
     WHERE doctor_id = ? AND tenant_id = ? AND appt_date = ?
     GROUP BY visit_type
   `).bind(doctorId, tenantId, today).all();
 
   // Recent prescriptions
-  const { results: recentRx } = await c.env.DB.prepare(`
+  const { results: recentRx } = await db.$client.prepare(`
     SELECT p.id, p.rx_no, p.created_at, p.status,
            pt.name AS patient_name, pt.patient_code
     FROM prescriptions p
@@ -140,7 +146,7 @@ async function buildDashboard(c: AppContext, doctor: Record<string, unknown>, te
 
   // Upcoming follow-ups (next 7 days)
   const weekLater = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
-  const { results: followUps } = await c.env.DB.prepare(`
+  const { results: followUps } = await db.$client.prepare(`
     SELECT p.id AS rx_id, p.follow_up_date,
            pt.name AS patient_name, pt.patient_code, pt.mobile_number AS mobile
     FROM prescriptions p
@@ -163,11 +169,12 @@ async function buildDashboard(c: AppContext, doctor: Record<string, unknown>, te
 
 // GET /api/doctors/:id
 doctorRoutes.get('/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = c.req.param('id');
 
   try {
-    const doctor = await c.env.DB.prepare(
+    const doctor = await db.$client.prepare(
       'SELECT * FROM doctors WHERE id = ? AND tenant_id = ?',
     ).bind(id, tenantId).first();
 
@@ -181,12 +188,13 @@ doctorRoutes.get('/:id', async (c) => {
 
 // POST /api/doctors — create doctor
 doctorRoutes.post('/', zValidator('json', createDoctorSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
 
   try {
-    const result = await c.env.DB.prepare(
+    const result = await db.$client.prepare(
       `INSERT INTO doctors (name, specialty, mobile_number, consultation_fee, is_active, tenant_id)
        VALUES (?, ?, ?, ?, 1, ?)`,
     ).bind(data.name, data.specialty ?? null, data.mobileNumber ?? null, data.consultationFee, tenantId).run();
@@ -204,17 +212,18 @@ doctorRoutes.post('/', zValidator('json', createDoctorSchema), async (c) => {
 
 // PUT /api/doctors/:id — update doctor
 doctorRoutes.put('/:id', zValidator('json', updateDoctorSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = c.req.param('id');
   const data = c.req.valid('json');
 
   try {
-    const existing = await c.env.DB.prepare(
+    const existing = await db.$client.prepare(
       'SELECT * FROM doctors WHERE id = ? AND tenant_id = ?',
     ).bind(id, tenantId).first<Record<string, unknown>>();
     if (!existing) throw new HTTPException(404, { message: 'Doctor not found' });
 
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       `UPDATE doctors SET name = ?, specialty = ?, mobile_number = ?, consultation_fee = ?, updated_at = datetime('now')
        WHERE id = ? AND tenant_id = ?`,
     ).bind(
@@ -239,16 +248,17 @@ doctorRoutes.put('/:id', zValidator('json', updateDoctorSchema), async (c) => {
 
 // DELETE /api/doctors/:id — soft delete
 doctorRoutes.delete('/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = c.req.param('id');
 
   try {
-    const existing = await c.env.DB.prepare(
+    const existing = await db.$client.prepare(
       'SELECT * FROM doctors WHERE id = ? AND tenant_id = ?',
     ).bind(id, tenantId).first();
     if (!existing) throw new HTTPException(404, { message: 'Doctor not found' });
 
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       `UPDATE doctors SET is_active = 0, updated_at = datetime('now') WHERE id = ? AND tenant_id = ?`,
     ).bind(id, tenantId).run();
 

@@ -2,11 +2,14 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import * as schemas from "../../../schemas/inventory";
 import type { Env } from '../../../types';
+import { getDb } from '../../../db';
+
 
 const stock = new Hono<{ Bindings: Env; Variables: { tenantId?: string; userId?: string; role?: string } }>();
 
 // GET /stock - List stocks
 stock.get("/", zValidator("query", schemas.listStockSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const query = c.req.valid("query");
   const { page, limit, search, ItemId, StoreId, ExpiringBefore, BelowReorderLevel } = query;
   const offset = (page - 1) * limit;
@@ -27,7 +30,7 @@ stock.get("/", zValidator("query", schemas.listStockSchema), async (c) => {
 
   const whereClause = conditions.join(" AND ");
 
-  const countResult = await c.env.DB.prepare(`
+  const countResult = await db.$client.prepare(`
     SELECT COUNT(*) as total
     FROM InventoryStock S
     JOIN InventoryItem I ON S.ItemId = I.ItemId
@@ -35,7 +38,7 @@ stock.get("/", zValidator("query", schemas.listStockSchema), async (c) => {
     WHERE ${whereClause}
   `).bind(...params).first<{ total: number }>();
 
-  const results = await c.env.DB.prepare(`
+  const results = await db.$client.prepare(`
     SELECT S.*, I.ItemName, I.ItemCode, I.ReOrderLevel, ST.StoreName
     FROM InventoryStock S
     JOIN InventoryItem I ON S.ItemId = I.ItemId
@@ -53,6 +56,7 @@ stock.get("/", zValidator("query", schemas.listStockSchema), async (c) => {
 
 // POST /adjustment - Stock Adjustment
 stock.post("/adjustment", zValidator("json", schemas.createStockAdjustmentSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const body = c.req.valid("json");
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
@@ -66,11 +70,11 @@ stock.post("/adjustment", zValidator("json", schemas.createStockAdjustmentSchema
 
     // 1. Resolve StockId (with tenant scoping)
     if (stockId) {
-      currentStock = await c.env.DB.prepare(
+      currentStock = await db.$client.prepare(
         "SELECT * FROM InventoryStock WHERE StockId = ? AND tenant_id = ?"
       ).bind(stockId, tenantId).first();
     } else if (item.ItemId && item.StoreId && item.BatchNo) {
-      currentStock = await c.env.DB.prepare(
+      currentStock = await db.$client.prepare(
         "SELECT * FROM InventoryStock WHERE ItemId = ? AND StoreId = ? AND BatchNo = ? AND tenant_id = ?"
       ).bind(item.ItemId, item.StoreId, item.BatchNo, tenantId).first();
       if (currentStock) stockId = currentStock.StockId;
@@ -90,13 +94,13 @@ stock.post("/adjustment", zValidator("json", schemas.createStockAdjustmentSchema
       }
 
       batchOps.push(
-        c.env.DB.prepare("UPDATE InventoryStock SET AvailableQuantity = ? WHERE StockId = ? AND tenant_id = ?")
+        db.$client.prepare("UPDATE InventoryStock SET AvailableQuantity = ? WHERE StockId = ? AND tenant_id = ?")
           .bind(newQty, stockId, tenantId),
       );
 
       // Ledger Transaction
       batchOps.push(
-        c.env.DB.prepare(`
+        db.$client.prepare(`
           INSERT INTO InventoryStockTransaction
           (tenant_id, StockId, ItemId, StoreId, TransactionType, Quantity, InOut, ReferenceNo, CreatedBy, CreatedOn)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -114,7 +118,7 @@ stock.post("/adjustment", zValidator("json", schemas.createStockAdjustmentSchema
       }
 
       // Create new stock entry (Adjustment In) — must await for StockId linkage
-      const itemMaster = await c.env.DB.prepare(
+      const itemMaster = await db.$client.prepare(
         "SELECT StandardRate FROM InventoryItem WHERE ItemId = ? AND tenant_id = ?"
       ).bind(item.ItemId, tenantId).first<{ StandardRate: number }>();
       const costPrice = itemMaster?.StandardRate || 0;
@@ -122,7 +126,7 @@ stock.post("/adjustment", zValidator("json", schemas.createStockAdjustmentSchema
       const expiryDate = new Date();
       expiryDate.setFullYear(expiryDate.getFullYear() + 1);
 
-      const stockRes = await c.env.DB.prepare(`
+      const stockRes = await db.$client.prepare(`
         INSERT INTO InventoryStock (tenant_id, ItemId, StoreId, BatchNo, ExpiryDate, AvailableQuantity, CostPrice, MRP, CreatedBy, CreatedOn)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
@@ -134,7 +138,7 @@ stock.post("/adjustment", zValidator("json", schemas.createStockAdjustmentSchema
       // Now we have the StockId — insert the transaction log
       const newStockId = stockRes.meta.last_row_id;
       batchOps.push(
-        c.env.DB.prepare(`
+        db.$client.prepare(`
           INSERT INTO InventoryStockTransaction
           (tenant_id, StockId, ItemId, StoreId, TransactionType, Quantity, InOut, ReferenceNo, CreatedBy, CreatedOn)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -148,7 +152,7 @@ stock.post("/adjustment", zValidator("json", schemas.createStockAdjustmentSchema
   }
 
   if (batchOps.length > 0) {
-    await c.env.DB.batch(batchOps);
+    await db.$client.batch(batchOps);
   }
 
   return c.json({ message: "Stock adjustment processed successfully" });
@@ -156,6 +160,7 @@ stock.post("/adjustment", zValidator("json", schemas.createStockAdjustmentSchema
 
 // GET /transactions - List Stock Transactions
 stock.get("/transactions", zValidator("query", schemas.listStockTransactionsSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const { page, limit, ItemId, StoreId, TransactionType, FromDate, ToDate } = c.req.valid("query");
   const offset = (page - 1) * limit;
 
@@ -170,11 +175,11 @@ stock.get("/transactions", zValidator("query", schemas.listStockTransactionsSche
   if (ToDate) { conditions.push("T.CreatedOn <= ?"); params.push(ToDate); }
 
   const whereClause = conditions.join(" AND ");
-  const count = await c.env.DB.prepare(
+  const count = await db.$client.prepare(
     `SELECT COUNT(*) as total FROM InventoryStockTransaction T WHERE ${whereClause}`
   ).bind(...params).first<{ total: number }>();
 
-  const results = await c.env.DB.prepare(`
+  const results = await db.$client.prepare(`
     SELECT T.*, I.ItemName, S.StoreName
     FROM InventoryStockTransaction T
     JOIN InventoryItem I ON T.ItemId = I.ItemId

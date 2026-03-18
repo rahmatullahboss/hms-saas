@@ -4,15 +4,18 @@ import { HTTPException } from 'hono/http-exception';
 import { createStaffSchema, updateStaffSchema, paySalarySchema } from '../../schemas/staff';
 import type { Env, Variables } from '../../types';
 import { requireTenantId } from '../../lib/context-helpers';
+import { getDb } from '../../db';
+
 
 const staffRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // GET /api/staff — list active staff
 staffRoutes.get('/', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
 
   try {
-    const staff = await c.env.DB.prepare(
+    const staff = await db.$client.prepare(
       'SELECT * FROM staff WHERE tenant_id = ? AND status = ? ORDER BY position, name',
     ).bind(tenantId, 'active').all();
     return c.json({ staff: staff.results });
@@ -24,11 +27,12 @@ staffRoutes.get('/', async (c) => {
 // GET /api/staff/salary-report?month=YYYY-MM — monthly salary report for all staff
 // ⚠ MUST be defined BEFORE /:id to prevent 'salary-report' from matching as :id
 staffRoutes.get('/salary-report', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const month = c.req.query('month') || new Date().toISOString().slice(0, 7);
 
   try {
-    const report = await c.env.DB.prepare(
+    const report = await db.$client.prepare(
       `SELECT s.id, s.name, s.position, s.salary as base_salary,
               sp.bonus, sp.deduction, sp.net_salary, sp.payment_method,
               sp.payment_date, sp.month,
@@ -39,7 +43,7 @@ staffRoutes.get('/salary-report', async (c) => {
        ORDER BY s.position, s.name`,
     ).bind(month, tenantId, tenantId).all();
 
-    const summary = await c.env.DB.prepare(
+    const summary = await db.$client.prepare(
       `SELECT COUNT(*) as total_staff,
               SUM(CASE WHEN sp.id IS NOT NULL THEN 1 ELSE 0 END) as paid_count,
               SUM(COALESCE(sp.net_salary, 0)) as total_paid
@@ -56,11 +60,12 @@ staffRoutes.get('/salary-report', async (c) => {
 
 // GET /api/staff/:id
 staffRoutes.get('/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = c.req.param('id');
 
   try {
-    const member = await c.env.DB.prepare(
+    const member = await db.$client.prepare(
       'SELECT * FROM staff WHERE id = ? AND tenant_id = ?',
     ).bind(id, tenantId).first();
     if (!member) throw new HTTPException(404, { message: 'Staff not found' });
@@ -73,11 +78,12 @@ staffRoutes.get('/:id', async (c) => {
 
 // POST /api/staff — add staff member with Zod validation
 staffRoutes.post('/', zValidator('json', createStaffSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const data = c.req.valid('json');
 
   try {
-    const result = await c.env.DB.prepare(
+    const result = await db.$client.prepare(
       `INSERT INTO staff (name, address, position, salary, bank_account, mobile, joining_date, status, tenant_id)
        VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?)`,
     ).bind(data.name, data.address, data.position, data.salary, data.bankAccount, data.mobile, data.joiningDate ?? null, tenantId).run();
@@ -90,17 +96,18 @@ staffRoutes.post('/', zValidator('json', createStaffSchema), async (c) => {
 
 // PUT /api/staff/:id — update staff details
 staffRoutes.put('/:id', zValidator('json', updateStaffSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = c.req.param('id');
   const data = c.req.valid('json');
 
   try {
-    const existing = await c.env.DB.prepare(
+    const existing = await db.$client.prepare(
       'SELECT * FROM staff WHERE id = ? AND tenant_id = ?',
     ).bind(id, tenantId).first<Record<string, unknown>>();
     if (!existing) throw new HTTPException(404, { message: 'Staff not found' });
 
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       `UPDATE staff SET name = ?, address = ?, position = ?, salary = ?, bank_account = ?, mobile = ?
        WHERE id = ? AND tenant_id = ?`,
     ).bind(
@@ -122,16 +129,17 @@ staffRoutes.put('/:id', zValidator('json', updateStaffSchema), async (c) => {
 
 // DELETE /api/staff/:id — soft deactivate
 staffRoutes.delete('/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = c.req.param('id');
 
   try {
-    const existing = await c.env.DB.prepare(
+    const existing = await db.$client.prepare(
       'SELECT id FROM staff WHERE id = ? AND tenant_id = ?',
     ).bind(id, tenantId).first();
     if (!existing) throw new HTTPException(404, { message: 'Staff not found' });
 
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       `UPDATE staff SET status = 'inactive' WHERE id = ? AND tenant_id = ?`,
     ).bind(id, tenantId).run();
     return c.json({ message: 'Staff deactivated' });
@@ -143,18 +151,19 @@ staffRoutes.delete('/:id', async (c) => {
 
 // POST /api/staff/:id/salary — pay salary with bonus & deduction
 staffRoutes.post('/:id/salary', zValidator('json', paySalarySchema), async (c) => {
+  const db = getDb(c.env.DB);
   const id = c.req.param('id');
   const tenantId = requireTenantId(c);
   const data = c.req.valid('json');
 
   try {
-    const member = await c.env.DB.prepare(
+    const member = await db.$client.prepare(
       'SELECT * FROM staff WHERE id = ? AND tenant_id = ? AND status = ?',
     ).bind(id, tenantId, 'active').first<{ id: number; name: string; salary: number }>();
     if (!member) throw new HTTPException(404, { message: 'Staff not found' });
 
     // Check duplicate payment for same month
-    const existing = await c.env.DB.prepare(
+    const existing = await db.$client.prepare(
       'SELECT id FROM salary_payments WHERE staff_id = ? AND month = ? AND tenant_id = ?',
     ).bind(id, data.month, tenantId).first();
     if (existing) throw new HTTPException(409, { message: `Salary already paid for ${data.month}` });
@@ -163,14 +172,14 @@ staffRoutes.post('/:id/salary', zValidator('json', paySalarySchema), async (c) =
     const deduction = data.deduction;
     const netSalary = member.salary + bonus - deduction;
 
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       `INSERT INTO salary_payments
          (staff_id, amount, bonus, deduction, net_salary, payment_method, reference_no, payment_date, month, tenant_id)
        VALUES (?, ?, ?, ?, ?, ?, ?, date('now'), ?, ?)`,
     ).bind(id, member.salary, bonus, deduction, netSalary, data.paymentMethod ?? null, data.referenceNo ?? null, data.month, tenantId).run();
 
     // Record as expense
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       `INSERT INTO expenses (date, category, amount, description, tenant_id)
        VALUES (date('now'), 'Salary', ?, ?, ?)`,
     ).bind(netSalary, `Salary for ${member.name} — ${data.month}`, tenantId).run();
@@ -187,11 +196,12 @@ staffRoutes.post('/:id/salary', zValidator('json', paySalarySchema), async (c) =
 
 // GET /api/staff/:id/salary — salary history for one staff member
 staffRoutes.get('/:id/salary', async (c) => {
+  const db = getDb(c.env.DB);
   const id = c.req.param('id');
   const tenantId = requireTenantId(c);
 
   try {
-    const payments = await c.env.DB.prepare(
+    const payments = await db.$client.prepare(
       `SELECT sp.*, s.name as staff_name, s.position
        FROM salary_payments sp JOIN staff s ON sp.staff_id = s.id
        WHERE sp.staff_id = ? AND sp.tenant_id = ? ORDER BY sp.payment_date DESC`,

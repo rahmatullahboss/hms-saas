@@ -4,6 +4,8 @@ import { zValidator } from '@hono/zod-validator';
 import { HTTPException } from 'hono/http-exception';
 import type { Env, Variables } from '../../types';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
+import { getDb } from '../../db';
+
 
 const doctorSchedule = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -25,6 +27,7 @@ const updateScheduleSchema = scheduleSchema.omit({ doctor_id: true }).partial();
 // ─── GET /api/doctor-schedules?doctor_id=X — list schedules ─────────────────
 
 doctorSchedule.get('/', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const doctorId = c.req.query('doctor_id');
 
@@ -46,16 +49,17 @@ doctorSchedule.get('/', async (c) => {
     WHEN 'wed' THEN 3 WHEN 'thu' THEN 4 WHEN 'fri' THEN 5 WHEN 'sat' THEN 6
     END, ds.start_time`;
 
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await db.$client.prepare(sql).bind(...params).all();
   return c.json({ schedules: results });
 });
 
 // ─── GET /api/doctor-schedules/doctors — all doctors with schedule summary ────
 
 doctorSchedule.get('/doctors', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
 
-  const { results } = await c.env.DB.prepare(`
+  const { results } = await db.$client.prepare(`
     SELECT d.id, d.name, d.specialty, d.bmdc_reg_no, d.qualifications, d.visiting_hours,
            COUNT(ds.id) as schedule_count
     FROM doctors d
@@ -72,17 +76,18 @@ doctorSchedule.get('/doctors', async (c) => {
 // ─── POST /api/doctor-schedules — add schedule ───────────────────────────────
 
 doctorSchedule.post('/', zValidator('json', scheduleSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const data = c.req.valid('json');
 
   // Validate doctor belongs to tenant
-  const doc = await c.env.DB.prepare(
+  const doc = await db.$client.prepare(
     `SELECT id FROM doctors WHERE id = ? AND tenant_id = ?`
   ).bind(data.doctor_id, tenantId).first();
   if (!doc) throw new HTTPException(404, { message: 'Doctor not found' });
 
   // Check for overlap on same day
-  const overlap = await c.env.DB.prepare(`
+  const overlap = await db.$client.prepare(`
     SELECT id FROM doctor_schedules
     WHERE tenant_id = ? AND doctor_id = ? AND day_of_week = ? AND is_active = 1
       AND NOT (end_time <= ? OR start_time >= ?)
@@ -92,7 +97,7 @@ doctorSchedule.post('/', zValidator('json', scheduleSchema), async (c) => {
     throw new HTTPException(409, { message: 'Schedule overlaps with an existing slot' });
   }
 
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO doctor_schedules
       (tenant_id, doctor_id, day_of_week, start_time, end_time, session_type, chamber, max_patients, notes)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -107,11 +112,12 @@ doctorSchedule.post('/', zValidator('json', scheduleSchema), async (c) => {
 // ─── PUT /api/doctor-schedules/:id — update ──────────────────────────────────
 
 doctorSchedule.put('/:id', zValidator('json', updateScheduleSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = parseInt(c.req.param('id'));
   const data = c.req.valid('json');
 
-  const existing = await c.env.DB.prepare(
+  const existing = await db.$client.prepare(
     `SELECT * FROM doctor_schedules WHERE id = ? AND tenant_id = ?`
   ).bind(id, tenantId).first();
   if (!existing) throw new HTTPException(404, { message: 'Schedule not found' });
@@ -129,7 +135,7 @@ doctorSchedule.put('/:id', zValidator('json', updateScheduleSchema), async (c) =
 
   if (sets.length === 0) return c.json({ message: 'No changes' }, 400);
 
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     `UPDATE doctor_schedules SET ${sets.join(', ')} WHERE id = ? AND tenant_id = ?`
   ).bind(...vals, id, tenantId).run();
 
@@ -139,15 +145,16 @@ doctorSchedule.put('/:id', zValidator('json', updateScheduleSchema), async (c) =
 // ─── DELETE /api/doctor-schedules/:id — soft delete ─────────────────────────
 
 doctorSchedule.delete('/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = parseInt(c.req.param('id'));
 
-  const existing = await c.env.DB.prepare(
+  const existing = await db.$client.prepare(
     `SELECT id FROM doctor_schedules WHERE id = ? AND tenant_id = ?`
   ).bind(id, tenantId).first();
   if (!existing) throw new HTTPException(404, { message: 'Schedule not found' });
 
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     `UPDATE doctor_schedules SET is_active = 0 WHERE id = ? AND tenant_id = ?`
   ).bind(id, tenantId).run();
 

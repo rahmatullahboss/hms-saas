@@ -3,6 +3,8 @@ import { zValidator } from '@hono/zod-validator';
 import { createAuditLog } from '../../lib/accounting-helpers';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 import { createExpenseSchema, updateExpenseSchema } from '../../schemas/accounting';
+import { getDb } from '../../db';
+
 
 const expenseRoutes = new Hono<{
   Bindings: {
@@ -21,6 +23,7 @@ const expenseRoutes = new Hono<{
 const APPROVAL_THRESHOLD = 10000;
 
 expenseRoutes.get('/', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const { startDate, endDate, category, status } = c.req.query();
 
@@ -47,7 +50,7 @@ expenseRoutes.get('/', async (c) => {
   query += ' ORDER BY date DESC, id DESC';
 
   try {
-    const result = await c.env.DB.prepare(query).bind(...params).all();
+    const result = await db.$client.prepare(query).bind(...params).all();
     return c.json({ expenses: result.results });
   } catch (error) {
     console.error('Error fetching expenses:', error);
@@ -56,6 +59,7 @@ expenseRoutes.get('/', async (c) => {
 });
 
 expenseRoutes.get('/pending', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const role = c.get('role');
 
@@ -64,7 +68,7 @@ expenseRoutes.get('/pending', async (c) => {
   }
 
   try {
-    const result = await c.env.DB.prepare(`
+    const result = await db.$client.prepare(`
       SELECT e.*, u.name as created_by_name
       FROM expenses e
       LEFT JOIN users u ON e.created_by = u.id
@@ -80,6 +84,7 @@ expenseRoutes.get('/pending', async (c) => {
 });
 
 expenseRoutes.post('/', zValidator('json', createExpenseSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const { date, category, amount, description } = c.req.valid('json');
@@ -87,7 +92,7 @@ expenseRoutes.post('/', zValidator('json', createExpenseSchema), async (c) => {
   const status = amount > APPROVAL_THRESHOLD ? 'pending' : 'approved';
 
   try {
-    const result = await c.env.DB.prepare(`
+    const result = await db.$client.prepare(`
       INSERT INTO expenses (date, category, amount, description, status, tenant_id, created_by, approved_by, approved_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
@@ -129,11 +134,12 @@ expenseRoutes.post('/', zValidator('json', createExpenseSchema), async (c) => {
 });
 
 expenseRoutes.get('/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = c.req.param('id');
 
   try {
-    const result = await c.env.DB.prepare(`
+    const result = await db.$client.prepare(`
       SELECT e.*, u.name as created_by_name, a.name as approved_by_name
       FROM expenses e
       LEFT JOIN users u ON e.created_by = u.id
@@ -153,13 +159,14 @@ expenseRoutes.get('/:id', async (c) => {
 });
 
 expenseRoutes.put('/:id', zValidator('json', updateExpenseSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const id = c.req.param('id');
   const { date, category, amount, description } = c.req.valid('json');
 
   try {
-    const existing = await c.env.DB.prepare(`
+    const existing = await db.$client.prepare(`
       SELECT * FROM expenses WHERE id = ? AND tenant_id = ?
     `).bind(id, tenantId).first();
 
@@ -174,7 +181,7 @@ expenseRoutes.put('/:id', zValidator('json', updateExpenseSchema), async (c) => 
       return c.json({ error: 'Cannot edit pending expense. Approve or reject first.' }, 400);
     }
 
-    await c.env.DB.prepare(`
+    await db.$client.prepare(`
       UPDATE expenses SET date = ?, category = ?, amount = ?, description = ?
       WHERE id = ? AND tenant_id = ?
     `).bind(
@@ -206,6 +213,7 @@ expenseRoutes.put('/:id', zValidator('json', updateExpenseSchema), async (c) => 
 });
 
 expenseRoutes.post('/:id/approve', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const role = c.get('role');
@@ -216,7 +224,7 @@ expenseRoutes.post('/:id/approve', async (c) => {
   }
 
   try {
-    const existing = await c.env.DB.prepare(`
+    const existing = await db.$client.prepare(`
       SELECT * FROM expenses WHERE id = ? AND tenant_id = ?
     `).bind(id, tenantId).first();
 
@@ -228,7 +236,7 @@ expenseRoutes.post('/:id/approve', async (c) => {
       return c.json({ error: 'Expense is not pending approval' }, 400);
     }
 
-    await c.env.DB.prepare(`
+    await db.$client.prepare(`
       UPDATE expenses SET status = 'approved', approved_by = ?, approved_at = ?
       WHERE id = ? AND tenant_id = ?
     `).bind(userId, new Date().toISOString(), id, tenantId).run();
@@ -252,6 +260,7 @@ expenseRoutes.post('/:id/approve', async (c) => {
 });
 
 expenseRoutes.post('/:id/reject', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const role = c.get('role');
@@ -262,7 +271,7 @@ expenseRoutes.post('/:id/reject', async (c) => {
   }
 
   try {
-    const existing = await c.env.DB.prepare(`
+    const existing = await db.$client.prepare(`
       SELECT * FROM expenses WHERE id = ? AND tenant_id = ?
     `).bind(id, tenantId).first();
 
@@ -274,7 +283,7 @@ expenseRoutes.post('/:id/reject', async (c) => {
       return c.json({ error: 'Expense is not pending approval' }, 400);
     }
 
-    await c.env.DB.prepare(`
+    await db.$client.prepare(`
       UPDATE expenses SET status = 'rejected', approved_by = ?, approved_at = ?
       WHERE id = ? AND tenant_id = ?
     `).bind(userId, new Date().toISOString(), id, tenantId).run();

@@ -6,6 +6,8 @@ import { requestOtpSchema, verifyOtpSchema } from '../../schemas/patientPortal';
 import { generateToken } from '../../middleware/auth';
 import { getNextSequence } from '../../lib/sequence';
 import type { Env, Variables } from '../../types';
+import { getDb } from '../../db';
+
 
 const patientPortalRoutes = new Hono<{
   Bindings: Env;
@@ -112,6 +114,7 @@ patientPortalRoutes.post(
   '/request-otp',
   zValidator('json', requestOtpSchema),
   async (c) => {
+    const db = getDb(c.env.DB);
     const { email } = c.req.valid('json');
     const tenantId = c.get('tenantId');
 
@@ -120,7 +123,7 @@ patientPortalRoutes.post(
     }
 
     // Check if patient exists with this email
-    const patient = await c.env.DB.prepare(
+    const patient = await db.$client.prepare(
       'SELECT id, name FROM patients WHERE email = ? AND tenant_id = ?'
     ).bind(email, tenantId).first<{ id: number; name: string }>();
 
@@ -142,7 +145,7 @@ patientPortalRoutes.post(
     } catch (err) {
       if (err instanceof HTTPException) throw err;
       // KV unavailable in local dev — fallback to DB
-      const recentCount = await c.env.DB.prepare(
+      const recentCount = await db.$client.prepare(
         `SELECT COUNT(*) as cnt FROM patient_otp_codes
          WHERE email = ? AND tenant_id = ?
          AND created_at > datetime('now', '-15 minutes')`
@@ -170,18 +173,18 @@ patientPortalRoutes.post(
     const otp = generateOtp();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       `INSERT INTO patient_otp_codes (email, otp_code, tenant_id, expires_at)
        VALUES (?, ?, ?, ?)`
     ).bind(email, otp, tenantId, expiresAt).run();
 
     // Ensure patient_credentials record exists
-    const existingCred = await c.env.DB.prepare(
+    const existingCred = await db.$client.prepare(
       'SELECT id FROM patient_credentials WHERE patient_id = ? AND tenant_id = ?'
     ).bind(patient.id, tenantId).first();
 
     if (!existingCred) {
-      await c.env.DB.prepare(
+      await db.$client.prepare(
         `INSERT INTO patient_credentials (patient_id, email, tenant_id, is_active)
          VALUES (?, ?, ?, 1)`
       ).bind(patient.id, email, tenantId).run();
@@ -202,6 +205,7 @@ patientPortalRoutes.post(
   '/verify-otp',
   zValidator('json', verifyOtpSchema),
   async (c) => {
+    const db = getDb(c.env.DB);
     const { email, otp } = c.req.valid('json');
     const tenantId = c.get('tenantId');
 
@@ -209,7 +213,7 @@ patientPortalRoutes.post(
       throw new HTTPException(400, { message: 'Tenant not identified' });
     }
 
-    const otpRecord = await c.env.DB.prepare(
+    const otpRecord = await db.$client.prepare(
       `SELECT id, otp_code, expires_at FROM patient_otp_codes
        WHERE email = ? AND tenant_id = ? AND used = 0
        ORDER BY created_at DESC LIMIT 1`
@@ -239,7 +243,7 @@ patientPortalRoutes.post(
     }
 
     // Mark OTP as used
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       'UPDATE patient_otp_codes SET used = 1 WHERE id = ?'
     ).bind(otpRecord.id).run();
 
@@ -250,7 +254,7 @@ patientPortalRoutes.post(
       // KV unavailable
     }
 
-    const patient = await c.env.DB.prepare(
+    const patient = await db.$client.prepare(
       'SELECT id, name, email, mobile, gender, blood_group, age FROM patients WHERE email = ? AND tenant_id = ?'
     ).bind(email, tenantId).first<{
       id: number; name: string; email: string; mobile: string;
@@ -262,7 +266,7 @@ patientPortalRoutes.post(
     }
 
     // Update last login
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       `UPDATE patient_credentials SET last_login_at = datetime('now')
        WHERE patient_id = ? AND tenant_id = ?`
     ).bind(patient.id, tenantId).run();
@@ -299,10 +303,11 @@ patientPortalRoutes.post(
  */
 patientPortalRoutes.use('/refresh-token', patientAuthMiddleware);
 patientPortalRoutes.post('/refresh-token', async (c) => {
+  const db = getDb(c.env.DB);
   const patientId = c.get('patientId');
   const tenantId = c.get('tenantId');
 
-  const patient = await c.env.DB.prepare(
+  const patient = await db.$client.prepare(
     'SELECT id, name, email FROM patients WHERE id = ? AND tenant_id = ?'
   ).bind(patientId, tenantId).first<{ id: number; name: string; email: string }>();
 
@@ -358,10 +363,11 @@ patientPortalRoutes.use('/family/*', patientAuthMiddleware);
  * GET /me — Patient profile
  */
 patientPortalRoutes.get('/me', async (c) => {
+  const db = getDb(c.env.DB);
   const patientId = c.get('patientId');
   const tenantId = c.get('tenantId');
 
-  const patient = await c.env.DB.prepare(
+  const patient = await db.$client.prepare(
     `SELECT id, name, patient_code, email, mobile, guardian_mobile,
             father_husband, age, gender, blood_group, address, date_of_birth,
             created_at
@@ -390,6 +396,7 @@ patientPortalRoutes.patch(
   '/me',
   zValidator('json', updateProfileSchema),
   async (c) => {
+    const db = getDb(c.env.DB);
     const patientId = c.get('patientId');
     const tenantId = c.get('tenantId');
     const data = c.req.valid('json');
@@ -409,7 +416,7 @@ patientPortalRoutes.patch(
     sets.push("updated_at = datetime('now')");
     values.push(patientId, tenantId);
 
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       `UPDATE patients SET ${sets.join(', ')} WHERE id = ? AND tenant_id = ?`
     ).bind(...values).run();
 
@@ -424,10 +431,11 @@ patientPortalRoutes.patch(
  * GET /dashboard — Aggregated summary
  */
 patientPortalRoutes.get('/dashboard', async (c) => {
+  const db = getDb(c.env.DB);
   const patientId = c.get('patientId');
   const tenantId = c.get('tenantId');
 
-  const nextAppointment = await c.env.DB.prepare(
+  const nextAppointment = await db.$client.prepare(
     `SELECT a.*, d.name as doctor_name
      FROM appointments a
      LEFT JOIN doctors d ON d.id = a.doctor_id
@@ -437,7 +445,7 @@ patientPortalRoutes.get('/dashboard', async (c) => {
      LIMIT 1`
   ).bind(patientId, tenantId).first();
 
-  const latestLabResult = await c.env.DB.prepare(
+  const latestLabResult = await db.$client.prepare(
     `SELECT lo.id, lo.order_no, lo.created_at, lo.status,
             GROUP_CONCAT(ltc.name, ', ') as test_names
      FROM lab_orders lo
@@ -448,19 +456,19 @@ patientPortalRoutes.get('/dashboard', async (c) => {
      ORDER BY lo.created_at DESC LIMIT 1`
   ).bind(patientId, tenantId).first();
 
-  const rxCount = await c.env.DB.prepare(
+  const rxCount = await db.$client.prepare(
     `SELECT COUNT(*) as cnt FROM prescriptions
      WHERE patient_id = ? AND tenant_id = ? AND status = 'final'`
   ).bind(patientId, tenantId).first<{ cnt: number }>();
 
-  const balance = await c.env.DB.prepare(
+  const balance = await db.$client.prepare(
     `SELECT COALESCE(SUM(total - paid), 0) as total_due,
             COALESCE(SUM(paid), 0) as total_paid,
             COALESCE(SUM(total), 0) as total_billed
      FROM bills WHERE patient_id = ? AND tenant_id = ?`
   ).bind(patientId, tenantId).first<{ total_due: number; total_paid: number; total_billed: number }>();
 
-  const visitCount = await c.env.DB.prepare(
+  const visitCount = await db.$client.prepare(
     `SELECT COUNT(*) as cnt FROM appointments
      WHERE patient_id = ? AND tenant_id = ? AND status = 'completed'`
   ).bind(patientId, tenantId).first<{ cnt: number }>();
@@ -483,15 +491,16 @@ patientPortalRoutes.get('/dashboard', async (c) => {
 // ─── Appointments (paginated) ───────────────────────────────────────────
 
 patientPortalRoutes.get('/appointments', async (c) => {
+  const db = getDb(c.env.DB);
   const patientId = c.get('patientId');
   const tenantId = c.get('tenantId');
   const { page, limit, offset } = parsePagination(c);
 
-  const countResult = await c.env.DB.prepare(
+  const countResult = await db.$client.prepare(
     'SELECT COUNT(*) as total FROM appointments WHERE patient_id = ? AND tenant_id = ?'
   ).bind(patientId, tenantId).first<{ total: number }>();
 
-  const { results } = await c.env.DB.prepare(
+  const { results } = await db.$client.prepare(
     `SELECT a.id, a.appt_no, a.token_no, a.appt_date, a.appt_time,
             a.visit_type, a.status, a.chief_complaint, a.fee,
             d.name as doctor_name, d.specialty as doctor_specialization
@@ -509,15 +518,16 @@ patientPortalRoutes.get('/appointments', async (c) => {
 // ─── Prescriptions (paginated) ──────────────────────────────────────────
 
 patientPortalRoutes.get('/prescriptions', async (c) => {
+  const db = getDb(c.env.DB);
   const patientId = c.get('patientId');
   const tenantId = c.get('tenantId');
   const { page, limit, offset } = parsePagination(c);
 
-  const countResult = await c.env.DB.prepare(
+  const countResult = await db.$client.prepare(
     `SELECT COUNT(*) as total FROM prescriptions WHERE patient_id = ? AND tenant_id = ? AND status = 'final'`
   ).bind(patientId, tenantId).first<{ total: number }>();
 
-  const { results } = await c.env.DB.prepare(
+  const { results } = await db.$client.prepare(
     `SELECT p.id, p.rx_no, p.diagnosis, p.chief_complaint, p.advice,
             p.follow_up_date, p.bp, p.temperature, p.weight, p.spo2,
             p.created_at, p.status,
@@ -537,11 +547,12 @@ patientPortalRoutes.get('/prescriptions', async (c) => {
  * GET /prescriptions/:id/items — Prescription medicine items
  */
 patientPortalRoutes.get('/prescriptions/:id/items', async (c) => {
+  const db = getDb(c.env.DB);
   const patientId = c.get('patientId');
   const tenantId = c.get('tenantId');
   const prescriptionId = c.req.param('id');
 
-  const rx = await c.env.DB.prepare(
+  const rx = await db.$client.prepare(
     `SELECT id FROM prescriptions
      WHERE id = ? AND patient_id = ? AND tenant_id = ?`
   ).bind(prescriptionId, patientId, tenantId).first();
@@ -550,7 +561,7 @@ patientPortalRoutes.get('/prescriptions/:id/items', async (c) => {
     throw new HTTPException(404, { message: 'Prescription not found' });
   }
 
-  const { results } = await c.env.DB.prepare(
+  const { results } = await db.$client.prepare(
     `SELECT pi.id, pi.medicine_name, pi.dosage, pi.frequency, pi.duration, pi.instructions, pi.sort_order
      FROM prescription_items pi
      JOIN prescriptions p ON pi.prescription_id = p.id AND p.tenant_id = ?
@@ -563,17 +574,18 @@ patientPortalRoutes.get('/prescriptions/:id/items', async (c) => {
 // ─── Lab Results (paginated + explanations) ─────────────────────────────
 
 patientPortalRoutes.get('/lab-results', async (c) => {
+  const db = getDb(c.env.DB);
   const patientId = c.get('patientId');
   const tenantId = c.get('tenantId');
   const { page, limit, offset } = parsePagination(c);
 
-  const countResult = await c.env.DB.prepare(
+  const countResult = await db.$client.prepare(
     `SELECT COUNT(*) as total FROM lab_orders lo
      JOIN lab_order_items loi ON loi.lab_order_id = lo.id
      WHERE lo.patient_id = ? AND lo.tenant_id = ?`
   ).bind(patientId, tenantId).first<{ total: number }>();
 
-  const { results } = await c.env.DB.prepare(
+  const { results } = await db.$client.prepare(
     `SELECT lo.id, lo.order_no, lo.created_at, lo.status,
             ltc.name as test_name, loi.result, loi.result_numeric, loi.abnormal_flag,
             loi.sample_status,
@@ -599,15 +611,16 @@ patientPortalRoutes.get('/lab-results', async (c) => {
 // ─── Bills (paginated) ──────────────────────────────────────────────────
 
 patientPortalRoutes.get('/bills', async (c) => {
+  const db = getDb(c.env.DB);
   const patientId = c.get('patientId');
   const tenantId = c.get('tenantId');
   const { page, limit, offset } = parsePagination(c);
 
-  const countResult = await c.env.DB.prepare(
+  const countResult = await db.$client.prepare(
     'SELECT COUNT(*) as total FROM bills WHERE patient_id = ? AND tenant_id = ?'
   ).bind(patientId, tenantId).first<{ total: number }>();
 
-  const { results } = await c.env.DB.prepare(
+  const { results } = await db.$client.prepare(
     `SELECT id, invoice_no, total, paid,
             (total - paid) as due, discount, status,
             created_at
@@ -623,15 +636,16 @@ patientPortalRoutes.get('/bills', async (c) => {
 // ─── Vitals (paginated) ─────────────────────────────────────────────────
 
 patientPortalRoutes.get('/vitals', async (c) => {
+  const db = getDb(c.env.DB);
   const patientId = c.get('patientId');
   const tenantId = c.get('tenantId');
   const { page, limit, offset } = parsePagination(c);
 
-  const countResult = await c.env.DB.prepare(
+  const countResult = await db.$client.prepare(
     'SELECT COUNT(*) as total FROM patient_vitals WHERE patient_id = ? AND tenant_id = ?'
   ).bind(patientId, tenantId).first<{ total: number }>();
 
-  const { results } = await c.env.DB.prepare(
+  const { results } = await db.$client.prepare(
     `SELECT id, systolic, diastolic, temperature, heart_rate, spo2,
             respiratory_rate, weight, notes, recorded_at
      FROM patient_vitals
@@ -647,15 +661,16 @@ patientPortalRoutes.get('/vitals', async (c) => {
 // ─── Visits (paginated) ─────────────────────────────────────────────────
 
 patientPortalRoutes.get('/visits', async (c) => {
+  const db = getDb(c.env.DB);
   const patientId = c.get('patientId');
   const tenantId = c.get('tenantId');
   const { page, limit, offset } = parsePagination(c);
 
-  const countResult = await c.env.DB.prepare(
+  const countResult = await db.$client.prepare(
     'SELECT COUNT(*) as total FROM visits WHERE patient_id = ? AND tenant_id = ?'
   ).bind(patientId, tenantId).first<{ total: number }>();
 
-  const { results } = await c.env.DB.prepare(
+  const { results } = await db.$client.prepare(
     `SELECT v.id, v.created_at as visit_date, v.visit_type, v.visit_no,
             v.notes,
             d.name as doctor_name
@@ -676,9 +691,10 @@ patientPortalRoutes.get('/visits', async (c) => {
  * GET /available-doctors — List active doctors with specialties & fees
  */
 patientPortalRoutes.get('/available-doctors', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = c.get('tenantId');
 
-  const { results } = await c.env.DB.prepare(
+  const { results } = await db.$client.prepare(
     `SELECT id, name, specialty, consultation_fee
      FROM doctors
      WHERE tenant_id = ? AND is_active = 1
@@ -692,6 +708,7 @@ patientPortalRoutes.get('/available-doctors', async (c) => {
  * GET /available-slots/:doctorId?date=YYYY-MM-DD — Show booked slots for a doctor on a date
  */
 patientPortalRoutes.get('/available-slots/:doctorId', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = c.get('tenantId');
   const doctorId = c.req.param('doctorId');
   const date = c.req.query('date');
@@ -701,14 +718,14 @@ patientPortalRoutes.get('/available-slots/:doctorId', async (c) => {
   }
 
   // Get booked slots count
-  const countResult = await c.env.DB.prepare(
+  const countResult = await db.$client.prepare(
     `SELECT COUNT(*) as booked_count
      FROM appointments
      WHERE doctor_id = ? AND tenant_id = ? AND appt_date = ? AND status != 'cancelled'`
   ).bind(doctorId, tenantId, date).first<{ booked_count: number }>();
 
   // Get already booked times
-  const { results: bookedSlots } = await c.env.DB.prepare(
+  const { results: bookedSlots } = await db.$client.prepare(
     `SELECT appt_time, token_no FROM appointments
      WHERE doctor_id = ? AND tenant_id = ? AND appt_date = ? AND status != 'cancelled'
      ORDER BY token_no ASC`
@@ -739,6 +756,7 @@ patientPortalRoutes.post(
   '/book-appointment',
   zValidator('json', bookAppointmentSchema),
   async (c) => {
+    const db = getDb(c.env.DB);
     const patientId = c.get('patientId');
     const tenantId = c.get('tenantId');
     const data = c.req.valid('json');
@@ -748,7 +766,7 @@ patientPortalRoutes.post(
     }
 
     // Verify doctor exists and is active
-    const doctor = await c.env.DB.prepare(
+    const doctor = await db.$client.prepare(
       'SELECT id, name, consultation_fee FROM doctors WHERE id = ? AND tenant_id = ? AND is_active = 1'
     ).bind(data.doctorId, tenantId).first<{ id: number; name: string; consultation_fee: number }>();
 
@@ -763,7 +781,7 @@ patientPortalRoutes.post(
     }
 
     // Check for duplicate booking (same patient + doctor + date)
-    const existing = await c.env.DB.prepare(
+    const existing = await db.$client.prepare(
       `SELECT id FROM appointments
        WHERE patient_id = ? AND doctor_id = ? AND appt_date = ? AND tenant_id = ?
          AND status != 'cancelled'`
@@ -777,7 +795,7 @@ patientPortalRoutes.post(
     const maxRetries = 3;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
-        const tokenRow = await c.env.DB.prepare(
+        const tokenRow = await db.$client.prepare(
           `SELECT COALESCE(MAX(token_no), 0) + 1 AS next_token
            FROM appointments
            WHERE tenant_id = ? AND appt_date = ? AND doctor_id = ?`
@@ -786,7 +804,7 @@ patientPortalRoutes.post(
         const tokenNo = tokenRow?.next_token ?? 1;
         const apptNo = await getNextSequence(c.env.DB, tenantId, 'appointment', 'APT');
 
-        const result = await c.env.DB.prepare(
+        const result = await db.$client.prepare(
           `INSERT INTO appointments
             (appt_no, token_no, patient_id, doctor_id, appt_date, appt_time,
              visit_type, status, chief_complaint, fee, created_by, tenant_id)
@@ -834,11 +852,12 @@ patientPortalRoutes.post(
  * POST /cancel-appointment/:id — Patient cancels their own scheduled appointment
  */
 patientPortalRoutes.post('/cancel-appointment/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const patientId = c.get('patientId');
   const tenantId = c.get('tenantId');
   const appointmentId = c.req.param('id');
 
-  const appt = await c.env.DB.prepare(
+  const appt = await db.$client.prepare(
     `SELECT id, status, appt_date FROM appointments
      WHERE id = ? AND patient_id = ? AND tenant_id = ?`
   ).bind(appointmentId, patientId, tenantId).first<{ id: number; status: string; appt_date: string }>();
@@ -851,7 +870,7 @@ patientPortalRoutes.post('/cancel-appointment/:id', async (c) => {
     throw new HTTPException(400, { message: `Cannot cancel appointment with status '${appt.status}'` });
   }
 
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     `UPDATE appointments SET status = 'cancelled', updated_at = datetime('now')
      WHERE id = ? AND tenant_id = ?`
   ).bind(appointmentId, tenantId).run();
@@ -870,10 +889,11 @@ patientPortalRoutes.post('/cancel-appointment/:id', async (c) => {
  * GET /messages — List conversations (grouped by doctor)
  */
 patientPortalRoutes.get('/messages', async (c) => {
+  const db = getDb(c.env.DB);
   const patientId = c.get('patientId');
   const tenantId = c.get('tenantId');
 
-  const { results } = await c.env.DB.prepare(
+  const { results } = await db.$client.prepare(
     `SELECT d.id as doctor_id, d.name as doctor_name, d.specialty,
             MAX(pm.created_at) as last_message_at,
             SUM(CASE WHEN pm.is_read = 0 AND pm.sender_type = 'doctor' THEN 1 ELSE 0 END) as unread_count,
@@ -895,6 +915,7 @@ patientPortalRoutes.get('/messages', async (c) => {
  * GET /messages/:doctorId — Get message thread with a doctor
  */
 patientPortalRoutes.get('/messages/:doctorId', async (c) => {
+  const db = getDb(c.env.DB);
   const patientId = c.get('patientId');
   const tenantId = c.get('tenantId');
   const doctorId = Number(c.req.param('doctorId'));
@@ -904,16 +925,16 @@ patientPortalRoutes.get('/messages/:doctorId', async (c) => {
   const { page, limit, offset } = parsePagination(c);
 
   // Mark unread messages from doctor as read
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     `UPDATE patient_messages SET is_read = 1
      WHERE patient_id = ? AND doctor_id = ? AND tenant_id = ? AND sender_type = 'doctor' AND is_read = 0`
   ).bind(patientId, doctorId, tenantId).run();
 
-  const countResult = await c.env.DB.prepare(
+  const countResult = await db.$client.prepare(
     'SELECT COUNT(*) as total FROM patient_messages WHERE patient_id = ? AND doctor_id = ? AND tenant_id = ?'
   ).bind(patientId, doctorId, tenantId).first<{ total: number }>();
 
-  const { results } = await c.env.DB.prepare(
+  const { results } = await db.$client.prepare(
     `SELECT id, sender_type, message, is_read, created_at
      FROM patient_messages
      WHERE patient_id = ? AND doctor_id = ? AND tenant_id = ?
@@ -936,12 +957,13 @@ patientPortalRoutes.post(
   '/messages',
   zValidator('json', sendMessageSchema),
   async (c) => {
+    const db = getDb(c.env.DB);
     const patientId = c.get('patientId');
     const tenantId = c.get('tenantId');
     const { doctorId, message } = c.req.valid('json');
 
     // Verify doctor exists
-    const doctor = await c.env.DB.prepare(
+    const doctor = await db.$client.prepare(
       'SELECT id FROM doctors WHERE id = ? AND tenant_id = ? AND is_active = 1'
     ).bind(doctorId, tenantId).first();
 
@@ -950,7 +972,7 @@ patientPortalRoutes.post(
     }
 
     // Rate limit: max 1 message per 30 seconds
-    const lastMsg = await c.env.DB.prepare(
+    const lastMsg = await db.$client.prepare(
       `SELECT created_at FROM patient_messages
        WHERE patient_id = ? AND doctor_id = ? AND tenant_id = ? AND sender_type = 'patient'
        ORDER BY created_at DESC LIMIT 1`
@@ -963,7 +985,7 @@ patientPortalRoutes.post(
       }
     }
 
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       `INSERT INTO patient_messages (patient_id, doctor_id, sender_type, message, tenant_id)
        VALUES (?, ?, 'patient', ?, ?)`
     ).bind(patientId, doctorId, message, tenantId).run();
@@ -979,12 +1001,13 @@ patientPortalRoutes.post(
  * POST /prescriptions/:id/refill — Request a refill
  */
 patientPortalRoutes.post('/prescriptions/:id/refill', async (c) => {
+  const db = getDb(c.env.DB);
   const patientId = c.get('patientId');
   const tenantId = c.get('tenantId');
   const prescriptionId = c.req.param('id');
 
   // Verify prescription belongs to patient
-  const rx = await c.env.DB.prepare(
+  const rx = await db.$client.prepare(
     `SELECT id FROM prescriptions WHERE id = ? AND patient_id = ? AND tenant_id = ? AND status = 'final'`
   ).bind(prescriptionId, patientId, tenantId).first();
 
@@ -993,7 +1016,7 @@ patientPortalRoutes.post('/prescriptions/:id/refill', async (c) => {
   }
 
   // Check for existing pending refill
-  const existing = await c.env.DB.prepare(
+  const existing = await db.$client.prepare(
     `SELECT id FROM prescription_refill_requests
      WHERE prescription_id = ? AND patient_id = ? AND tenant_id = ? AND status = 'pending'`
   ).bind(prescriptionId, patientId, tenantId).first();
@@ -1005,7 +1028,7 @@ patientPortalRoutes.post('/prescriptions/:id/refill', async (c) => {
   const body = await c.req.json().catch(() => ({})) as Record<string, unknown>;
   const notes = typeof body.notes === 'string' ? body.notes.slice(0, 500) : null;
 
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     `INSERT INTO prescription_refill_requests (prescription_id, patient_id, notes, tenant_id)
      VALUES (?, ?, ?, ?)`
   ).bind(prescriptionId, patientId, notes, tenantId).run();
@@ -1018,15 +1041,16 @@ patientPortalRoutes.post('/prescriptions/:id/refill', async (c) => {
  * GET /refill-requests — List patient's refill requests
  */
 patientPortalRoutes.get('/refill-requests', async (c) => {
+  const db = getDb(c.env.DB);
   const patientId = c.get('patientId');
   const tenantId = c.get('tenantId');
   const { page, limit, offset } = parsePagination(c);
 
-  const countResult = await c.env.DB.prepare(
+  const countResult = await db.$client.prepare(
     'SELECT COUNT(*) as total FROM prescription_refill_requests WHERE patient_id = ? AND tenant_id = ?'
   ).bind(patientId, tenantId).first<{ total: number }>();
 
-  const { results } = await c.env.DB.prepare(
+  const { results } = await db.$client.prepare(
     `SELECT rr.id, rr.status, rr.notes, rr.response_notes, rr.created_at, rr.responded_at,
             p.rx_no, p.diagnosis,
             d.name as doctor_name
@@ -1047,12 +1071,13 @@ patientPortalRoutes.get('/refill-requests', async (c) => {
  * GET /timeline — Unified chronological health timeline
  */
 patientPortalRoutes.get('/timeline', async (c) => {
+  const db = getDb(c.env.DB);
   const patientId = c.get('patientId');
   const tenantId = c.get('tenantId');
   const { page, limit, offset } = parsePagination(c);
 
   // UNION ALL query to combine all health events
-  const countResult = await c.env.DB.prepare(
+  const countResult = await db.$client.prepare(
     `SELECT (
       (SELECT COUNT(*) FROM appointments WHERE patient_id = ? AND tenant_id = ?) +
       (SELECT COUNT(*) FROM prescriptions WHERE patient_id = ? AND tenant_id = ? AND status = 'final') +
@@ -1062,7 +1087,7 @@ patientPortalRoutes.get('/timeline', async (c) => {
   ).bind(patientId, tenantId, patientId, tenantId, patientId, tenantId, patientId, tenantId)
     .first<{ total: number }>();
 
-  const { results } = await c.env.DB.prepare(
+  const { results } = await db.$client.prepare(
     `SELECT * FROM (
       SELECT 'appointment' as event_type, a.id, a.appt_date as event_date,
              'Appointment with ' || COALESCE(d.name, 'Doctor') as title,
@@ -1118,10 +1143,11 @@ patientPortalRoutes.get('/timeline', async (c) => {
  * GET /family — List linked family members
  */
 patientPortalRoutes.get('/family', async (c) => {
+  const db = getDb(c.env.DB);
   const patientId = c.get('patientId');
   const tenantId = c.get('tenantId');
 
-  const { results } = await c.env.DB.prepare(
+  const { results } = await db.$client.prepare(
     `SELECT fl.id as link_id, fl.relationship, fl.child_patient_id,
             p.name, p.patient_code, p.age, p.gender, p.blood_group
      FROM patient_family_links fl
@@ -1145,11 +1171,12 @@ patientPortalRoutes.post(
   '/family',
   zValidator('json', linkFamilySchema),
   async (c) => {
+    const db = getDb(c.env.DB);
     const patientId = c.get('patientId');
     const tenantId = c.get('tenantId');
     const { patientCode, relationship } = c.req.valid('json');
 
-    const member = await c.env.DB.prepare(
+    const member = await db.$client.prepare(
       'SELECT id, name FROM patients WHERE patient_code = ? AND tenant_id = ?'
     ).bind(patientCode, tenantId).first<{ id: number; name: string }>();
 
@@ -1162,7 +1189,7 @@ patientPortalRoutes.post(
     }
 
     try {
-      await c.env.DB.prepare(
+      await db.$client.prepare(
         `INSERT INTO patient_family_links (parent_patient_id, child_patient_id, relationship, tenant_id)
          VALUES (?, ?, ?, ?)`
       ).bind(patientId, member.id, relationship, tenantId).run();
@@ -1185,6 +1212,7 @@ patientPortalRoutes.post(
  * DELETE /family/:linkId — Unlink a family member
  */
 patientPortalRoutes.delete('/family/:linkId', async (c) => {
+  const db = getDb(c.env.DB);
   const patientId = c.get('patientId');
   const tenantId = c.get('tenantId');
   const linkId = Number(c.req.param('linkId'));
@@ -1192,7 +1220,7 @@ patientPortalRoutes.delete('/family/:linkId', async (c) => {
     throw new HTTPException(400, { message: 'Invalid link ID' });
   }
 
-  const link = await c.env.DB.prepare(
+  const link = await db.$client.prepare(
     'SELECT id FROM patient_family_links WHERE id = ? AND parent_patient_id = ? AND tenant_id = ?'
   ).bind(linkId, patientId, tenantId).first();
 
@@ -1200,7 +1228,7 @@ patientPortalRoutes.delete('/family/:linkId', async (c) => {
     throw new HTTPException(404, { message: 'Family link not found' });
   }
 
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     'DELETE FROM patient_family_links WHERE id = ?'
   ).bind(linkId).run();
 

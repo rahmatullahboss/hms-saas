@@ -4,6 +4,8 @@ import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { generateToken } from '../../middleware/auth';
 import type { Env, Variables } from '../../types';
+import { getDb } from '../../db';
+
 
 const tenantAuthRoutes = new Hono<{
   Bindings: Env;
@@ -27,6 +29,7 @@ const registerSchema = z.object({
 
 // ─── Login ────────────────────────────────────────────────────────────
 tenantAuthRoutes.post('/login', zValidator('json', loginSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const { email, password } = c.req.valid('json');
   const tenantId = c.get('tenantId');
 
@@ -35,7 +38,7 @@ tenantAuthRoutes.post('/login', zValidator('json', loginSchema), async (c) => {
   }
 
   try {
-    const user = await c.env.DB.prepare(
+    const user = await db.$client.prepare(
       'SELECT id, email, password_hash, name, role FROM users WHERE email = ? AND tenant_id = ?'
     ).bind(email, tenantId).first<{
       id: string;
@@ -83,6 +86,7 @@ tenantAuthRoutes.post('/login', zValidator('json', loginSchema), async (c) => {
 
 // ─── Register (requires hospital_admin role) ─────────────────────────
 tenantAuthRoutes.post('/register', zValidator('json', registerSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const { email, password, name, role } = c.req.valid('json');
   const tenantId = c.get('tenantId');
   const callerRole = c.get('role');
@@ -98,7 +102,7 @@ tenantAuthRoutes.post('/register', zValidator('json', registerSchema), async (c)
 
   try {
     // Check if email already exists for this tenant
-    const existing = await c.env.DB.prepare(
+    const existing = await db.$client.prepare(
       'SELECT id FROM users WHERE email = ? AND tenant_id = ?'
     ).bind(email, tenantId).first();
 
@@ -108,7 +112,7 @@ tenantAuthRoutes.post('/register', zValidator('json', registerSchema), async (c)
 
     const passwordHash = await bcrypt.hash(password, 10);
 
-    const result = await c.env.DB.prepare(
+    const result = await db.$client.prepare(
       'INSERT INTO users (email, password_hash, name, role, tenant_id, created_at) VALUES (?, ?, ?, ?, ?, datetime("now"))'
     ).bind(email, passwordHash, name, role, tenantId).run();
 

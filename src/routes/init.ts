@@ -1,4 +1,6 @@
 import { Hono } from 'hono';
+import { getDb } from '../db';
+
 
 const initRoutes = new Hono<{
   Bindings: {
@@ -9,13 +11,14 @@ const initRoutes = new Hono<{
 
 // Initialize database tables - only works in development
 initRoutes.post('/dev', async (c) => {
+  const db = getDb(c.env.DB);
   const env = c.env.ENVIRONMENT;
   if (env !== 'development') {
     return c.json({ error: 'Init only works in development' }, 403);
   }
 
   try {
-    await c.env.DB.prepare(`
+    await db.$client.prepare(`
       CREATE TABLE IF NOT EXISTS tenants (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
@@ -27,7 +30,7 @@ initRoutes.post('/dev', async (c) => {
       )
     `).run();
 
-    await c.env.DB.prepare(`
+    await db.$client.prepare(`
       CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         email TEXT UNIQUE NOT NULL,
@@ -42,7 +45,7 @@ initRoutes.post('/dev', async (c) => {
       )
     `).run();
 
-    await c.env.DB.exec(`
+    await db.$client.exec(`
       CREATE TABLE IF NOT EXISTS system_settings (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         key TEXT UNIQUE NOT NULL,
@@ -51,7 +54,7 @@ initRoutes.post('/dev', async (c) => {
       )
     `);
 
-    await c.env.DB.exec(`
+    await db.$client.exec(`
       CREATE TABLE IF NOT EXISTS patients (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
@@ -68,7 +71,7 @@ initRoutes.post('/dev', async (c) => {
       )
     `);
 
-    await c.env.DB.exec(`
+    await db.$client.exec(`
       CREATE TABLE IF NOT EXISTS serials (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         patient_id INTEGER NOT NULL,
@@ -80,7 +83,7 @@ initRoutes.post('/dev', async (c) => {
       )
     `);
 
-    await c.env.DB.exec(`
+    await db.$client.exec(`
       CREATE TABLE IF NOT EXISTS tests (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         patient_id INTEGER NOT NULL,
@@ -93,7 +96,7 @@ initRoutes.post('/dev', async (c) => {
       )
     `);
 
-    await c.env.DB.exec(`
+    await db.$client.exec(`
       CREATE TABLE IF NOT EXISTS bills (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         patient_id INTEGER NOT NULL,
@@ -112,7 +115,7 @@ initRoutes.post('/dev', async (c) => {
       )
     `);
 
-    await c.env.DB.exec(`
+    await db.$client.exec(`
       CREATE TABLE IF NOT EXISTS payments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         bill_id INTEGER NOT NULL,
@@ -123,7 +126,7 @@ initRoutes.post('/dev', async (c) => {
       )
     `);
 
-    await c.env.DB.exec(`
+    await db.$client.exec(`
       CREATE TABLE IF NOT EXISTS income (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         date DATE NOT NULL,
@@ -137,7 +140,7 @@ initRoutes.post('/dev', async (c) => {
       )
     `);
 
-    await c.env.DB.exec(`
+    await db.$client.exec(`
       CREATE TABLE IF NOT EXISTS expenses (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         date DATE NOT NULL,
@@ -153,7 +156,7 @@ initRoutes.post('/dev', async (c) => {
       )
     `);
 
-    await c.env.DB.exec(`
+    await db.$client.exec(`
       CREATE TABLE IF NOT EXISTS investments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         date DATE NOT NULL,
@@ -165,7 +168,7 @@ initRoutes.post('/dev', async (c) => {
       )
     `);
 
-    await c.env.DB.exec(`
+    await db.$client.exec(`
       CREATE TABLE IF NOT EXISTS medicines (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
@@ -178,7 +181,7 @@ initRoutes.post('/dev', async (c) => {
       )
     `);
 
-    await c.env.DB.exec(`
+    await db.$client.exec(`
       CREATE TABLE IF NOT EXISTS staff (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
@@ -195,7 +198,7 @@ initRoutes.post('/dev', async (c) => {
       )
     `);
 
-    await c.env.DB.exec(`
+    await db.$client.exec(`
       CREATE TABLE IF NOT EXISTS salary_payments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         staff_id INTEGER NOT NULL,
@@ -206,7 +209,7 @@ initRoutes.post('/dev', async (c) => {
       )
     `);
 
-    await c.env.DB.exec(`
+    await db.$client.exec(`
       CREATE TABLE IF NOT EXISTS shareholders (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
@@ -221,7 +224,7 @@ initRoutes.post('/dev', async (c) => {
       )
     `);
 
-    await c.env.DB.exec(`
+    await db.$client.exec(`
       CREATE TABLE IF NOT EXISTS settings (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         key TEXT NOT NULL,
@@ -231,7 +234,7 @@ initRoutes.post('/dev', async (c) => {
       )
     `);
 
-    await c.env.DB.exec(`
+    await db.$client.exec(`
       CREATE TABLE IF NOT EXISTS profit_distributions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         month TEXT NOT NULL,
@@ -245,7 +248,7 @@ initRoutes.post('/dev', async (c) => {
       )
     `);
 
-    await c.env.DB.exec(`
+    await db.$client.exec(`
       CREATE TABLE IF NOT EXISTS expense_categories (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
@@ -255,7 +258,7 @@ initRoutes.post('/dev', async (c) => {
       )
     `);
 
-    await c.env.DB.exec(`
+    await db.$client.exec(`
       CREATE TABLE IF NOT EXISTS chart_of_accounts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         code TEXT NOT NULL,
@@ -268,7 +271,7 @@ initRoutes.post('/dev', async (c) => {
       )
     `);
 
-    await c.env.DB.exec(`
+    await db.$client.exec(`
       CREATE TABLE IF NOT EXISTS journal_entries (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         date DATE NOT NULL,
@@ -282,7 +285,7 @@ initRoutes.post('/dev', async (c) => {
       )
     `);
 
-    await c.env.DB.exec(`
+    await db.$client.exec(`
       CREATE TABLE IF NOT EXISTS audit_logs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         tenant_id INTEGER NOT NULL,
@@ -297,7 +300,7 @@ initRoutes.post('/dev', async (c) => {
       )
     `);
 
-    await c.env.DB.exec(`
+    await db.$client.exec(`
       CREATE TABLE IF NOT EXISTS recurring_expenses (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         category_id INTEGER NOT NULL,
@@ -313,7 +316,7 @@ initRoutes.post('/dev', async (c) => {
       )
     `);
 
-    await c.env.DB.exec(`
+    await db.$client.exec(`
       CREATE TABLE IF NOT EXISTS income_detail (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         income_id INTEGER NOT NULL,

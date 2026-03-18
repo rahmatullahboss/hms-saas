@@ -5,6 +5,8 @@ import { HTTPException } from 'hono/http-exception';
 import type { Env, Variables } from '../../types';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 import { getNextSequence } from '../../lib/sequence';
+import { getDb } from '../../db';
+
 
 const emergency = new Hono<{
   Bindings: Env;
@@ -98,6 +100,7 @@ function getDateFilter(selectedCase: number): string {
 // ─── GET / — list ER patients ─────────────────────────────────────────────────
 
 emergency.get('/', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const status = c.req.query('status') || 'all';
   const search = c.req.query('search');
@@ -140,33 +143,34 @@ emergency.get('/', async (c) => {
     e.created_at DESC
     LIMIT 100`;
 
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await db.$client.prepare(sql).bind(...params).all();
   return c.json({ er_patients: results, total: results.length });
 });
 
 // ─── GET /stats — ER dashboard KPIs ──────────────────────────────────────────
 
 emergency.get('/stats', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const today = new Date().toISOString().split('T')[0];
 
   const [newCount, triagedCount, admittedCount, dischargedCount, lamaCount, totalToday] = await Promise.all([
-    c.env.DB.prepare(`SELECT COUNT(*) as cnt FROM er_patients WHERE tenant_id = ? AND er_status = 'new' AND is_active = 1`)
+    db.$client.prepare(`SELECT COUNT(*) as cnt FROM er_patients WHERE tenant_id = ? AND er_status = 'new' AND is_active = 1`)
       .bind(tenantId).first<{ cnt: number }>(),
-    c.env.DB.prepare(`SELECT COUNT(*) as cnt FROM er_patients WHERE tenant_id = ? AND er_status = 'triaged' AND is_active = 1`)
+    db.$client.prepare(`SELECT COUNT(*) as cnt FROM er_patients WHERE tenant_id = ? AND er_status = 'triaged' AND is_active = 1`)
       .bind(tenantId).first<{ cnt: number }>(),
-    c.env.DB.prepare(`SELECT COUNT(*) as cnt FROM er_patients WHERE tenant_id = ? AND finalized_status = 'admitted' AND is_active = 1`)
+    db.$client.prepare(`SELECT COUNT(*) as cnt FROM er_patients WHERE tenant_id = ? AND finalized_status = 'admitted' AND is_active = 1`)
       .bind(tenantId).first<{ cnt: number }>(),
-    c.env.DB.prepare(`SELECT COUNT(*) as cnt FROM er_patients WHERE tenant_id = ? AND finalized_status = 'discharged' AND is_active = 1 AND DATE(finalized_on) = ?`)
+    db.$client.prepare(`SELECT COUNT(*) as cnt FROM er_patients WHERE tenant_id = ? AND finalized_status = 'discharged' AND is_active = 1 AND DATE(finalized_on) = ?`)
       .bind(tenantId, today).first<{ cnt: number }>(),
-    c.env.DB.prepare(`SELECT COUNT(*) as cnt FROM er_patients WHERE tenant_id = ? AND finalized_status = 'lama' AND is_active = 1`)
+    db.$client.prepare(`SELECT COUNT(*) as cnt FROM er_patients WHERE tenant_id = ? AND finalized_status = 'lama' AND is_active = 1`)
       .bind(tenantId).first<{ cnt: number }>(),
-    c.env.DB.prepare(`SELECT COUNT(*) as cnt FROM er_patients WHERE tenant_id = ? AND is_active = 1 AND DATE(visit_datetime) = ?`)
+    db.$client.prepare(`SELECT COUNT(*) as cnt FROM er_patients WHERE tenant_id = ? AND is_active = 1 AND DATE(visit_datetime) = ?`)
       .bind(tenantId, today).first<{ cnt: number }>(),
   ]);
 
   // Triage distribution
-  const { results: triageDist } = await c.env.DB.prepare(
+  const { results: triageDist } = await db.$client.prepare(
     `SELECT triage_code, COUNT(*) as cnt FROM er_patients
      WHERE tenant_id = ? AND er_status = 'triaged' AND is_active = 1
      GROUP BY triage_code`
@@ -186,8 +190,9 @@ emergency.get('/stats', async (c) => {
 // ─── GET /modes-of-arrival — lookup data ─────────────────────────────────────
 
 emergency.get('/modes-of-arrival', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
-  const { results } = await c.env.DB.prepare(
+  const { results } = await db.$client.prepare(
     'SELECT * FROM er_mode_of_arrival WHERE tenant_id = ? AND is_active = 1 ORDER BY name'
   ).bind(tenantId).all();
   return c.json({ modes: results });
@@ -196,10 +201,11 @@ emergency.get('/modes-of-arrival', async (c) => {
 // ─── POST /modes-of-arrival — seed modes for tenant ──────────────────────────
 
 emergency.post('/modes-of-arrival/seed', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const defaultModes = ['Ambulance', 'Walk-in', 'Police', 'Referred', 'Brought by Others', 'Self'];
 
-  const existing = await c.env.DB.prepare(
+  const existing = await db.$client.prepare(
     'SELECT COUNT(*) as cnt FROM er_mode_of_arrival WHERE tenant_id = ?'
   ).bind(tenantId).first<{ cnt: number }>();
 
@@ -208,9 +214,9 @@ emergency.post('/modes-of-arrival/seed', async (c) => {
   }
 
   const stmts = defaultModes.map(name =>
-    c.env.DB.prepare('INSERT INTO er_mode_of_arrival (tenant_id, name) VALUES (?, ?)').bind(tenantId, name)
+    db.$client.prepare('INSERT INTO er_mode_of_arrival (tenant_id, name) VALUES (?, ?)').bind(tenantId, name)
   );
-  await c.env.DB.batch(stmts);
+  await db.$client.batch(stmts);
 
   return c.json({ message: 'Seeded default modes of arrival', count: defaultModes.length }, 201);
 });
@@ -218,6 +224,7 @@ emergency.post('/modes-of-arrival/seed', async (c) => {
 // ─── GET /search-patients — search existing patients for ER registration ─────
 
 emergency.get('/search-patients', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const search = c.req.query('q') || '';
 
@@ -226,7 +233,7 @@ emergency.get('/search-patients', async (c) => {
   }
 
   const term = `%${search}%`;
-  const { results } = await c.env.DB.prepare(`
+  const { results } = await db.$client.prepare(`
     SELECT id, name, patient_code, gender, mobile, address, date_of_birth
     FROM patients
     WHERE tenant_id = ? AND (name LIKE ? OR mobile LIKE ? OR patient_code LIKE ?)
@@ -239,10 +246,11 @@ emergency.get('/search-patients', async (c) => {
 // ─── GET /:id — single ER patient with cases + discharge summary ─────────────
 
 emergency.get('/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = parseInt(c.req.param('id'));
 
-  const patient = await c.env.DB.prepare(`
+  const patient = await db.$client.prepare(`
     SELECT e.*, p.name as patient_name, p.patient_code,
            m.name as mode_of_arrival_name
     FROM er_patients e
@@ -254,14 +262,14 @@ emergency.get('/:id', async (c) => {
   if (!patient) throw new HTTPException(404, { message: 'ER patient not found' });
 
   // Get patient cases
-  const cases = await c.env.DB.prepare(
+  const cases = await db.$client.prepare(
     'SELECT * FROM er_patient_cases WHERE er_patient_id = ? AND tenant_id = ? AND is_active = 1 ORDER BY id DESC LIMIT 1'
   ).bind(id, tenantId).first();
 
   // Get discharge summary if exists
   const patientAny = patient as any;
   const dischargeSummary = patientAny.discharge_summary_id
-    ? await c.env.DB.prepare(
+    ? await db.$client.prepare(
         'SELECT * FROM er_discharge_summaries WHERE id = ? AND tenant_id = ?'
       ).bind(patientAny.discharge_summary_id, tenantId).first()
     : null;
@@ -278,6 +286,7 @@ emergency.get('/:id', async (c) => {
 // ─── POST / — register new ER patient ────────────────────────────────────────
 
 emergency.post('/', zValidator('json', createERPatientSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
@@ -291,13 +300,13 @@ emergency.post('/', zValidator('json', createERPatientSchema), async (c) => {
 
     // If new patient (not existing), create patient record first
     if (!data.is_existing_patient && !patientId) {
-      const lastPatient = await c.env.DB.prepare(
+      const lastPatient = await db.$client.prepare(
         'SELECT COALESCE(MAX(id), 0) as max_id FROM patients WHERE tenant_id = ?'
       ).bind(tenantId).first<{ max_id: number }>();
       const nextId = (lastPatient?.max_id ?? 0) + 1;
       const patientCode = `P-${String(nextId).padStart(6, '0')}`;
 
-      const pResult = await c.env.DB.prepare(`
+      const pResult = await db.$client.prepare(`
         INSERT INTO patients (tenant_id, patient_code, name, father_husband, gender, mobile, address, date_of_birth, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
@@ -312,7 +321,7 @@ emergency.post('/', zValidator('json', createERPatientSchema), async (c) => {
 
     // Create visit record for emergency
     if (!visitId && patientId) {
-      const vResult = await c.env.DB.prepare(`
+      const vResult = await db.$client.prepare(`
         INSERT INTO visits (tenant_id, patient_id, visit_date, visit_type, status, created_at)
         VALUES (?, ?, ?, 'emergency', 'initiated', ?)
       `).bind(tenantId, patientId, now.split('T')[0], now).run();
@@ -320,7 +329,7 @@ emergency.post('/', zValidator('json', createERPatientSchema), async (c) => {
     }
 
     // Create ER patient record
-    const erResult = await c.env.DB.prepare(`
+    const erResult = await db.$client.prepare(`
       INSERT INTO er_patients (
         tenant_id, er_patient_number, patient_id, visit_id, visit_datetime,
         first_name, middle_name, last_name, gender, age, date_of_birth,
@@ -349,7 +358,7 @@ emergency.post('/', zValidator('json', createERPatientSchema), async (c) => {
     // Create patient cases if provided
     if (data.patient_cases) {
       const pc = data.patient_cases;
-      await c.env.DB.prepare(`
+      await db.$client.prepare(`
         INSERT INTO er_patient_cases (
           tenant_id, er_patient_id, main_case, sub_case, other_case_details,
           biting_site, datetime_of_bite, biting_animal, first_aid,
@@ -382,19 +391,20 @@ emergency.post('/', zValidator('json', createERPatientSchema), async (c) => {
 // ─── PUT /:id/triage — assign triage code ────────────────────────────────────
 
 emergency.put('/:id/triage', zValidator('json', triageSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const id = parseInt(c.req.param('id'));
   const { triage_code } = c.req.valid('json');
   const now = new Date().toISOString();
 
-  const existing = await c.env.DB.prepare(
+  const existing = await db.$client.prepare(
     'SELECT id FROM er_patients WHERE id = ? AND tenant_id = ?'
   ).bind(id, tenantId).first();
 
   if (!existing) throw new HTTPException(404, { message: 'ER patient not found' });
 
-  await c.env.DB.prepare(`
+  await db.$client.prepare(`
     UPDATE er_patients SET
       triage_code = ?, er_status = 'triaged',
       triaged_by = ?, triaged_on = ?,
@@ -408,18 +418,19 @@ emergency.put('/:id/triage', zValidator('json', triageSchema), async (c) => {
 // ─── PUT /:id/undo-triage — revert to new ───────────────────────────────────
 
 emergency.put('/:id/undo-triage', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const id = parseInt(c.req.param('id'));
   const now = new Date().toISOString();
 
-  const existing = await c.env.DB.prepare(
+  const existing = await db.$client.prepare(
     `SELECT id FROM er_patients WHERE id = ? AND tenant_id = ? AND er_status = 'triaged'`
   ).bind(id, tenantId).first();
 
   if (!existing) throw new HTTPException(404, { message: 'Triaged ER patient not found' });
 
-  await c.env.DB.prepare(`
+  await db.$client.prepare(`
     UPDATE er_patients SET
       er_status = 'new', triage_code = NULL,
       triaged_by = NULL, triaged_on = NULL,
@@ -433,19 +444,20 @@ emergency.put('/:id/undo-triage', async (c) => {
 // ─── PUT /:id/finalize — admit/discharge/transfer/lama/death/dor ─────────────
 
 emergency.put('/:id/finalize', zValidator('json', finalizeSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const id = parseInt(c.req.param('id'));
   const { finalized_status, finalized_remarks } = c.req.valid('json');
   const now = new Date().toISOString();
 
-  const existing = await c.env.DB.prepare(
+  const existing = await db.$client.prepare(
     'SELECT id, er_status FROM er_patients WHERE id = ? AND tenant_id = ?'
   ).bind(id, tenantId).first();
 
   if (!existing) throw new HTTPException(404, { message: 'ER patient not found' });
 
-  await c.env.DB.prepare(`
+  await db.$client.prepare(`
     UPDATE er_patients SET
       er_status = 'finalized',
       finalized_status = ?, finalized_remarks = ?,
@@ -460,12 +472,13 @@ emergency.put('/:id/finalize', zValidator('json', finalizeSchema), async (c) => 
 // ─── POST /discharge-summary — create ER discharge summary ──────────────────
 
 emergency.post('/discharge-summary', zValidator('json', dischargeSummarySchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
   const now = new Date().toISOString();
 
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO er_discharge_summaries (
       tenant_id, patient_id, visit_id, discharge_type, chief_complaints,
       treatment_in_er, investigations, advice_on_discharge, on_examination,
@@ -483,7 +496,7 @@ emergency.post('/discharge-summary', zValidator('json', dischargeSummarySchema),
   const summaryId = result.meta.last_row_id as number;
 
   // Update ER patient with discharge summary and finalize
-  await c.env.DB.prepare(`
+  await db.$client.prepare(`
     UPDATE er_patients SET
       discharge_summary_id = ?,
       er_status = 'finalized', finalized_status = 'discharged',
@@ -497,12 +510,13 @@ emergency.post('/discharge-summary', zValidator('json', dischargeSummarySchema),
 // ─── PUT /:id — general update (Zod validated) ──────────────────────────────
 
 emergency.put('/:id', zValidator('json', updateERPatientSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = parseInt(c.req.param('id'));
   const data = c.req.valid('json');
   const now = new Date().toISOString();
 
-  const existing = await c.env.DB.prepare(
+  const existing = await db.$client.prepare(
     'SELECT id FROM er_patients WHERE id = ? AND tenant_id = ?'
   ).bind(id, tenantId).first();
   if (!existing) throw new HTTPException(404, { message: 'ER patient not found' });
@@ -532,7 +546,7 @@ emergency.put('/:id', zValidator('json', updateERPatientSchema), async (c) => {
   sets.push('updated_at = ?');
   vals.push(now, id, tenantId);
 
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     `UPDATE er_patients SET ${sets.join(', ')} WHERE id = ? AND tenant_id = ?`
   ).bind(...vals).run();
 

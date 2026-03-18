@@ -2,6 +2,8 @@ import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { Env, Variables } from '../../types';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
+import { getDb } from '../../db';
+
 
 const doctorDashboardRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -16,6 +18,7 @@ const doctorDashboardRoutes = new Hono<{ Bindings: Env; Variables: Variables }>(
  * - Visit-type breakdown for today
  */
 doctorDashboardRoutes.get('/dashboard', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId   = requireUserId(c);
 
@@ -30,7 +33,7 @@ doctorDashboardRoutes.get('/dashboard', async (c) => {
 
     // Try staff link first (may fail if staff.doctor_id column doesn't exist)
     try {
-      doctorRecord = await c.env.DB.prepare(
+      doctorRecord = await db.$client.prepare(
         `SELECT d.* FROM doctors d
          JOIN staff s ON s.doctor_id = d.id
          WHERE s.user_id = ? AND d.tenant_id = ?
@@ -42,7 +45,7 @@ doctorDashboardRoutes.get('/dashboard', async (c) => {
 
     // Fallback: try doctors table directly by user_id field
     if (!doctorRecord) {
-      doctorRecord = await c.env.DB.prepare(
+      doctorRecord = await db.$client.prepare(
         'SELECT * FROM doctors WHERE user_id = ? AND tenant_id = ? LIMIT 1'
       ).bind(userId, tenantId).first<Record<string, unknown>>();
     }
@@ -54,7 +57,7 @@ doctorDashboardRoutes.get('/dashboard', async (c) => {
     const doctorId = doctorRecord.id as number;
 
     // ── 2. Today's appointment queue ───────────────────────────────────────
-    const { results: todayAppointments } = await c.env.DB.prepare(`
+    const { results: todayAppointments } = await db.$client.prepare(`
       SELECT a.id, a.patient_id, a.token_no, a.appt_time, a.visit_type, a.status, a.notes,
              a.chief_complaint, a.fee,
              p.name AS patient_name, p.patient_code, p.date_of_birth, p.gender
@@ -65,7 +68,7 @@ doctorDashboardRoutes.get('/dashboard', async (c) => {
     `).bind(doctorId, today, tenantId).all();
 
     // ── 3. KPI aggregates ──────────────────────────────────────────────────
-    const kpi = await c.env.DB.prepare(`
+    const kpi = await db.$client.prepare(`
       SELECT
         COUNT(*)                                                        AS total,
         SUM(CASE WHEN status IN ('completed','paid') THEN 1 ELSE 0 END) AS completed,
@@ -80,12 +83,12 @@ doctorDashboardRoutes.get('/dashboard', async (c) => {
     yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayStr = yesterday.toISOString().split('T')[0];
 
-    const prevKpi = await c.env.DB.prepare(
+    const prevKpi = await db.$client.prepare(
       'SELECT COUNT(*) AS total FROM appointments WHERE doctor_id = ? AND appt_date = ? AND tenant_id = ?'
     ).bind(doctorId, yesterdayStr, tenantId).first<{ total: number }>();
 
     // ── 5. Visit-type breakdown (today) ────────────────────────────────────
-    const { results: visitTypes } = await c.env.DB.prepare(`
+    const { results: visitTypes } = await db.$client.prepare(`
       SELECT visit_type, COUNT(*) AS count
       FROM   appointments
       WHERE  doctor_id = ? AND appt_date = ? AND tenant_id = ?
@@ -93,7 +96,7 @@ doctorDashboardRoutes.get('/dashboard', async (c) => {
     `).bind(doctorId, today, tenantId).all();
 
     // ── 6. Recent prescriptions (last 5 finalised) ─────────────────────────
-    const { results: recentRx } = await c.env.DB.prepare(`
+    const { results: recentRx } = await db.$client.prepare(`
       SELECT p.id, p.rx_no, p.created_at, p.status,
              pt.name AS patient_name, pt.patient_code
       FROM   prescriptions p
@@ -108,7 +111,7 @@ doctorDashboardRoutes.get('/dashboard', async (c) => {
     in7days.setDate(in7days.getDate() + 7);
     const in7daysStr = in7days.toISOString().split('T')[0];
 
-    const { results: followUps } = await c.env.DB.prepare(`
+    const { results: followUps } = await db.$client.prepare(`
       SELECT p.id AS rx_id, p.follow_up_date,
              pt.name AS patient_name, pt.patient_code, pt.mobile
       FROM   prescriptions p

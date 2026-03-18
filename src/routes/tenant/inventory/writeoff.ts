@@ -3,11 +3,14 @@ import type { Env } from '../../../types';
 import { zValidator } from "@hono/zod-validator";
 import * as schemas from "../../../schemas/inventory";
 import { generateSequenceNo } from "../../../utils/sequence";
+import { getDb } from '../../../db';
+
 
 const writeoff = new Hono<{ Bindings: Env; Variables: { tenantId?: string; userId?: string; role?: string } }>();
 
 // GET /writeoff
 writeoff.get("/", zValidator("query", schemas.listWriteOffsSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const { page, limit, StoreId, Reason, IsApproved, FromDate, ToDate } = c.req.valid("query");
   const offset = (page - 1) * limit;
 
@@ -22,11 +25,11 @@ writeoff.get("/", zValidator("query", schemas.listWriteOffsSchema), async (c) =>
   if (ToDate) { conditions.push("W.WriteOffDate <= ?"); params.push(ToDate); }
 
   const whereClause = conditions.join(" AND ");
-  const count = await c.env.DB.prepare(
+  const count = await db.$client.prepare(
     `SELECT COUNT(*) as total FROM InventoryWriteOff W WHERE ${whereClause}`
   ).bind(...params).first<{ total: number }>();
 
-  const results = await c.env.DB.prepare(`
+  const results = await db.$client.prepare(`
     SELECT W.*, S.StoreName
     FROM InventoryWriteOff W
     JOIN InventoryStore S ON W.StoreId = S.StoreId
@@ -40,6 +43,7 @@ writeoff.get("/", zValidator("query", schemas.listWriteOffsSchema), async (c) =>
 
 // POST /writeoff
 writeoff.post("/", zValidator("json", schemas.createWriteOffSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const body = c.req.valid("json");
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
@@ -48,7 +52,7 @@ writeoff.post("/", zValidator("json", schemas.createWriteOffSchema), async (c) =
   const nextWONo = await generateSequenceNo(c.env.DB, 'WO', 'InventoryWriteOff', 'WriteOffNo', tenantId);
 
   // Insert Header
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO InventoryWriteOff (tenant_id, WriteOffNo, WriteOffDate, StoreId, WriteOffReason, Description, Remarks, IsApproved, CreatedBy, CreatedOn)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
@@ -60,19 +64,20 @@ writeoff.post("/", zValidator("json", schemas.createWriteOffSchema), async (c) =
   const batchOps: D1PreparedStatement[] = [];
 
   for (const item of body.Items) {
-    batchOps.push(c.env.DB.prepare(`
+    batchOps.push(db.$client.prepare(`
       INSERT INTO InventoryWriteOffItem (tenant_id, WriteOffId, ItemId, StockId, WriteOffQuantity, Remarks, CreatedBy, CreatedOn)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(tenantId, woId, item.ItemId, item.StockId, item.Quantity, item.Remarks || null, userId ?? null, new Date().toISOString()));
   }
 
-  if (batchOps.length > 0) await c.env.DB.batch(batchOps);
+  if (batchOps.length > 0) await db.$client.batch(batchOps);
 
   return c.json({ message: "Write-off created", WriteOffId: woId, WriteOffNo: nextWONo }, 201);
 });
 
 // PUT /writeoff/:id/approve
 writeoff.put("/:id/approve", zValidator("json", schemas.approveWriteOffSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const woId = c.req.param("id");
   const body = c.req.valid("json");
   const tenantId = c.get('tenantId');
@@ -83,36 +88,36 @@ writeoff.put("/:id/approve", zValidator("json", schemas.approveWriteOffSchema), 
     return c.json({ error: "Only approval supported via this endpoint" }, 400);
   }
 
-  const wo = await c.env.DB.prepare(
+  const wo = await db.$client.prepare(
     "SELECT * FROM InventoryWriteOff WHERE WriteOffId = ? AND tenant_id = ?"
   ).bind(woId, tenantId).first<any>();
   if (!wo) return c.json({ error: "Write-off not found" }, 404);
   if (wo.IsApproved) return c.json({ error: "Already approved" }, 400);
 
-  const items = await c.env.DB.prepare(
+  const items = await db.$client.prepare(
     "SELECT * FROM InventoryWriteOffItem WHERE WriteOffId = ? AND tenant_id = ?"
   ).bind(woId, tenantId).all<any>();
   const batchOps: D1PreparedStatement[] = [];
 
   for (const item of items.results) {
     // Deduct Stock (scoped)
-    batchOps.push(c.env.DB.prepare(
+    batchOps.push(db.$client.prepare(
       "UPDATE InventoryStock SET AvailableQuantity = AvailableQuantity - ? WHERE StockId = ? AND tenant_id = ?"
     ).bind(item.WriteOffQuantity, item.StockId, tenantId));
 
     // Transaction
-    batchOps.push(c.env.DB.prepare(`
+    batchOps.push(db.$client.prepare(`
       INSERT INTO InventoryStockTransaction (tenant_id, StockId, ItemId, StoreId, TransactionType, Quantity, InOut, ReferenceNo, CreatedBy, CreatedOn)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(tenantId, item.StockId, item.ItemId, wo.StoreId, 'writeoff', item.WriteOffQuantity, 'out', wo.WriteOffNo, userId ?? null, today));
   }
 
   // Update Header (scoped)
-  batchOps.push(c.env.DB.prepare(
+  batchOps.push(db.$client.prepare(
     "UPDATE InventoryWriteOff SET IsApproved = 1, ApprovedBy = ?, ApprovedOn = ? WHERE WriteOffId = ? AND tenant_id = ?"
   ).bind(userId ?? null, today, woId, tenantId));
 
-  await c.env.DB.batch(batchOps);
+  await db.$client.batch(batchOps);
 
   return c.json({ message: "Write-off approved and stock deducted" });
 });

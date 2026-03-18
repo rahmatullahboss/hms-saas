@@ -5,6 +5,8 @@ import bcrypt from 'bcryptjs';
 import { generateToken } from '../middleware/auth';
 import { TRIAL_DAYS } from '../schemas/pricing';
 import type { Env } from '../types';
+import { getDb } from '../db';
+
 
 const registerRoutes = new Hono<{ Bindings: Env }>();
 
@@ -24,6 +26,7 @@ const RESERVED_SLUGS = ['www', 'api', 'admin', 'super', 'mail', 'ftp', 'test', '
 
 // ─── POST /api/register — Public hospital self-signup ─────────────────
 registerRoutes.post('/', zValidator('json', registerSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const { hospitalName, slug, adminName, adminEmail, adminPassword } = c.req.valid('json');
 
   if (RESERVED_SLUGS.includes(slug.toLowerCase())) {
@@ -32,7 +35,7 @@ registerRoutes.post('/', zValidator('json', registerSchema), async (c) => {
 
   try {
     // Check slug uniqueness
-    const existing = await c.env.DB.prepare(
+    const existing = await db.$client.prepare(
       'SELECT id FROM tenants WHERE subdomain = ?'
     ).bind(slug).first();
 
@@ -41,7 +44,7 @@ registerRoutes.post('/', zValidator('json', registerSchema), async (c) => {
     }
 
     // Check admin email uniqueness (global — same email cannot register twice)
-    const existingEmail = await c.env.DB.prepare(
+    const existingEmail = await db.$client.prepare(
       'SELECT id FROM users WHERE email = ?'
     ).bind(adminEmail).first();
 
@@ -52,7 +55,7 @@ registerRoutes.post('/', zValidator('json', registerSchema), async (c) => {
     const passwordHash = await bcrypt.hash(adminPassword, 10);
 
     // Create tenant first to get the ID (with trial)
-    const tenantResult = await c.env.DB.prepare(
+    const tenantResult = await db.$client.prepare(
       `INSERT INTO tenants (name, subdomain, status, plan, plan_price, billing_cycle, trial_ends_at, plan_started_at, created_at)
        VALUES (?, ?, ?, ?, 0, 'monthly', datetime('now', '+' || ? || ' days'), datetime('now'), datetime('now'))`
     ).bind(hospitalName, slug, 'active', 'starter', TRIAL_DAYS).run();
@@ -60,7 +63,7 @@ registerRoutes.post('/', zValidator('json', registerSchema), async (c) => {
     const tenantId = tenantResult.meta.last_row_id;
 
     // Create hospital admin user
-    const userResult = await c.env.DB.prepare(
+    const userResult = await db.$client.prepare(
       'INSERT INTO users (email, password_hash, name, role, tenant_id, created_at) VALUES (?, ?, ?, ?, ?, datetime("now"))'
     ).bind(adminEmail, passwordHash, adminName, 'hospital_admin', tenantId).run();
 
@@ -68,7 +71,7 @@ registerRoutes.post('/', zValidator('json', registerSchema), async (c) => {
 
     // Record trial start in subscription history
     try {
-      await c.env.DB.prepare(
+      await db.$client.prepare(
         `INSERT INTO subscription_history (tenant_id, plan, plan_price, billing_cycle, action, notes, created_at)
          VALUES (?, 'starter', 0, 'monthly', 'trial_start', ?, datetime('now'))`
       ).bind(tenantId, `${TRIAL_DAYS}-day trial started`).run();

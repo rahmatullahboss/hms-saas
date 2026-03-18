@@ -5,12 +5,15 @@ import { HTTPException } from 'hono/http-exception';
 import { getNextSequence } from '../../lib/sequence';
 import type { Env, Variables } from '../../types';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
+import { getDb } from '../../db';
+
 
 const settlements = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // ─── GET / — list settlements ────────────────────────────────────────────────
 
 settlements.get('/', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const patientId = c.req.query('patient_id');
   const page = Math.max(1, parseInt(c.req.query('page') || '1'));
@@ -27,13 +30,14 @@ settlements.get('/', async (c) => {
   if (patientId) { sql += ' AND s.patient_id = ?'; params.push(patientId); }
   sql += ` ORDER BY s.created_at DESC LIMIT ${perPage} OFFSET ${offset}`;
 
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await db.$client.prepare(sql).bind(...params).all();
   return c.json({ settlements: results, page, per_page: perPage });
 });
 
 // ─── GET /pending — credit bills awaiting payment ────────────────────────────
 
 settlements.get('/pending', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const patientId = c.req.query('patient_id');
 
@@ -49,29 +53,30 @@ settlements.get('/pending', async (c) => {
   if (patientId) { sql += ' AND b.patient_id = ?'; params.push(patientId); }
   sql += ' ORDER BY b.created_at ASC';
 
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await db.$client.prepare(sql).bind(...params).all();
   return c.json({ pending_bills: results });
 });
 
 // ─── GET /patient/:patientId/info — settlement summary for a patient ─────────
 
 settlements.get('/patient/:patientId/info', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const patientId = parseInt(c.req.param('patientId'));
 
-  const patient = await c.env.DB.prepare(
+  const patient = await db.$client.prepare(
     'SELECT id, name, patient_code, mobile FROM patients WHERE id = ? AND tenant_id = ?'
   ).bind(patientId, tenantId).first();
   if (!patient) throw new HTTPException(404, { message: 'Patient not found' });
 
-  const { results: pendingBills } = await c.env.DB.prepare(`
+  const { results: pendingBills } = await db.$client.prepare(`
     SELECT id, invoice_no, total, paid,
       (total - paid) as due_amount, created_at, status
     FROM bills WHERE patient_id = ? AND tenant_id = ? AND status IN ('open', 'partially_paid')
     ORDER BY created_at ASC
   `).bind(patientId, tenantId).all();
 
-  const deposit = await c.env.DB.prepare(`
+  const deposit = await db.$client.prepare(`
     SELECT
       COALESCE(SUM(CASE WHEN transaction_type = 'deposit' THEN amount ELSE 0 END), 0) -
       COALESCE(SUM(CASE WHEN transaction_type IN ('refund', 'adjustment') THEN amount ELSE 0 END), 0) as balance
@@ -100,13 +105,14 @@ settlements.post('/', zValidator('json', z.object({
   payment_mode: z.string().default('cash'),
   remarks: z.string().optional(),
 })), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
 
   // Validate all bills belong to patient
   const placeholders = data.bill_ids.map(() => '?').join(',');
-  const { results: bills } = await c.env.DB.prepare(
+  const { results: bills } = await db.$client.prepare(
     `SELECT id, total, paid, patient_id FROM bills WHERE id IN (${placeholders}) AND tenant_id = ?`
   ).bind(...data.bill_ids, tenantId).all<any>();
 
@@ -122,7 +128,7 @@ settlements.post('/', zValidator('json', z.object({
 
   // Validate deposit balance
   if (data.deposit_deducted > 0) {
-    const dep = await c.env.DB.prepare(`
+    const dep = await db.$client.prepare(`
       SELECT COALESCE(SUM(CASE WHEN transaction_type = 'deposit' THEN amount ELSE 0 END), 0) -
         COALESCE(SUM(CASE WHEN transaction_type IN ('refund', 'adjustment') THEN amount ELSE 0 END), 0) as balance
       FROM billing_deposits WHERE tenant_id = ? AND patient_id = ? AND is_active = 1
@@ -134,7 +140,7 @@ settlements.post('/', zValidator('json', z.object({
 
   const receiptNo = await getNextSequence(c.env.DB, String(tenantId), 'settlement', 'STL');
 
-  const stlResult = await c.env.DB.prepare(`
+  const stlResult = await db.$client.prepare(`
     INSERT INTO billing_settlements (tenant_id, patient_id, settlement_receipt_no, payable_amount, paid_amount,
       deposit_deducted, discount_amount, payment_mode, remarks, created_by)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -157,7 +163,7 @@ settlements.post('/', zValidator('json', z.object({
     remaining = Math.round((remaining - payment) * 100) / 100;
 
     batchStmts.push(
-      c.env.DB.prepare(`
+      db.$client.prepare(`
         UPDATE bills SET paid = ?, status = ?, settlement_id = ? WHERE id = ? AND tenant_id = ?
       `).bind(newPaid, newStatus, stlId, bill.id, tenantId)
     );
@@ -167,14 +173,14 @@ settlements.post('/', zValidator('json', z.object({
   if (data.deposit_deducted > 0) {
     const depReceiptNo = await getNextSequence(c.env.DB, String(tenantId), 'deposit_adj', 'DAD');
     batchStmts.push(
-      c.env.DB.prepare(`
+      db.$client.prepare(`
         INSERT INTO billing_deposits (tenant_id, patient_id, deposit_receipt_no, amount, transaction_type, remarks, created_by)
         VALUES (?, ?, ?, ?, 'adjustment', 'Settlement deduction', ?)
       `).bind(tenantId, data.patient_id, depReceiptNo, data.deposit_deducted, userId)
     );
   }
 
-  if (batchStmts.length > 0) await c.env.DB.batch(batchStmts);
+  if (batchStmts.length > 0) await db.$client.batch(batchStmts);
 
   return c.json({ id: stlId, receipt_no: receiptNo, message: 'Settlement created' }, 201);
 });

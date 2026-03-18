@@ -18,6 +18,7 @@ import {
   schemePriceCategoryMapSchema,
   itemPriceCategoryMapSchema,
 } from '../../schemas/billingMaster';
+import { getDb } from '../../db';
 
 const billingMaster = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -34,19 +35,21 @@ function parseId(raw: string): number {
 // ═══════════════════════════════════════════════════════════════════
 
 billingMaster.get('/schemes', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
-  const { results } = await c.env.DB.prepare(
+  const { results } = await db.$client.prepare(
     'SELECT * FROM billing_schemes WHERE tenant_id = ? AND is_active = 1 ORDER BY scheme_name'
   ).bind(tenantId).all();
   return c.json({ data: results });
 });
 
 billingMaster.post('/schemes', zValidator('json', createSchemeSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
 
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO billing_schemes (scheme_name, scheme_code, scheme_type, description, default_discount_percent, tenant_id, created_by)
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `).bind(data.scheme_name, data.scheme_code ?? null, data.scheme_type, data.description ?? null, data.default_discount_percent, tenantId, userId).run();
@@ -55,11 +58,12 @@ billingMaster.post('/schemes', zValidator('json', createSchemeSchema), async (c)
 });
 
 billingMaster.put('/schemes/:id', zValidator('json', updateSchemeSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = parseId(c.req.param('id'));
   const data = c.req.valid('json');
 
-  const existing = await c.env.DB.prepare(
+  const existing = await db.$client.prepare(
     'SELECT id FROM billing_schemes WHERE id = ? AND tenant_id = ?'
   ).bind(id, tenantId).first();
   if (!existing) throw new HTTPException(404, { message: 'Scheme not found' });
@@ -77,7 +81,7 @@ billingMaster.put('/schemes/:id', zValidator('json', updateSchemeSchema), async 
   updates.push('updated_at = CURRENT_TIMESTAMP');
   values.push(id, tenantId);
 
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     `UPDATE billing_schemes SET ${updates.join(', ')} WHERE id = ? AND tenant_id = ?`
   ).bind(...values).run();
 
@@ -85,9 +89,10 @@ billingMaster.put('/schemes/:id', zValidator('json', updateSchemeSchema), async 
 });
 
 billingMaster.delete('/schemes/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = parseId(c.req.param('id'));
-  const result = await c.env.DB.prepare(
+  const result = await db.$client.prepare(
     'UPDATE billing_schemes SET is_active = 0 WHERE id = ? AND tenant_id = ? AND is_active = 1'
   ).bind(id, tenantId).run();
   if (!result.meta.changes) throw new HTTPException(404, { message: 'Scheme not found' });
@@ -96,18 +101,20 @@ billingMaster.delete('/schemes/:id', async (c) => {
 
 // Sub-schemes
 billingMaster.get('/schemes/:schemeId/sub-schemes', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const schemeId = c.req.param('schemeId');
-  const { results } = await c.env.DB.prepare(
+  const { results } = await db.$client.prepare(
     'SELECT * FROM billing_sub_schemes WHERE scheme_id = ? AND tenant_id = ? AND is_active = 1'
   ).bind(schemeId, tenantId).all();
   return c.json({ data: results });
 });
 
 billingMaster.post('/sub-schemes', zValidator('json', createSubSchemeSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const data = c.req.valid('json');
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO billing_sub_schemes (scheme_id, sub_scheme_name, sub_scheme_code, discount_percent, tenant_id)
     VALUES (?, ?, ?, ?, ?)
   `).bind(data.scheme_id, data.sub_scheme_name, data.sub_scheme_code ?? null, data.discount_percent, tenantId).run();
@@ -119,17 +126,19 @@ billingMaster.post('/sub-schemes', zValidator('json', createSubSchemeSchema), as
 // ═══════════════════════════════════════════════════════════════════
 
 billingMaster.get('/price-categories', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
-  const { results } = await c.env.DB.prepare(
+  const { results } = await db.$client.prepare(
     'SELECT * FROM billing_price_categories WHERE tenant_id = ? AND is_active = 1 ORDER BY category_name'
   ).bind(tenantId).all();
   return c.json({ data: results });
 });
 
 billingMaster.post('/price-categories', zValidator('json', createPriceCategorySchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const data = c.req.valid('json');
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO billing_price_categories (category_name, category_code, description, is_default, tenant_id)
     VALUES (?, ?, ?, ?, ?)
   `).bind(data.category_name, data.category_code ?? null, data.description ?? null, data.is_default ? 1 : 0, tenantId).run();
@@ -137,6 +146,7 @@ billingMaster.post('/price-categories', zValidator('json', createPriceCategorySc
 });
 
 billingMaster.put('/price-categories/:id', zValidator('json', updatePriceCategorySchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = parseId(c.req.param('id'));
   const data = c.req.valid('json');
@@ -151,7 +161,7 @@ billingMaster.put('/price-categories/:id', zValidator('json', updatePriceCategor
   updates.push('updated_at = CURRENT_TIMESTAMP');
   values.push(id, tenantId);
 
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     `UPDATE billing_price_categories SET ${updates.join(', ')} WHERE id = ? AND tenant_id = ?`
   ).bind(...values).run();
   return c.json({ message: 'Price category updated' });
@@ -159,9 +169,10 @@ billingMaster.put('/price-categories/:id', zValidator('json', updatePriceCategor
 
 // Scheme ↔ Price Category mapping
 billingMaster.post('/scheme-price-category-map', zValidator('json', schemePriceCategoryMapSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const data = c.req.valid('json');
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO billing_scheme_price_category_map (scheme_id, price_category_id, tenant_id) VALUES (?, ?, ?)
   `).bind(data.scheme_id, data.price_category_id, tenantId).run();
   return c.json({ id: result.meta.last_row_id, message: 'Mapping created' }, 201);
@@ -172,18 +183,20 @@ billingMaster.post('/scheme-price-category-map', zValidator('json', schemePriceC
 // ═══════════════════════════════════════════════════════════════════
 
 billingMaster.get('/service-departments', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
-  const { results } = await c.env.DB.prepare(
+  const { results } = await db.$client.prepare(
     'SELECT * FROM billing_service_departments WHERE tenant_id = ? AND is_active = 1 ORDER BY department_name'
   ).bind(tenantId).all();
   return c.json({ data: results });
 });
 
 billingMaster.post('/service-departments', zValidator('json', createServiceDeptSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO billing_service_departments (department_name, department_code, parent_id, tenant_id, created_by)
     VALUES (?, ?, ?, ?, ?)
   `).bind(data.department_name, data.department_code ?? null, data.parent_id ?? null, tenantId, userId).run();
@@ -191,6 +204,7 @@ billingMaster.post('/service-departments', zValidator('json', createServiceDeptS
 });
 
 billingMaster.put('/service-departments/:id', zValidator('json', updateServiceDeptSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = parseId(c.req.param('id'));
   const data = c.req.valid('json');
@@ -204,7 +218,7 @@ billingMaster.put('/service-departments/:id', zValidator('json', updateServiceDe
   updates.push('updated_at = CURRENT_TIMESTAMP');
   values.push(id, tenantId);
 
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     `UPDATE billing_service_departments SET ${updates.join(', ')} WHERE id = ? AND tenant_id = ?`
   ).bind(...values).run();
   return c.json({ message: 'Service department updated' });
@@ -215,6 +229,7 @@ billingMaster.put('/service-departments/:id', zValidator('json', updateServiceDe
 // ═══════════════════════════════════════════════════════════════════
 
 billingMaster.get('/service-items', zValidator('query', listServiceItemsSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const { search, department_id, page, per_page } = c.req.valid('query');
   const offset = (page - 1) * per_page;
@@ -240,22 +255,23 @@ billingMaster.get('/service-items', zValidator('query', listServiceItemsSchema),
   sql += ` ORDER BY si.display_order, si.item_name LIMIT ? OFFSET ?`;
   params.push(per_page, offset);
 
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await db.$client.prepare(sql).bind(...params).all();
 
   // Count total
   let countSql = 'SELECT COUNT(*) as total FROM billing_service_items WHERE tenant_id = ? AND is_active = 1';
   const countParams: (string | number)[] = [tenantId];
   if (search) { countSql += ' AND (item_name LIKE ? OR item_code LIKE ?)'; const p = `%${search}%`; countParams.push(p, p); }
   if (department_id) { countSql += ' AND service_department_id = ?'; countParams.push(department_id); }
-  const total = await c.env.DB.prepare(countSql).bind(...countParams).first<{ total: number }>();
+  const total = await db.$client.prepare(countSql).bind(...countParams).first<{ total: number }>();
 
   return c.json({ data: results, pagination: { page, per_page, total: total?.total ?? 0 } });
 });
 
 billingMaster.get('/service-items/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = parseId(c.req.param('id'));
-  const item = await c.env.DB.prepare(
+  const item = await db.$client.prepare(
     'SELECT si.*, sd.department_name FROM billing_service_items si LEFT JOIN billing_service_departments sd ON si.service_department_id = sd.id WHERE si.id = ? AND si.tenant_id = ?'
   ).bind(id, tenantId).first();
   if (!item) throw new HTTPException(404, { message: 'Service item not found' });
@@ -263,11 +279,12 @@ billingMaster.get('/service-items/:id', async (c) => {
 });
 
 billingMaster.post('/service-items', zValidator('json', createServiceItemSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
 
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO billing_service_items (item_name, item_code, service_department_id, price, tax_applicable, tax_percent,
       allow_discount, allow_multiple_qty, description, display_order, tenant_id, created_by)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -282,6 +299,7 @@ billingMaster.post('/service-items', zValidator('json', createServiceItemSchema)
 });
 
 billingMaster.put('/service-items/:id', zValidator('json', updateServiceItemSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = parseId(c.req.param('id'));
   const data = c.req.valid('json');
@@ -304,16 +322,17 @@ billingMaster.put('/service-items/:id', zValidator('json', updateServiceItemSche
   updates.push('updated_at = CURRENT_TIMESTAMP');
   values.push(id, tenantId);
 
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     `UPDATE billing_service_items SET ${updates.join(', ')} WHERE id = ? AND tenant_id = ?`
   ).bind(...values).run();
   return c.json({ message: 'Service item updated' });
 });
 
 billingMaster.delete('/service-items/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = parseId(c.req.param('id'));
-  const result = await c.env.DB.prepare(
+  const result = await db.$client.prepare(
     'UPDATE billing_service_items SET is_active = 0 WHERE id = ? AND tenant_id = ? AND is_active = 1'
   ).bind(id, tenantId).run();
   if (!result.meta.changes) throw new HTTPException(404, { message: 'Service item not found' });
@@ -322,9 +341,10 @@ billingMaster.delete('/service-items/:id', async (c) => {
 
 // Item ↔ Price Category mapping
 billingMaster.post('/item-price-category-map', zValidator('json', itemPriceCategoryMapSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const data = c.req.valid('json');
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO billing_item_price_category_map (service_item_id, price_category_id, price, discount_percent, tenant_id)
     VALUES (?, ?, ?, ?, ?)
   `).bind(data.service_item_id, data.price_category_id, data.price, data.discount_percent, tenantId).run();
@@ -336,17 +356,19 @@ billingMaster.post('/item-price-category-map', zValidator('json', itemPriceCateg
 // ═══════════════════════════════════════════════════════════════════
 
 billingMaster.get('/counters', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
-  const { results } = await c.env.DB.prepare(
+  const { results } = await db.$client.prepare(
     'SELECT * FROM billing_counters WHERE tenant_id = ? AND is_active = 1 ORDER BY counter_name'
   ).bind(tenantId).all();
   return c.json({ data: results });
 });
 
 billingMaster.post('/counters', zValidator('json', createCounterSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const data = c.req.valid('json');
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO billing_counters (counter_name, counter_code, description, tenant_id) VALUES (?, ?, ?, ?)
   `).bind(data.counter_name, data.counter_code ?? null, data.description ?? null, tenantId).run();
   return c.json({ id: result.meta.last_row_id, message: 'Counter created' }, 201);
@@ -357,14 +379,16 @@ billingMaster.post('/counters', zValidator('json', createCounterSchema), async (
 // ═══════════════════════════════════════════════════════════════════
 
 billingMaster.get('/fiscal-years', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
-  const { results } = await c.env.DB.prepare(
+  const { results } = await db.$client.prepare(
     'SELECT * FROM billing_fiscal_years WHERE tenant_id = ? AND is_active = 1 ORDER BY start_date DESC'
   ).bind(tenantId).all();
   return c.json({ data: results });
 });
 
 billingMaster.post('/fiscal-years', zValidator('json', createFiscalYearSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const data = c.req.valid('json');
 
@@ -373,20 +397,20 @@ billingMaster.post('/fiscal-years', zValidator('json', createFiscalYearSchema), 
 
   if (data.is_current) {
     stmts.push(
-      c.env.DB.prepare(
+      db.$client.prepare(
         'UPDATE billing_fiscal_years SET is_current = 0 WHERE tenant_id = ? AND is_current = 1'
       ).bind(tenantId)
     );
   }
 
   stmts.push(
-    c.env.DB.prepare(`
+    db.$client.prepare(`
       INSERT INTO billing_fiscal_years (fiscal_year_name, start_date, end_date, is_current, tenant_id)
       VALUES (?, ?, ?, ?, ?)
     `).bind(data.fiscal_year_name, data.start_date, data.end_date, data.is_current ? 1 : 0, tenantId)
   );
 
-  const results = await c.env.DB.batch(stmts);
+  const results = await db.$client.batch(stmts);
   const insertResult = results[results.length - 1];
   return c.json({ id: insertResult.meta.last_row_id, message: 'Fiscal year created' }, 201);
 });
@@ -396,18 +420,20 @@ billingMaster.post('/fiscal-years', zValidator('json', createFiscalYearSchema), 
 // ═══════════════════════════════════════════════════════════════════
 
 billingMaster.get('/credit-organizations', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
-  const { results } = await c.env.DB.prepare(
+  const { results } = await db.$client.prepare(
     'SELECT * FROM billing_credit_organizations WHERE tenant_id = ? AND is_active = 1 ORDER BY organization_name'
   ).bind(tenantId).all();
   return c.json({ data: results });
 });
 
 billingMaster.post('/credit-organizations', zValidator('json', createCreditOrgSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO billing_credit_organizations (organization_name, organization_code, contact_person, contact_no, email, address, credit_limit, tenant_id, created_by)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(data.organization_name, data.organization_code ?? null, data.contact_person ?? null,
@@ -416,6 +442,7 @@ billingMaster.post('/credit-organizations', zValidator('json', createCreditOrgSc
 });
 
 billingMaster.put('/credit-organizations/:id', zValidator('json', updateCreditOrgSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = parseId(c.req.param('id'));
   const data = c.req.valid('json');
@@ -433,7 +460,7 @@ billingMaster.put('/credit-organizations/:id', zValidator('json', updateCreditOr
   updates.push('updated_at = CURRENT_TIMESTAMP');
   values.push(id, tenantId);
 
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     `UPDATE billing_credit_organizations SET ${updates.join(', ')} WHERE id = ? AND tenant_id = ?`
   ).bind(...values).run();
   return c.json({ message: 'Credit organization updated' });
@@ -444,23 +471,25 @@ billingMaster.put('/credit-organizations/:id', zValidator('json', updateCreditOr
 // ═══════════════════════════════════════════════════════════════════
 
 billingMaster.get('/packages', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
-  const { results } = await c.env.DB.prepare(
+  const { results } = await db.$client.prepare(
     'SELECT * FROM billing_packages WHERE tenant_id = ? AND is_active = 1 ORDER BY package_name'
   ).bind(tenantId).all();
   return c.json({ data: results });
 });
 
 billingMaster.get('/packages/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = parseId(c.req.param('id'));
 
-  const pkg = await c.env.DB.prepare(
+  const pkg = await db.$client.prepare(
     'SELECT * FROM billing_packages WHERE id = ? AND tenant_id = ?'
   ).bind(id, tenantId).first();
   if (!pkg) throw new HTTPException(404, { message: 'Package not found' });
 
-  const { results: items } = await c.env.DB.prepare(
+  const { results: items } = await db.$client.prepare(
     'SELECT * FROM billing_package_items WHERE package_id = ? AND tenant_id = ?'
   ).bind(id, tenantId).all();
 
@@ -468,6 +497,7 @@ billingMaster.get('/packages/:id', async (c) => {
 });
 
 billingMaster.post('/packages', zValidator('json', createPackageSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
@@ -476,7 +506,7 @@ billingMaster.post('/packages', zValidator('json', createPackageSchema), async (
   const stmts: D1PreparedStatement[] = [];
 
   stmts.push(
-    c.env.DB.prepare(`
+    db.$client.prepare(`
       INSERT INTO billing_packages (package_name, package_code, description, total_price, discount_percent, tenant_id, created_by)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `).bind(data.package_name, data.package_code ?? null, data.description ?? null, data.total_price, data.discount_percent, tenantId, userId)
@@ -486,7 +516,7 @@ billingMaster.post('/packages', zValidator('json', createPackageSchema), async (
   if (data.items && data.items.length > 0) {
     for (const item of data.items) {
       stmts.push(
-        c.env.DB.prepare(`
+        db.$client.prepare(`
           INSERT INTO billing_package_items (package_id, service_item_id, item_name, quantity, price, tenant_id)
           VALUES (
             (SELECT id FROM billing_packages WHERE package_name = ? AND tenant_id = ? ORDER BY id DESC LIMIT 1),
@@ -497,7 +527,7 @@ billingMaster.post('/packages', zValidator('json', createPackageSchema), async (
     }
   }
 
-  const results = await c.env.DB.batch(stmts);
+  const results = await db.$client.batch(stmts);
   const pkgId = results[0].meta.last_row_id;
 
   return c.json({ id: pkgId, message: 'Package created' }, 201);
@@ -508,17 +538,19 @@ billingMaster.post('/packages', zValidator('json', createPackageSchema), async (
 // ═══════════════════════════════════════════════════════════════════
 
 billingMaster.get('/deposit-heads', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
-  const { results } = await c.env.DB.prepare(
+  const { results } = await db.$client.prepare(
     'SELECT * FROM billing_deposit_heads WHERE tenant_id = ? AND is_active = 1 ORDER BY head_name'
   ).bind(tenantId).all();
   return c.json({ data: results });
 });
 
 billingMaster.post('/deposit-heads', zValidator('json', createDepositHeadSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const data = c.req.valid('json');
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO billing_deposit_heads (head_name, head_code, description, tenant_id) VALUES (?, ?, ?, ?)
   `).bind(data.head_name, data.head_code ?? null, data.description ?? null, tenantId).run();
   return c.json({ id: result.meta.last_row_id, message: 'Deposit head created' }, 201);
@@ -529,17 +561,19 @@ billingMaster.post('/deposit-heads', zValidator('json', createDepositHeadSchema)
 // ═══════════════════════════════════════════════════════════════════
 
 billingMaster.get('/membership-types', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
-  const { results } = await c.env.DB.prepare(
+  const { results } = await db.$client.prepare(
     'SELECT * FROM billing_membership_types WHERE tenant_id = ? AND is_active = 1 ORDER BY membership_name'
   ).bind(tenantId).all();
   return c.json({ data: results });
 });
 
 billingMaster.post('/membership-types', zValidator('json', createMembershipTypeSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const data = c.req.valid('json');
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO billing_membership_types (membership_name, membership_code, community_name, discount_percent, description, tenant_id)
     VALUES (?, ?, ?, ?, ?, ?)
   `).bind(data.membership_name, data.membership_code ?? null, data.community_name ?? null, data.discount_percent, data.description ?? null, tenantId).run();
@@ -547,6 +581,7 @@ billingMaster.post('/membership-types', zValidator('json', createMembershipTypeS
 });
 
 billingMaster.put('/membership-types/:id', zValidator('json', updateMembershipTypeSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = parseId(c.req.param('id'));
   const data = c.req.valid('json');
@@ -562,16 +597,17 @@ billingMaster.put('/membership-types/:id', zValidator('json', updateMembershipTy
   updates.push('updated_at = CURRENT_TIMESTAMP');
   values.push(id, tenantId);
 
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     `UPDATE billing_membership_types SET ${updates.join(', ')} WHERE id = ? AND tenant_id = ?`
   ).bind(...values).run();
   return c.json({ message: 'Membership type updated' });
 });
 
 billingMaster.delete('/membership-types/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = parseId(c.req.param('id'));
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     'UPDATE billing_membership_types SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND tenant_id = ?'
   ).bind(id, tenantId).run();
   return c.json({ message: 'Membership type deactivated' });
@@ -579,9 +615,10 @@ billingMaster.delete('/membership-types/:id', async (c) => {
 
 // Patient membership assignment
 billingMaster.get('/patient-memberships/:patientId', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const patientId = c.req.param('patientId');
-  const { results } = await c.env.DB.prepare(`
+  const { results } = await db.$client.prepare(`
     SELECT pm.*, mt.membership_name, mt.discount_percent
     FROM patient_memberships pm
     JOIN billing_membership_types mt ON pm.membership_type_id = mt.id
@@ -591,10 +628,11 @@ billingMaster.get('/patient-memberships/:patientId', async (c) => {
 });
 
 billingMaster.post('/patient-memberships', zValidator('json', assignMembershipSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO patient_memberships (patient_id, membership_type_id, start_date, end_date, tenant_id, created_by)
     VALUES (?, ?, ?, ?, ?, ?)
   `).bind(data.patient_id, data.membership_type_id, data.start_date, data.end_date ?? null, tenantId, userId).run();

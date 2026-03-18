@@ -10,11 +10,14 @@ import {
 import { getNextSequence } from '../../lib/sequence';
 import type { Env, Variables } from '../../types';
 import { requireTenantId } from '../../lib/context-helpers';
+import { getDb } from '../../db';
+
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // GET /api/admissions?status=all|admitted|discharged|...&search=
 app.get('/', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
@@ -41,29 +44,30 @@ app.get('/', async (c) => {
   }
   sql += ' ORDER BY a.admission_date DESC LIMIT 100';
 
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await db.$client.prepare(sql).bind(...params).all();
   return c.json({ admissions: results });
 });
 
 // GET /api/admissions/stats
 app.get('/stats', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
-  const current = await c.env.DB.prepare(
+  const current = await db.$client.prepare(
     `SELECT COUNT(*) AS cnt FROM admissions WHERE tenant_id = ? AND status IN ('admitted','critical')`
   ).bind(tenantId).first<{ cnt: number }>();
 
-  const totalBeds = await c.env.DB.prepare(
+  const totalBeds = await db.$client.prepare(
     `SELECT COUNT(*) AS cnt FROM beds WHERE tenant_id = ?`
   ).bind(tenantId).first<{ cnt: number }>();
 
-  const avail = await c.env.DB.prepare(
+  const avail = await db.$client.prepare(
     `SELECT COUNT(*) AS cnt FROM beds WHERE tenant_id = ? AND status = 'available'`
   ).bind(tenantId).first<{ cnt: number }>();
 
   const today = new Date().toISOString().split('T')[0];
-  const dischToday = await c.env.DB.prepare(
+  const dischToday = await db.$client.prepare(
     `SELECT COUNT(*) AS cnt FROM admissions WHERE tenant_id = ? AND status = 'discharged' AND DATE(discharge_date) = ?`
   ).bind(tenantId, today).first<{ cnt: number }>();
 
@@ -78,11 +82,12 @@ app.get('/stats', async (c) => {
 
 // GET /api/admissions/occupancy — bed occupancy rates by ward
 app.get('/occupancy', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
   try {
-    const wards = await c.env.DB.prepare(`
+    const wards = await db.$client.prepare(`
       SELECT
         ward_name,
         COUNT(*) as total_beds,
@@ -123,6 +128,7 @@ app.get('/occupancy', async (c) => {
 
 // GET /api/admissions/beds?status=available
 app.get('/beds', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
@@ -132,12 +138,13 @@ app.get('/beds', async (c) => {
   if (status) { sql += ' AND status = ?'; params.push(status); }
   sql += ' ORDER BY ward_name, bed_number';
 
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await db.$client.prepare(sql).bind(...params).all();
   return c.json({ beds: results });
 });
 
 // POST /api/admissions/beds — add a new bed (Zod validated)
 app.post('/beds', zValidator('json', createBedSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
@@ -149,7 +156,7 @@ app.post('/beds', zValidator('json', createBedSchema), async (c) => {
 
   const data = c.req.valid('json');
 
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     `INSERT INTO beds (tenant_id, ward_name, bed_number, bed_type, floor, notes)
      VALUES (?, ?, ?, ?, ?, ?)`
   ).bind(
@@ -162,6 +169,7 @@ app.post('/beds', zValidator('json', createBedSchema), async (c) => {
 
 // PUT /api/admissions/beds/:id — update bed status (Zod validated)
 app.put('/beds/:id', zValidator('json', updateBedSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
@@ -174,7 +182,7 @@ app.put('/beds/:id', zValidator('json', updateBedSchema), async (c) => {
   const id = c.req.param('id');
   const data = c.req.valid('json');
 
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     `UPDATE beds SET status = COALESCE(?, status), notes = COALESCE(?, notes) WHERE id = ? AND tenant_id = ?`
   ).bind(data.status ?? null, data.notes ?? null, id, tenantId).run();
 
@@ -183,6 +191,7 @@ app.put('/beds/:id', zValidator('json', updateBedSchema), async (c) => {
 
 // POST /api/admissions — create admission (Zod validated + atomic batch + sequence)
 app.post('/', zValidator('json', createAdmissionSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
@@ -199,7 +208,7 @@ app.post('/', zValidator('json', createAdmissionSchema), async (c) => {
 
   // ✅ Atomic batch: admission insert + bed status update in one transaction
   const batchStmts: D1PreparedStatement[] = [
-    c.env.DB.prepare(
+    db.$client.prepare(
       `INSERT INTO admissions (tenant_id, admission_no, patient_id, bed_id, doctor_id, admission_type, provisional_diagnosis, notes)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
@@ -212,19 +221,20 @@ app.post('/', zValidator('json', createAdmissionSchema), async (c) => {
   // Mark bed as occupied atomically with admission
   if (data.bed_id) {
     batchStmts.push(
-      c.env.DB.prepare(
+      db.$client.prepare(
         `UPDATE beds SET status = 'occupied' WHERE id = ? AND tenant_id = ?`
       ).bind(data.bed_id, tenantId)
     );
   }
 
-  await c.env.DB.batch(batchStmts);
+  await db.$client.batch(batchStmts);
 
   return c.json({ admission_no: admNo }, 201);
 });
 
 // PUT /api/admissions/:id — update admission (Zod validated + atomic discharge)
 app.put('/:id', zValidator('json', updateAdmissionSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
@@ -239,28 +249,28 @@ app.put('/:id', zValidator('json', updateAdmissionSchema), async (c) => {
 
   if (status === 'discharged') {
     // Free the bed atomically with discharge
-    const adm = await c.env.DB.prepare(
+    const adm = await db.$client.prepare(
       `SELECT bed_id FROM admissions WHERE id = ? AND tenant_id = ?`
     ).bind(id, tenantId).first<{ bed_id: number | null }>();
 
     // ✅ Atomic batch: discharge + bed free in one transaction
     const batchStmts: D1PreparedStatement[] = [
-      c.env.DB.prepare(
+      db.$client.prepare(
         `UPDATE admissions SET status = 'discharged', discharge_date = datetime('now'), updated_at = datetime('now') WHERE id = ? AND tenant_id = ?`
       ).bind(id, tenantId),
     ];
 
     if (adm?.bed_id) {
       batchStmts.push(
-        c.env.DB.prepare(
+        db.$client.prepare(
           `UPDATE beds SET status = 'available' WHERE id = ? AND tenant_id = ?`
         ).bind(adm.bed_id, tenantId)
       );
     }
 
-    await c.env.DB.batch(batchStmts);
+    await db.$client.batch(batchStmts);
   } else {
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       `UPDATE admissions SET status = ?, updated_at = datetime('now') WHERE id = ? AND tenant_id = ?`
     ).bind(status, id, tenantId).run();
   }

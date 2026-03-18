@@ -4,6 +4,8 @@ import { zValidator } from '@hono/zod-validator';
 import { HTTPException } from 'hono/http-exception';
 import type { Env, Variables } from '../../types';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
+import { getDb } from '../../db';
+
 
 const allergies = new Hono<{
   Bindings: Env;
@@ -35,12 +37,13 @@ const updateAllergySchema = z.object({
 // ─── GET / — list allergies for a patient ────────────────────────────────────
 
 allergies.get('/', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const patientId = c.req.query('patient_id');
 
   if (!patientId) throw new HTTPException(400, { message: 'patient_id required' });
 
-  const { results } = await c.env.DB.prepare(`
+  const { results } = await db.$client.prepare(`
     SELECT a.*, s.name as verified_by_name
     FROM patient_allergies a
     LEFT JOIN staff s ON a.verified_by = s.id AND s.tenant_id = a.tenant_id
@@ -61,10 +64,11 @@ allergies.get('/', async (c) => {
 // ─── GET /check/:patientId — quick allergy check (for prescription safety) ──
 
 allergies.get('/check/:patientId', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const patientId = parseInt(c.req.param('patientId'));
 
-  const { results } = await c.env.DB.prepare(`
+  const { results } = await db.$client.prepare(`
     SELECT allergen, allergy_type, severity
     FROM patient_allergies
     WHERE tenant_id = ? AND patient_id = ? AND is_active = 1 AND allergy_type = 'drug'
@@ -81,26 +85,27 @@ allergies.get('/check/:patientId', async (c) => {
 // ─── POST / — add allergy ───────────────────────────────────────────────────
 
 allergies.post('/', zValidator('json', createAllergySchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
 
   // P2#9: Validate patient belongs to tenant
-  const patient = await c.env.DB.prepare(
+  const patient = await db.$client.prepare(
     'SELECT id FROM patients WHERE id = ? AND tenant_id = ?'
   ).bind(data.patient_id, tenantId).first();
   if (!patient) throw new HTTPException(404, { message: 'Patient not found' });
 
   // P2#8: Case-insensitive duplicate check + normalize allergen
   const normalizedAllergen = data.allergen.trim();
-  const existing = await c.env.DB.prepare(`
+  const existing = await db.$client.prepare(`
     SELECT id FROM patient_allergies
     WHERE tenant_id = ? AND patient_id = ? AND allergen = ? COLLATE NOCASE AND allergy_type = ? AND is_active = 1
   `).bind(tenantId, data.patient_id, normalizedAllergen, data.allergy_type).first();
 
   if (existing) throw new HTTPException(400, { message: 'This allergy is already recorded' });
 
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO patient_allergies (tenant_id, patient_id, allergy_type, allergen, severity, reaction, onset_date, notes, created_by)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
@@ -115,11 +120,12 @@ allergies.post('/', zValidator('json', createAllergySchema), async (c) => {
 // ─── PUT /:id — update allergy ───────────────────────────────────────────────
 
 allergies.put('/:id', zValidator('json', updateAllergySchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = parseInt(c.req.param('id'));
   const data = c.req.valid('json');
 
-  const existing = await c.env.DB.prepare(
+  const existing = await db.$client.prepare(
     'SELECT id, patient_id, allergen, allergy_type FROM patient_allergies WHERE id = ? AND tenant_id = ?'
   ).bind(id, tenantId).first<any>();
   if (!existing) throw new HTTPException(404, { message: 'Allergy not found' });
@@ -128,7 +134,7 @@ allergies.put('/:id', zValidator('json', updateAllergySchema), async (c) => {
   const newAllergen = data.allergen ? data.allergen.trim() : existing.allergen;
   const newType = data.allergy_type || existing.allergy_type;
   if (data.allergen !== undefined || data.allergy_type !== undefined) {
-    const duplicate = await c.env.DB.prepare(`
+    const duplicate = await db.$client.prepare(`
       SELECT id FROM patient_allergies
       WHERE tenant_id = ? AND patient_id = ? AND allergen = ? COLLATE NOCASE AND allergy_type = ? AND is_active = 1 AND id != ?
     `).bind(tenantId, existing.patient_id, newAllergen, newType, id).first();
@@ -151,7 +157,7 @@ allergies.put('/:id', zValidator('json', updateAllergySchema), async (c) => {
   sets.push("updated_at = datetime('now')");
   vals.push(id, tenantId);
 
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     `UPDATE patient_allergies SET ${sets.join(', ')} WHERE id = ? AND tenant_id = ?`
   ).bind(...vals).run();
 
@@ -161,16 +167,17 @@ allergies.put('/:id', zValidator('json', updateAllergySchema), async (c) => {
 // ─── PUT /:id/verify — verify allergy (clinician confirmation) ───────────────
 
 allergies.put('/:id/verify', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const id = parseInt(c.req.param('id'));
 
-  const existing = await c.env.DB.prepare(
+  const existing = await db.$client.prepare(
     'SELECT id FROM patient_allergies WHERE id = ? AND tenant_id = ?'
   ).bind(id, tenantId).first();
   if (!existing) throw new HTTPException(404, { message: 'Allergy not found' });
 
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     "UPDATE patient_allergies SET verified_by = ?, verified_at = datetime('now'), updated_at = datetime('now') WHERE id = ? AND tenant_id = ?"
   ).bind(userId, id, tenantId).run();
 
@@ -180,17 +187,18 @@ allergies.put('/:id/verify', async (c) => {
 // ─── DELETE /:id — soft delete ───────────────────────────────────────────────
 
 allergies.delete('/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const id = parseInt(c.req.param('id'));
 
-  const existing = await c.env.DB.prepare(
+  const existing = await db.$client.prepare(
     'SELECT id FROM patient_allergies WHERE id = ? AND tenant_id = ?'
   ).bind(id, tenantId).first();
   if (!existing) throw new HTTPException(404, { message: 'Allergy not found' });
 
   // P3#14: Record who deleted and when for audit trail
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     "UPDATE patient_allergies SET is_active = 0, updated_at = datetime('now'), notes = COALESCE(notes, '') || ' [Removed by user ' || ? || ' at ' || datetime('now') || ']' WHERE id = ? AND tenant_id = ?"
   ).bind(userId, id, tenantId).run();
 

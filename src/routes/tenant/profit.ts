@@ -3,6 +3,8 @@ import { zValidator } from '@hono/zod-validator';
 import { createAuditLog } from '../../lib/accounting-helpers';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 import { distributeProfitSchema } from '../../schemas/accounting';
+import { getDb } from '../../db';
+
 
 const profitRoutes = new Hono<{
   Bindings: {
@@ -19,6 +21,7 @@ const profitRoutes = new Hono<{
 }>();
 
 profitRoutes.get('/calculate', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const { month } = c.req.query();
 
@@ -29,19 +32,19 @@ profitRoutes.get('/calculate', async (c) => {
     : `${targetMonth.substring(0, 4)}-${(parseInt(targetMonth.substring(5)) + 1).toString().padStart(2, '0')}-01`;
 
   try {
-    const incomeResult = await c.env.DB.prepare(`
+    const incomeResult = await db.$client.prepare(`
       SELECT COALESCE(SUM(amount), 0) as total
       FROM income
       WHERE tenant_id = ? AND date >= ? AND date < ?
     `).bind(tenantId, monthStart, nextMonth).first<{ total: number }>();
 
-    const expenseResult = await c.env.DB.prepare(`
+    const expenseResult = await db.$client.prepare(`
       SELECT COALESCE(SUM(amount), 0) as total
       FROM expenses
       WHERE tenant_id = ? AND date >= ? AND date < ? AND status = 'approved'
     `).bind(tenantId, monthStart, nextMonth).first<{ total: number }>();
 
-    const settingsResult = await c.env.DB.prepare(`
+    const settingsResult = await db.$client.prepare(`
       SELECT value FROM settings WHERE key = 'profit_percentage' AND tenant_id = ?
     `).bind(tenantId).first<{ value: string }>();
 
@@ -67,6 +70,7 @@ profitRoutes.get('/calculate', async (c) => {
 });
 
 profitRoutes.post('/distribute', zValidator('json', distributeProfitSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const role = c.get('role');
@@ -83,7 +87,7 @@ profitRoutes.post('/distribute', zValidator('json', distributeProfitSchema), asy
     : `${targetMonth.substring(0, 4)}-${(parseInt(targetMonth.substring(5)) + 1).toString().padStart(2, '0')}-01`;
 
   try {
-    const existing = await c.env.DB.prepare(`
+    const existing = await db.$client.prepare(`
       SELECT id FROM profit_distributions WHERE month = ? AND tenant_id = ?
     `).bind(targetMonth, tenantId).first();
 
@@ -91,15 +95,15 @@ profitRoutes.post('/distribute', zValidator('json', distributeProfitSchema), asy
       return c.json({ error: 'Profit already distributed for this month' }, 400);
     }
 
-    const incomeResult = await c.env.DB.prepare(`
+    const incomeResult = await db.$client.prepare(`
       SELECT COALESCE(SUM(amount), 0) as total FROM income WHERE tenant_id = ? AND date >= ? AND date < ?
     `).bind(tenantId, monthStart, nextMonth).first<{ total: number }>();
 
-    const expenseResult = await c.env.DB.prepare(`
+    const expenseResult = await db.$client.prepare(`
       SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE tenant_id = ? AND date >= ? AND date < ? AND status = 'approved'
     `).bind(tenantId, monthStart, nextMonth).first<{ total: number }>();
 
-    const settingsResult = await c.env.DB.prepare(`
+    const settingsResult = await db.$client.prepare(`
       SELECT value FROM settings WHERE key = 'profit_percentage' AND tenant_id = ?
     `).bind(tenantId).first<{ value: string }>();
 
@@ -109,7 +113,7 @@ profitRoutes.post('/distribute', zValidator('json', distributeProfitSchema), asy
     const profitPercentage = parseFloat(settingsResult?.value || '30');
     const distributableProfit = totalProfit > 0 ? totalProfit * (profitPercentage / 100) : 0;
 
-    const result = await c.env.DB.prepare(`
+    const result = await db.$client.prepare(`
       INSERT INTO profit_distributions (month, total_profit, distributable_profit, profit_percentage, approved_by, approved_at, tenant_id)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `).bind(
@@ -151,10 +155,11 @@ profitRoutes.post('/distribute', zValidator('json', distributeProfitSchema), asy
 });
 
 profitRoutes.get('/history', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
 
   try {
-    const result = await c.env.DB.prepare(`
+    const result = await db.$client.prepare(`
       SELECT pd.*, u.name as approved_by_name
       FROM profit_distributions pd
       LEFT JOIN users u ON pd.approved_by = u.id

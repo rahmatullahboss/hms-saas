@@ -4,6 +4,8 @@ import { zValidator } from '@hono/zod-validator';
 import { HTTPException } from 'hono/http-exception';
 import type { Env, Variables } from '../../types';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
+import { getDb } from '../../db';
+
 
 const cancellation = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -17,9 +19,10 @@ const cancelProvisionalSchema = z.object({ reason: z.string().min(1) });
 // ─── GET / — list cancelled bills ────────────────────────────────────────────
 
 cancellation.get('/', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
 
-  const { results } = await c.env.DB.prepare(`
+  const { results } = await db.$client.prepare(`
     SELECT b.id, b.invoice_no, b.id as bill_id,
       p.name as patient_name,
       b.total as amount,
@@ -46,21 +49,22 @@ const cancelByIdSchema = z.object({
 });
 
 cancellation.post('/', zValidator('json', cancelByIdSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const { bill_id, reason, remarks } = c.req.valid('json');
 
-  const bill = await c.env.DB.prepare('SELECT id, status FROM bills WHERE id = ? AND tenant_id = ?').bind(bill_id, tenantId).first<any>();
+  const bill = await db.$client.prepare('SELECT id, status FROM bills WHERE id = ? AND tenant_id = ?').bind(bill_id, tenantId).first<any>();
   if (!bill) throw new HTTPException(404, { message: 'Bill not found' });
   if (bill.status === 'cancelled') throw new HTTPException(400, { message: 'Bill already cancelled' });
 
   const fullReason = remarks ? `${reason} — ${remarks}` : reason;
 
   const stmts = [
-    c.env.DB.prepare(`UPDATE bills SET status = 'cancelled', cancelled_by = ?, cancelled_at = datetime('now'), cancel_reason = ? WHERE id = ? AND tenant_id = ?`).bind(userId, fullReason, bill_id, tenantId),
-    c.env.DB.prepare(`UPDATE invoice_items SET status = 'cancelled', cancelled_by = ?, cancelled_at = datetime('now'), cancel_reason = ? WHERE bill_id = ? AND tenant_id = ?`).bind(userId, fullReason, bill_id, tenantId),
+    db.$client.prepare(`UPDATE bills SET status = 'cancelled', cancelled_by = ?, cancelled_at = datetime('now'), cancel_reason = ? WHERE id = ? AND tenant_id = ?`).bind(userId, fullReason, bill_id, tenantId),
+    db.$client.prepare(`UPDATE invoice_items SET status = 'cancelled', cancelled_by = ?, cancelled_at = datetime('now'), cancel_reason = ? WHERE bill_id = ? AND tenant_id = ?`).bind(userId, fullReason, bill_id, tenantId),
   ];
-  await c.env.DB.batch(stmts);
+  await db.$client.batch(stmts);
 
   return c.json({ message: 'Bill cancelled', bill_id });
 });
@@ -68,20 +72,21 @@ cancellation.post('/', zValidator('json', cancelByIdSchema), async (c) => {
 // ─── PUT /bill/:id — cancel entire bill ──────────────────────────────────────
 
 cancellation.put('/bill/:id', zValidator('json', cancelBillSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const id = parseInt(c.req.param('id'));
   const { reason } = c.req.valid('json');
 
-  const bill = await c.env.DB.prepare('SELECT id, status FROM bills WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first<any>();
+  const bill = await db.$client.prepare('SELECT id, status FROM bills WHERE id = ? AND tenant_id = ?').bind(id, tenantId).first<any>();
   if (!bill) throw new HTTPException(404, { message: 'Bill not found' });
   if (bill.status === 'cancelled') throw new HTTPException(400, { message: 'Bill already cancelled' });
 
   const stmts = [
-    c.env.DB.prepare(`UPDATE bills SET status = 'cancelled', cancelled_by = ?, cancelled_at = datetime('now'), cancel_reason = ? WHERE id = ? AND tenant_id = ?`).bind(userId, reason, id, tenantId),
-    c.env.DB.prepare(`UPDATE invoice_items SET status = 'cancelled', cancelled_by = ?, cancelled_at = datetime('now'), cancel_reason = ? WHERE bill_id = ? AND tenant_id = ?`).bind(userId, reason, id, tenantId),
+    db.$client.prepare(`UPDATE bills SET status = 'cancelled', cancelled_by = ?, cancelled_at = datetime('now'), cancel_reason = ? WHERE id = ? AND tenant_id = ?`).bind(userId, reason, id, tenantId),
+    db.$client.prepare(`UPDATE invoice_items SET status = 'cancelled', cancelled_by = ?, cancelled_at = datetime('now'), cancel_reason = ? WHERE bill_id = ? AND tenant_id = ?`).bind(userId, reason, id, tenantId),
   ];
-  await c.env.DB.batch(stmts);
+  await db.$client.batch(stmts);
 
   return c.json({ message: 'Bill cancelled', bill_id: id });
 });
@@ -89,26 +94,27 @@ cancellation.put('/bill/:id', zValidator('json', cancelBillSchema), async (c) =>
 // ─── PUT /item — cancel single item ─────────────────────────────────────────
 
 cancellation.put('/item', zValidator('json', cancelItemSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const { invoice_item_id, reason } = c.req.valid('json');
 
-  const item = await c.env.DB.prepare('SELECT * FROM invoice_items WHERE id = ? AND tenant_id = ?').bind(invoice_item_id, tenantId).first<any>();
+  const item = await db.$client.prepare('SELECT * FROM invoice_items WHERE id = ? AND tenant_id = ?').bind(invoice_item_id, tenantId).first<any>();
   if (!item) throw new HTTPException(404, { message: 'Item not found' });
   if (item.status === 'cancelled') throw new HTTPException(400, { message: 'Item already cancelled' });
 
-  await c.env.DB.prepare(`
+  await db.$client.prepare(`
     UPDATE invoice_items SET status = 'cancelled', cancelled_by = ?, cancelled_at = datetime('now'), cancel_reason = ?
     WHERE id = ? AND tenant_id = ?
   `).bind(userId, reason, invoice_item_id, tenantId).run();
 
   // Recalculate bill total
-  const { results: activeItems } = await c.env.DB.prepare(
+  const { results: activeItems } = await db.$client.prepare(
     "SELECT COALESCE(SUM(line_total), 0) as new_total FROM invoice_items WHERE bill_id = ? AND tenant_id = ? AND COALESCE(status, 'active') = 'active'"
   ).bind(item.bill_id, tenantId).all<any>();
 
   const newTotal = activeItems[0]?.new_total || 0;
-  await c.env.DB.prepare(`
+  await db.$client.prepare(`
     UPDATE bills SET total = ?, status = CASE WHEN paid >= ? THEN 'paid' WHEN paid > 0 THEN 'partially_paid' ELSE 'open' END
     WHERE id = ? AND tenant_id = ?
   `).bind(newTotal, newTotal, item.bill_id, tenantId).run();
@@ -119,12 +125,13 @@ cancellation.put('/item', zValidator('json', cancelItemSchema), async (c) => {
 // ─── PUT /items/batch — cancel multiple items ────────────────────────────────
 
 cancellation.put('/items/batch', zValidator('json', cancelBatchSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const { invoice_item_ids, reason } = c.req.valid('json');
 
   const placeholders = invoice_item_ids.map(() => '?').join(',');
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     UPDATE invoice_items SET status = 'cancelled', cancelled_by = ?, cancelled_at = datetime('now'), cancel_reason = ?
     WHERE id IN (${placeholders}) AND tenant_id = ?
   `).bind(userId, reason, ...invoice_item_ids, tenantId).run();
@@ -135,12 +142,13 @@ cancellation.put('/items/batch', zValidator('json', cancelBatchSchema), async (c
 // ─── PUT /provisional/:id — cancel provisional IPD item ──────────────────────
 
 cancellation.put('/provisional/:id', zValidator('json', cancelProvisionalSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const id = parseInt(c.req.param('id'));
   const { reason } = c.req.valid('json');
 
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     UPDATE billing_provisional_items SET bill_status = 'cancelled', cancelled_by = ?, cancelled_at = datetime('now'), cancel_reason = ?
     WHERE id = ? AND tenant_id = ? AND bill_status = 'provisional'
   `).bind(userId, reason, id, tenantId).run();

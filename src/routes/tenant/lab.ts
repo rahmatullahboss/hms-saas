@@ -12,6 +12,8 @@ import { getNextSequence } from '../../lib/sequence';
 import type { Env, Variables } from '../../types';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 import { getPagination, paginationMeta } from '../../lib/pagination';
+import { getDb } from '../../db';
+
 
 const labCatalogRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -65,6 +67,7 @@ function detectAbnormalFlag(
  * // GET /api/lab?search=blood
  */
 labCatalogRoutes.get('/', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const search = c.req.query('search') || '';
 
@@ -78,7 +81,7 @@ labCatalogRoutes.get('/', async (c) => {
     }
 
     query += ' ORDER BY category, name';
-    const tests = await c.env.DB.prepare(query).bind(...params).all();
+    const tests = await db.$client.prepare(query).bind(...params).all();
     return c.json({ tests: tests.results });
   } catch {
     throw new HTTPException(500, { message: 'Failed to fetch lab tests' });
@@ -101,11 +104,12 @@ labCatalogRoutes.get('/', async (c) => {
  * // Body: { "code": "CBC", "name": "Complete Blood Count", "price": 50 }
  */
 labCatalogRoutes.post('/', zValidator('json', createLabTestSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const data = c.req.valid('json');
 
   try {
-    const result = await c.env.DB.prepare(
+    const result = await db.$client.prepare(
       `INSERT INTO lab_test_catalog (code, name, category, price, is_active, tenant_id)
        VALUES (?, ?, ?, ?, 1, ?)`,
     ).bind(data.code, data.name, data.category ?? null, data.price, tenantId).run();
@@ -132,17 +136,18 @@ labCatalogRoutes.post('/', zValidator('json', createLabTestSchema), async (c) =>
  * // Body: { "price": 55 }
  */
 labCatalogRoutes.put('/:id', zValidator('json', updateLabTestSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = c.req.param('id');
   const data = c.req.valid('json');
 
   try {
-    const existing = await c.env.DB.prepare(
+    const existing = await db.$client.prepare(
       'SELECT * FROM lab_test_catalog WHERE id = ? AND tenant_id = ?',
     ).bind(id, tenantId).first<Record<string, unknown>>();
     if (!existing) throw new HTTPException(404, { message: 'Lab test not found' });
 
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       `UPDATE lab_test_catalog SET code = ?, name = ?, category = ?, price = ?
        WHERE id = ? AND tenant_id = ?`,
     ).bind(
@@ -173,16 +178,17 @@ labCatalogRoutes.put('/:id', zValidator('json', updateLabTestSchema), async (c) 
  * // DELETE /api/lab/123
  */
 labCatalogRoutes.delete('/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = c.req.param('id');
 
   try {
-    const existing = await c.env.DB.prepare(
+    const existing = await db.$client.prepare(
       'SELECT id FROM lab_test_catalog WHERE id = ? AND tenant_id = ?',
     ).bind(id, tenantId).first();
     if (!existing) throw new HTTPException(404, { message: 'Lab test not found' });
 
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       'UPDATE lab_test_catalog SET is_active = 0 WHERE id = ? AND tenant_id = ?',
     ).bind(id, tenantId).run();
     return c.json({ message: 'Lab test deactivated' });
@@ -212,6 +218,7 @@ labCatalogRoutes.delete('/:id', async (c) => {
  * // GET /api/lab/orders?date=2024-03-14&page=1
  */
 labCatalogRoutes.get('/orders', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const { patientId, date, status } = c.req.query();
   const { page, limit, offset } = getPagination(c);
@@ -223,12 +230,12 @@ labCatalogRoutes.get('/orders', async (c) => {
     if (patientId) { whereClause += ' AND lo.patient_id = ?'; params.push(patientId); }
     if (date)      { whereClause += ' AND lo.order_date = ?'; params.push(date); }
 
-    const countResult = await c.env.DB.prepare(
+    const countResult = await db.$client.prepare(
       `SELECT COUNT(*) as total FROM lab_orders lo ${whereClause}`
     ).bind(...params).first<{ total: number }>();
     const total = countResult?.total ?? 0;
 
-    const orders = await c.env.DB.prepare(`
+    const orders = await db.$client.prepare(`
       SELECT lo.*, p.name as patient_name, p.patient_code, p.mobile as patient_mobile,
              COUNT(loi.id) as total_items,
              SUM(CASE WHEN loi.status = 'pending' THEN 1 ELSE 0 END) as pending_items
@@ -258,11 +265,12 @@ labCatalogRoutes.get('/orders', async (c) => {
  * // GET /api/lab/orders/queue/today
  */
 labCatalogRoutes.get('/orders/queue/today', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const today = new Date().toISOString().split('T')[0];
 
   try {
-    const queue = await c.env.DB.prepare(`
+    const queue = await db.$client.prepare(`
       SELECT loi.id as item_id, loi.status, loi.result,
              lo.id as order_id, lo.order_no, lo.order_date,
              p.name as patient_name, p.patient_code, p.mobile,
@@ -295,18 +303,19 @@ labCatalogRoutes.get('/orders/queue/today', async (c) => {
  * // GET /api/lab/orders/456
  */
 labCatalogRoutes.get('/orders/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = c.req.param('id');
 
   try {
-    const order = await c.env.DB.prepare(`
+    const order = await db.$client.prepare(`
       SELECT lo.*, p.name as patient_name, p.patient_code, p.mobile
       FROM lab_orders lo JOIN patients p ON lo.patient_id = p.id
       WHERE lo.id = ? AND lo.tenant_id = ?
     `).bind(id, tenantId).first();
     if (!order) throw new HTTPException(404, { message: 'Lab order not found' });
 
-    const items = await c.env.DB.prepare(`
+    const items = await db.$client.prepare(`
       SELECT loi.*, ltc.name as test_name, ltc.code, ltc.category
       FROM lab_order_items loi
       JOIN lab_test_catalog ltc ON loi.lab_test_id = ltc.id
@@ -339,6 +348,7 @@ labCatalogRoutes.get('/orders/:id', async (c) => {
  * // Body: { "patientId": 1, "items": [{ "labTestId": 10, "discount": 0 }] }
  */
 labCatalogRoutes.post('/orders', zValidator('json', createLabOrderSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
@@ -347,7 +357,7 @@ labCatalogRoutes.post('/orders', zValidator('json', createLabOrderSchema), async
   try {
     const orderNo = await getNextSequence(c.env.DB, tenantId!, 'lab_order', 'LO');
 
-    const orderResult = await c.env.DB.prepare(`
+    const orderResult = await db.$client.prepare(`
       INSERT INTO lab_orders (order_no, patient_id, visit_id, ordered_by, order_date, tenant_id)
       VALUES (?, ?, ?, ?, ?, ?)
     `).bind(orderNo, data.patientId, data.visitId ?? null, userId, orderDate, tenantId).run();
@@ -357,7 +367,7 @@ labCatalogRoutes.post('/orders', zValidator('json', createLabOrderSchema), async
     // Ensure accurate billing by dynamically fetching the current price of each lab test
     // directly from the catalog at the time the order is placed.
     for (const item of data.items) {
-      const test = await c.env.DB.prepare(
+      const test = await db.$client.prepare(
         'SELECT id, price FROM lab_test_catalog WHERE id = ? AND tenant_id = ? AND is_active = 1',
       ).bind(item.labTestId, tenantId).first<{ id: number; price: number }>();
       if (!test) throw new HTTPException(400, { message: `Lab test ${item.labTestId} not found` });
@@ -366,7 +376,7 @@ labCatalogRoutes.post('/orders', zValidator('json', createLabOrderSchema), async
       const discount = item.discount;
       const lineTotal = Math.max(0, test.price - discount);
 
-      await c.env.DB.prepare(`
+      await db.$client.prepare(`
         INSERT INTO lab_order_items (lab_order_id, lab_test_id, unit_price, discount, line_total, status, tenant_id)
         VALUES (?, ?, ?, ?, ?, 'pending', ?)
       `).bind(orderId, item.labTestId, test.price, discount, lineTotal, tenantId).run();
@@ -395,17 +405,18 @@ labCatalogRoutes.post('/orders', zValidator('json', createLabOrderSchema), async
  * // Body: { "result": "Normal" }
  */
 labCatalogRoutes.put('/items/:itemId/result', zValidator('json', updateLabItemResultSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const itemId = c.req.param('itemId');
   const data = c.req.valid('json');
 
   try {
-    const item = await c.env.DB.prepare(
+    const item = await db.$client.prepare(
       'SELECT loi.*, lo.tenant_id FROM lab_order_items loi JOIN lab_orders lo ON loi.lab_order_id = lo.id WHERE loi.id = ? AND lo.tenant_id = ?',
     ).bind(itemId, tenantId).first();
     if (!item) throw new HTTPException(404, { message: 'Lab order item not found' });
 
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       `UPDATE lab_order_items SET result = ?, status = 'completed', completed_at = datetime('now')
        WHERE id = ? AND lab_order_id IN (SELECT id FROM lab_orders WHERE tenant_id = ?)`,
     ).bind(data.result, itemId, tenantId).run();
@@ -428,11 +439,12 @@ labCatalogRoutes.put('/items/:itemId/result', zValidator('json', updateLabItemRe
  * // POST /api/lab/orders/456/print
  */
 labCatalogRoutes.post('/orders/:id/print', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = c.req.param('id');
 
   try {
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       `UPDATE lab_orders SET print_count = print_count + 1, last_printed_at = datetime('now')
        WHERE id = ? AND tenant_id = ?`,
     ).bind(id, tenantId).run();
@@ -445,19 +457,20 @@ labCatalogRoutes.post('/orders/:id/print', async (c) => {
 // ─── PATCH /api/lab/items/:itemId/sample-status ──────────────────────────────
 
 labCatalogRoutes.patch('/items/:itemId/sample-status', zValidator('json', updateSampleStatusSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const itemId = c.req.param('itemId');
   const data = c.req.valid('json');
 
   try {
-    const item = await c.env.DB.prepare(
+    const item = await db.$client.prepare(
       `SELECT loi.*, lo.tenant_id FROM lab_order_items loi
        JOIN lab_orders lo ON loi.lab_order_id = lo.id
        WHERE loi.id = ? AND lo.tenant_id = ?`
     ).bind(itemId, tenantId).first();
     if (!item) throw new HTTPException(404, { message: 'Lab order item not found' });
 
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       `UPDATE lab_order_items SET status = ?, notes = COALESCE(?, notes), updated_at = datetime('now')
        WHERE id = ? AND lab_order_id IN (SELECT id FROM lab_orders WHERE tenant_id = ?)`
     ).bind(data.status, data.notes ?? null, itemId, tenantId).run();

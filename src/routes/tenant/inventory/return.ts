@@ -3,11 +3,14 @@ import type { Env } from '../../../types';
 import { zValidator } from "@hono/zod-validator";
 import * as schemas from "../../../schemas/inventory";
 import { generateSequenceNo } from "../../../utils/sequence";
+import { getDb } from '../../../db';
+
 
 const ret = new Hono<{ Bindings: Env; Variables: { tenantId?: string; userId?: string; role?: string } }>();
 
 // GET /return
 ret.get("/", zValidator("query", schemas.listReturnToVendorSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const { page, limit, VendorId, StoreId, FromDate, ToDate } = c.req.valid("query");
   const offset = (page - 1) * limit;
 
@@ -21,11 +24,11 @@ ret.get("/", zValidator("query", schemas.listReturnToVendorSchema), async (c) =>
   if (ToDate) { conditions.push("R.ReturnDate <= ?"); params.push(ToDate); }
 
   const whereClause = conditions.join(" AND ");
-  const count = await c.env.DB.prepare(
+  const count = await db.$client.prepare(
     `SELECT COUNT(*) as total FROM InventoryReturnToVendor R WHERE ${whereClause}`
   ).bind(...params).first<{ total: number }>();
 
-  const results = await c.env.DB.prepare(`
+  const results = await db.$client.prepare(`
     SELECT R.*, V.VendorName
     FROM InventoryReturnToVendor R
     JOIN InventoryVendor V ON R.VendorId = V.VendorId
@@ -39,6 +42,7 @@ ret.get("/", zValidator("query", schemas.listReturnToVendorSchema), async (c) =>
 
 // POST /return
 ret.post("/", zValidator("json", schemas.createReturnToVendorSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const body = c.req.valid("json");
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
@@ -47,7 +51,7 @@ ret.post("/", zValidator("json", schemas.createReturnToVendorSchema), async (c) 
   const nextRetNo = await generateSequenceNo(c.env.DB, 'RET', 'InventoryReturnToVendor', 'ReturnNo', tenantId);
 
   // Insert Header
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO InventoryReturnToVendor (tenant_id, ReturnNo, ReturnDate, VendorId, StoreId, GoodsReceiptId, Background, CreditNoteNo, Remarks, CreatedBy, CreatedOn)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
@@ -62,7 +66,7 @@ ret.post("/", zValidator("json", schemas.createReturnToVendorSchema), async (c) 
   // Process Items
   for (const item of body.Items) {
     // Find Stock by GRItemId (tenant-scoped)
-    const stock = await c.env.DB.prepare(
+    const stock = await db.$client.prepare(
       "SELECT StockId, AvailableQuantity FROM InventoryStock WHERE GRItemId = ? AND ItemId = ? AND tenant_id = ?"
     ).bind(item.GRItemId, item.ItemId, tenantId).first<{ StockId: number; AvailableQuantity: number }>();
 
@@ -70,24 +74,24 @@ ret.post("/", zValidator("json", schemas.createReturnToVendorSchema), async (c) 
       return c.json({ error: `Insufficient stock for Return (Item ${item.ItemId} from GR Item ${item.GRItemId})` }, 400);
     }
 
-    batchOps.push(c.env.DB.prepare(`
+    batchOps.push(db.$client.prepare(`
       INSERT INTO InventoryReturnToVendorItem (tenant_id, ReturnToVendorId, ItemId, GRItemId, ReturnQuantity, Remarks, CreatedBy, CreatedOn)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(tenantId, retId, item.ItemId, item.GRItemId, item.ReturnQuantity, item.Remarks || null, userId ?? null, new Date().toISOString()));
 
     // Deduct Stock (scoped)
-    batchOps.push(c.env.DB.prepare(
+    batchOps.push(db.$client.prepare(
       "UPDATE InventoryStock SET AvailableQuantity = AvailableQuantity - ? WHERE StockId = ? AND tenant_id = ?"
     ).bind(item.ReturnQuantity, stock.StockId, tenantId));
 
     // Transaction
-    batchOps.push(c.env.DB.prepare(`
+    batchOps.push(db.$client.prepare(`
       INSERT INTO InventoryStockTransaction (tenant_id, StockId, ItemId, StoreId, TransactionType, Quantity, InOut, ReferenceNo, CreatedBy, CreatedOn)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(tenantId, stock.StockId, item.ItemId, body.StoreId, 'return-to-vendor', item.ReturnQuantity, 'out', nextRetNo, userId ?? null, new Date().toISOString()));
   }
 
-  if (batchOps.length > 0) await c.env.DB.batch(batchOps);
+  if (batchOps.length > 0) await db.$client.batch(batchOps);
 
   return c.json({ message: "Return created", ReturnId: retId, ReturnNo: nextRetNo }, 201);
 });

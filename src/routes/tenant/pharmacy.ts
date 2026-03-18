@@ -6,12 +6,15 @@ import { getNextSequence } from '../../lib/sequence';
 import type { Env, Variables } from '../../types';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 import { getPagination, paginationMeta } from '../../lib/pagination';
+import { getDb } from '../../db';
+
 
 const pharmacyRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // ─── MEDICINES ────────────────────────────────────────────────────────────────
 
 pharmacyRoutes.get('/medicines', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const search = c.req.query('search') || '';
   const { page, limit, offset } = getPagination(c);
@@ -22,12 +25,12 @@ pharmacyRoutes.get('/medicines', async (c) => {
 
     if (search) { whereClause += ' AND (m.name LIKE ? OR m.generic_name LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
 
-    const countResult = await c.env.DB.prepare(
+    const countResult = await db.$client.prepare(
       `SELECT COUNT(*) as total FROM medicines m ${whereClause}`
     ).bind(...params).first<{ total: number }>();
     const total = countResult?.total ?? 0;
 
-    const medicines = await c.env.DB.prepare(`
+    const medicines = await db.$client.prepare(`
       SELECT m.*, COALESCE(SUM(b.quantity_available), 0) as stock_qty
       FROM medicines m
       LEFT JOIN medicine_stock_batches b ON m.id = b.medicine_id AND b.tenant_id = m.tenant_id
@@ -42,11 +45,12 @@ pharmacyRoutes.get('/medicines', async (c) => {
 });
 
 pharmacyRoutes.post('/medicines', zValidator('json', createMedicineSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const data = c.req.valid('json');
 
   try {
-    const result = await c.env.DB.prepare(
+    const result = await db.$client.prepare(
       `INSERT INTO medicines (name, generic_name, company, unit, price, reorder_level, quantity, is_active, tenant_id)
        VALUES (?, ?, ?, ?, ?, ?, 0, 1, ?)`,
     ).bind(data.name, data.genericName ?? null, data.company ?? null, data.unit ?? null, data.salePrice, data.reorderLevel, tenantId).run();
@@ -57,17 +61,18 @@ pharmacyRoutes.post('/medicines', zValidator('json', createMedicineSchema), asyn
 });
 
 pharmacyRoutes.put('/medicines/:id', zValidator('json', updateMedicineSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = c.req.param('id');
   const data = c.req.valid('json');
 
   try {
-    const existing = await c.env.DB.prepare(
+    const existing = await db.$client.prepare(
       'SELECT * FROM medicines WHERE id = ? AND tenant_id = ?',
     ).bind(id, tenantId).first<Record<string, unknown>>();
     if (!existing) throw new HTTPException(404, { message: 'Medicine not found' });
 
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       `UPDATE medicines SET name = ?, generic_name = ?, company = ?, unit = ?, price = ?, reorder_level = ?
        WHERE id = ? AND tenant_id = ?`,
     ).bind(
@@ -88,11 +93,12 @@ pharmacyRoutes.put('/medicines/:id', zValidator('json', updateMedicineSchema), a
 
 // GET /api/pharmacy/medicines/:id/stock — batch-wise stock for one medicine
 pharmacyRoutes.get('/medicines/:id/stock', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = c.req.param('id');
 
   try {
-    const batches = await c.env.DB.prepare(
+    const batches = await db.$client.prepare(
       `SELECT * FROM medicine_stock_batches WHERE medicine_id = ? AND tenant_id = ? ORDER BY expiry_date ASC`,
     ).bind(id, tenantId).all();
     return c.json({ batches: batches.results });
@@ -104,9 +110,10 @@ pharmacyRoutes.get('/medicines/:id/stock', async (c) => {
 // ─── SUPPLIERS ────────────────────────────────────────────────────────────────
 
 pharmacyRoutes.get('/suppliers', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   try {
-    const suppliers = await c.env.DB.prepare(
+    const suppliers = await db.$client.prepare(
       'SELECT * FROM suppliers WHERE tenant_id = ? ORDER BY name',
     ).bind(tenantId).all();
     return c.json({ suppliers: suppliers.results });
@@ -116,10 +123,11 @@ pharmacyRoutes.get('/suppliers', async (c) => {
 });
 
 pharmacyRoutes.post('/suppliers', zValidator('json', createSupplierSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const data = c.req.valid('json');
   try {
-    const result = await c.env.DB.prepare(
+    const result = await db.$client.prepare(
       `INSERT INTO suppliers (name, mobile_number, address, notes, tenant_id) VALUES (?, ?, ?, ?, ?)`,
     ).bind(data.name, data.mobileNumber ?? null, data.address ?? null, data.notes ?? null, tenantId).run();
     return c.json({ message: 'Supplier added', id: result.meta.last_row_id }, 201);
@@ -129,16 +137,17 @@ pharmacyRoutes.post('/suppliers', zValidator('json', createSupplierSchema), asyn
 });
 
 pharmacyRoutes.put('/suppliers/:id', zValidator('json', updateSupplierSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = c.req.param('id');
   const data = c.req.valid('json');
   try {
-    const existing = await c.env.DB.prepare(
+    const existing = await db.$client.prepare(
       'SELECT * FROM suppliers WHERE id = ? AND tenant_id = ?',
     ).bind(id, tenantId).first<Record<string, unknown>>();
     if (!existing) throw new HTTPException(404, { message: 'Supplier not found' });
 
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       `UPDATE suppliers SET name = ?, mobile_number = ?, address = ?, notes = ?, updated_at = datetime('now')
        WHERE id = ? AND tenant_id = ?`,
     ).bind(
@@ -158,6 +167,7 @@ pharmacyRoutes.put('/suppliers/:id', zValidator('json', updateSupplierSchema), a
 // ─── PURCHASES ───────────────────────────────────────────────────────────────
 
 pharmacyRoutes.get('/purchases', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const { supplierId, from, to } = c.req.query();
 
@@ -175,7 +185,7 @@ pharmacyRoutes.get('/purchases', async (c) => {
     if (to)         { query += ' AND mp.purchase_date <= ?'; params.push(to); }
 
     query += ' GROUP BY mp.id ORDER BY mp.purchase_date DESC';
-    const purchases = await c.env.DB.prepare(query).bind(...params).all();
+    const purchases = await db.$client.prepare(query).bind(...params).all();
     return c.json({ purchases: purchases.results });
   } catch {
     throw new HTTPException(500, { message: 'Failed to fetch purchases' });
@@ -183,6 +193,7 @@ pharmacyRoutes.get('/purchases', async (c) => {
 });
 
 pharmacyRoutes.post('/purchases', zValidator('json', createPurchaseSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
@@ -194,7 +205,7 @@ pharmacyRoutes.post('/purchases', zValidator('json', createPurchaseSchema), asyn
     const subtotal = data.items.reduce((s, i) => s + i.quantity * i.purchasePrice, 0);
     const total = subtotal - data.discount;
 
-    const purchaseResult = await c.env.DB.prepare(`
+    const purchaseResult = await db.$client.prepare(`
       INSERT INTO medicine_purchases
         (purchase_no, supplier_id, purchase_date, subtotal, discount_total, total_amount, paid_amount, due_amount, tenant_id, created_by)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -209,7 +220,7 @@ pharmacyRoutes.post('/purchases', zValidator('json', createPurchaseSchema), asyn
       const lineTotal = item.quantity * item.purchasePrice;
 
       batchStmts.push(
-        c.env.DB.prepare(`
+        db.$client.prepare(`
           INSERT INTO medicine_purchase_items
             (purchase_id, medicine_id, batch_no, expiry_date, quantity, purchase_price, sale_price, line_total, tenant_id)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -217,7 +228,7 @@ pharmacyRoutes.post('/purchases', zValidator('json', createPurchaseSchema), asyn
       );
 
       batchStmts.push(
-        c.env.DB.prepare(`
+        db.$client.prepare(`
           INSERT INTO medicine_stock_batches
             (medicine_id, batch_no, expiry_date, quantity_received, quantity_available, purchase_price, sale_price, tenant_id)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -225,13 +236,13 @@ pharmacyRoutes.post('/purchases', zValidator('json', createPurchaseSchema), asyn
       );
 
       batchStmts.push(
-        c.env.DB.prepare(
+        db.$client.prepare(
           `UPDATE medicines SET price = ?, quantity = quantity + ? WHERE id = ? AND tenant_id = ?`,
         ).bind(item.salePrice, item.quantity, item.medicineId, tenantId),
       );
 
       batchStmts.push(
-        c.env.DB.prepare(`
+        db.$client.prepare(`
           INSERT INTO medicine_stock_movements
             (medicine_id, movement_type, quantity, unit_cost, unit_price, reference_type, reference_id, movement_date, tenant_id, created_by)
           VALUES (?, 'purchase_in', ?, ?, ?, 'purchase', ?, ?, ?, ?)
@@ -239,7 +250,7 @@ pharmacyRoutes.post('/purchases', zValidator('json', createPurchaseSchema), asyn
       );
     }
 
-    await c.env.DB.batch(batchStmts);
+    await db.$client.batch(batchStmts);
 
     return c.json({ message: 'Purchase recorded', purchaseId, purchaseNo }, 201);
   } catch (error) {
@@ -251,6 +262,7 @@ pharmacyRoutes.post('/purchases', zValidator('json', createPurchaseSchema), asyn
 // ─── SALES ────────────────────────────────────────────────────────────────────
 
 pharmacyRoutes.post('/sales', zValidator('json', createSaleSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
@@ -263,7 +275,7 @@ pharmacyRoutes.post('/sales', zValidator('json', createSaleSchema), async (c) =>
 
     for (const item of data.items) {
       // FEFO: get batches ordered by earliest expiry first
-      const batches = await c.env.DB.prepare(
+      const batches = await db.$client.prepare(
         `SELECT * FROM medicine_stock_batches
          WHERE medicine_id = ? AND tenant_id = ? AND quantity_available > 0
          ORDER BY expiry_date ASC, id ASC`,
@@ -283,13 +295,13 @@ pharmacyRoutes.post('/sales', zValidator('json', createSaleSchema), async (c) =>
         remaining -= deduct;
 
         batchStmts.push(
-          c.env.DB.prepare(
+          db.$client.prepare(
             `UPDATE medicine_stock_batches SET quantity_available = quantity_available - ? WHERE id = ? AND tenant_id = ?`,
           ).bind(deduct, batch.id, tenantId)
         );
 
         batchStmts.push(
-          c.env.DB.prepare(`
+          db.$client.prepare(`
             INSERT INTO medicine_stock_movements
               (medicine_id, batch_id, movement_type, quantity, unit_cost, unit_price, reference_type, movement_date, tenant_id, created_by)
             VALUES (?, ?, 'sale_out', ?, ?, ?, 'sale', ?, ?, ?)
@@ -299,14 +311,14 @@ pharmacyRoutes.post('/sales', zValidator('json', createSaleSchema), async (c) =>
 
       // Update aggregate quantity on medicine
       batchStmts.push(
-        c.env.DB.prepare(
+        db.$client.prepare(
           `UPDATE medicines SET quantity = quantity - ? WHERE id = ? AND tenant_id = ?`,
         ).bind(item.quantity, item.medicineId, tenantId)
       );
     }
 
     if (batchStmts.length > 0) {
-      await c.env.DB.batch(batchStmts);
+      await db.$client.batch(batchStmts);
     }
 
     return c.json({ message: 'Sale recorded' }, 201);
@@ -318,6 +330,7 @@ pharmacyRoutes.post('/sales', zValidator('json', createSaleSchema), async (c) =>
 
 // POST /api/pharmacy/billing — create a pharmacy bill (Zod validated + sequence)
 pharmacyRoutes.post('/billing', zValidator('json', createPharmacyBillSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
@@ -330,7 +343,7 @@ pharmacyRoutes.post('/billing', zValidator('json', createPharmacyBillSchema), as
     const billNo = await getNextSequence(c.env.DB, tenantId!, 'pharmacy_bill', 'PB');
 
     // Create bill
-    const billResult = await c.env.DB.prepare(`
+    const billResult = await db.$client.prepare(`
       INSERT INTO bills (bill_no, patient_id, total, discount, paid, due, status, bill_type, tenant_id, created_by)
       VALUES (?, ?, ?, ?, ?, ?, ?, 'pharmacy', ?, ?)
     `).bind(
@@ -347,7 +360,7 @@ pharmacyRoutes.post('/billing', zValidator('json', createPharmacyBillSchema), as
 
     // Record income
     const today = new Date().toISOString().split('T')[0];
-    await c.env.DB.prepare(`
+    await db.$client.prepare(`
       INSERT INTO income (date, source, amount, description, tenant_id, created_by)
       VALUES (?, 'pharmacy', ?, ?, ?, ?)
     `).bind(today, totalAmount, `Pharmacy bill ${billNo}`, tenantId, userId).run();
@@ -367,9 +380,10 @@ pharmacyRoutes.post('/billing', zValidator('json', createPharmacyBillSchema), as
 // ─── ALERTS ───────────────────────────────────────────────────────────────────
 
 pharmacyRoutes.get('/alerts/low-stock', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   try {
-    const medicines = await c.env.DB.prepare(`
+    const medicines = await db.$client.prepare(`
       SELECT m.id, m.name, m.reorder_level, COALESCE(SUM(b.quantity_available), 0) as stock_qty
       FROM medicines m
       LEFT JOIN medicine_stock_batches b ON m.id = b.medicine_id AND b.tenant_id = m.tenant_id
@@ -385,10 +399,11 @@ pharmacyRoutes.get('/alerts/low-stock', async (c) => {
 });
 
 pharmacyRoutes.get('/alerts/expiring', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const days = Number(c.req.query('days') || 30);
   try {
-    const batches = await c.env.DB.prepare(`
+    const batches = await db.$client.prepare(`
       SELECT b.*, m.name as medicine_name
       FROM medicine_stock_batches b
       JOIN medicines m ON b.medicine_id = m.id
@@ -406,18 +421,19 @@ pharmacyRoutes.get('/alerts/expiring', async (c) => {
 // ─── SUMMARY ─────────────────────────────────────────────────────────────────
 
 pharmacyRoutes.get('/summary', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   try {
-    const totalInvestment = await c.env.DB.prepare(`
+    const totalInvestment = await db.$client.prepare(`
       SELECT SUM(total_amount) as total FROM medicine_purchases WHERE tenant_id = ?
     `).bind(tenantId).first<{ total: number }>();
 
-    const totalIncome = await c.env.DB.prepare(`
+    const totalIncome = await db.$client.prepare(`
       SELECT SUM(unit_price * quantity) as total FROM medicine_stock_movements
       WHERE tenant_id = ? AND movement_type = 'sale_out'
     `).bind(tenantId).first<{ total: number }>();
 
-    const totalCost = await c.env.DB.prepare(`
+    const totalCost = await db.$client.prepare(`
       SELECT SUM(unit_cost * quantity) as total FROM medicine_stock_movements
       WHERE tenant_id = ? AND movement_type = 'sale_out'
     `).bind(tenantId).first<{ total: number }>();

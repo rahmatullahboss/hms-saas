@@ -6,11 +6,14 @@ import { initiatePaymentSchema } from '../../schemas/payment';
 import { verifyPaymentSchema } from '../../schemas/accounting';
 import type { Env, Variables } from '../../types';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
+import { getDb } from '../../db';
+
 
 const paymentRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // ─── GET / — list all payments (with filters) ─────────────────────────────────
 paymentRoutes.get('/', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const { search, status, payment_method, date_from, date_to } = c.req.query();
 
@@ -41,7 +44,7 @@ paymentRoutes.get('/', async (c) => {
   sql += ' ORDER BY p.created_at DESC LIMIT 200';
 
   try {
-    const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+    const { results } = await db.$client.prepare(sql).bind(...params).all();
     return c.json({ data: results });
   } catch {
     return c.json({ data: [] });
@@ -50,27 +53,28 @@ paymentRoutes.get('/', async (c) => {
 
 // ─── GET /stats — payment KPI stats ────────────────────────────────────────────
 paymentRoutes.get('/stats', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const today = new Date().toISOString().split('T')[0];
 
   try {
-    const batchResults = await c.env.DB.batch([
-      c.env.DB.prepare(
+    const batchResults = await db.$client.batch([
+      db.$client.prepare(
         "SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE tenant_id = ? AND date(created_at) = ?"
       ).bind(tenantId, today),
-      c.env.DB.prepare(
+      db.$client.prepare(
         "SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE tenant_id = ? AND date(created_at) = ? AND (type = 'received' OR type = 'current')"
       ).bind(tenantId, today),
-      c.env.DB.prepare(
+      db.$client.prepare(
         "SELECT COUNT(*) as count FROM payment_gateway_logs WHERE tenant_id = ? AND status = 'pending'"
       ).bind(tenantId),
-      c.env.DB.prepare(
+      db.$client.prepare(
         "SELECT COUNT(*) as count FROM payment_gateway_logs WHERE tenant_id = ? AND status = 'failed'"
       ).bind(tenantId),
-      c.env.DB.prepare(
+      db.$client.prepare(
         "SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE tenant_id = ? AND date(created_at) = ? AND payment_method = 'cash'"
       ).bind(tenantId, today),
-      c.env.DB.prepare(
+      db.$client.prepare(
         "SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE tenant_id = ? AND date(created_at) = ? AND payment_method = 'card'"
       ).bind(tenantId, today),
     ]);
@@ -90,12 +94,13 @@ paymentRoutes.get('/stats', async (c) => {
 
 // ─── GET /:id — single payment detail ──────────────────────────────────────────
 paymentRoutes.get('/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = parseInt(c.req.param('id'));
   if (isNaN(id)) return c.json({ error: 'Invalid payment ID' }, 400);
 
   try {
-    const result = await c.env.DB.prepare(`
+    const result = await db.$client.prepare(`
       SELECT p.id, p.receipt_no as payment_ref, pt.name as patient_name, pt.patient_code,
         p.amount, COALESCE(p.payment_method, 'cash') as payment_method,
         COALESCE(p.payment_type, p.type, 'received') as payment_type,
@@ -122,6 +127,7 @@ const PAYMENT_STAFF_ROLES = ['hospital_admin', 'reception', 'accountant'];
 // ─── POST /api/payments/initiate ─────────────────────────────────────────────
 // Initiates bKash or Nagad payment, returns redirect URL for the patient.
 paymentRoutes.post('/initiate', zValidator('json', initiatePaymentSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId   = requireUserId(c);
   const role     = c.get('role');
@@ -131,7 +137,7 @@ paymentRoutes.post('/initiate', zValidator('json', initiatePaymentSchema), async
   const data     = c.req.valid('json');
 
   // Verify bill belongs to this tenant and isn't already paid
-  const bill = await c.env.DB.prepare(
+  const bill = await db.$client.prepare(
     'SELECT id, total, paid, status FROM bills WHERE id = ? AND tenant_id = ?',
   ).bind(data.billId, tenantId).first<{ id: number; total: number; paid: number; status: string }>();
   if (!bill) throw new HTTPException(404, { message: 'Bill not found' });
@@ -152,7 +158,7 @@ paymentRoutes.post('/initiate', zValidator('json', initiatePaymentSchema), async
     });
 
     // Log the initiation in gateway_logs
-    await c.env.DB.prepare(`
+    await db.$client.prepare(`
       INSERT INTO payment_gateway_logs
         (tenant_id, bill_id, gateway, payment_id, amount, status, initiated_by)
       VALUES (?, ?, ?, ?, ?, 'pending', ?)
@@ -177,13 +183,14 @@ paymentRoutes.post('/initiate', zValidator('json', initiatePaymentSchema), async
 const VALID_GATEWAYS = ['bkash', 'nagad'];
 
 paymentRoutes.post('/verify', zValidator('json', verifyPaymentSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId   = requireUserId(c);
 
   const { paymentId, gateway } = c.req.valid('json');
 
   // Find the log entry
-  const log = await c.env.DB.prepare(
+  const log = await db.$client.prepare(
     'SELECT * FROM payment_gateway_logs WHERE gateway = ? AND payment_id = ? AND tenant_id = ?',
   ).bind(gateway, paymentId, tenantId).first<{
     id: number; bill_id: number; amount: number; status: string; tenant_id: string;
@@ -195,7 +202,7 @@ paymentRoutes.post('/verify', zValidator('json', verifyPaymentSchema), async (c)
   }
 
   // Atomic idempotency: UPDATE ... WHERE status = 'pending' — only ONE request can flip it
-  const lockResult = await c.env.DB.prepare(
+  const lockResult = await db.$client.prepare(
     `UPDATE payment_gateway_logs SET status = 'verifying', updated_at = datetime('now') WHERE id = ? AND status = 'pending'`,
   ).bind(log.id).run();
   if (!lockResult.meta.changes || lockResult.meta.changes === 0) {
@@ -208,21 +215,21 @@ paymentRoutes.post('/verify', zValidator('json', verifyPaymentSchema), async (c)
   try {
     verifyResult = await gw.verify(paymentId);
   } catch (error) {
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       `UPDATE payment_gateway_logs SET status = 'failed', raw_response = ?, updated_at = datetime('now') WHERE id = ?`,
     ).bind(JSON.stringify({ error: String(error) }), log.id).run();
     throw new HTTPException(502, { message: 'Payment verification failed' });
   }
 
   if (!verifyResult.success) {
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       `UPDATE payment_gateway_logs SET status = 'failed', raw_response = ?, updated_at = datetime('now') WHERE id = ?`,
     ).bind(JSON.stringify(verifyResult), log.id).run();
     return c.json({ success: false, message: verifyResult.message ?? 'Payment not completed' }, 200);
   }
 
   // Payment confirmed — record the payment on the bill (atomic batch)
-  const bill = await c.env.DB.prepare(
+  const bill = await db.$client.prepare(
     'SELECT total, paid FROM bills WHERE id = ? AND tenant_id = ?',
   ).bind(log.bill_id, log.tenant_id).first<{ total: number; paid: number }>();
 
@@ -231,15 +238,15 @@ paymentRoutes.post('/verify', zValidator('json', verifyPaymentSchema), async (c)
     const status  = newPaid >= bill.total ? 'paid' : 'partially_paid';
     const receiptNo = `${gateway.toUpperCase()}-${verifyResult.transactionId ?? paymentId}`;
 
-    await c.env.DB.batch([
-      c.env.DB.prepare(`
+    await db.$client.batch([
+      db.$client.prepare(`
         INSERT INTO payments (bill_id, amount, type, receipt_no, payment_method, received_by, tenant_id, created_at)
         VALUES (?, ?, 'received', ?, ?, ?, ?, datetime('now'))
       `).bind(log.bill_id, log.amount, receiptNo, gateway, userId, log.tenant_id),
-      c.env.DB.prepare(
+      db.$client.prepare(
         `UPDATE bills SET paid = ?, status = ? WHERE id = ? AND tenant_id = ?`,
       ).bind(newPaid, status, log.bill_id, log.tenant_id),
-      c.env.DB.prepare(
+      db.$client.prepare(
         `UPDATE payment_gateway_logs SET status = 'success', raw_response = ?, updated_at = datetime('now') WHERE id = ?`,
       ).bind(JSON.stringify(verifyResult), log.id),
     ]);
@@ -255,6 +262,7 @@ paymentRoutes.post('/verify', zValidator('json', verifyPaymentSchema), async (c)
 
 // ─── GET /api/payments/logs — list gateway payment logs (admin only) ───────
 paymentRoutes.get('/logs', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const role     = c.get('role');
   if (role !== 'hospital_admin') throw new HTTPException(403, { message: 'Admin only' });
@@ -277,7 +285,7 @@ paymentRoutes.get('/logs', async (c) => {
   query += ' ORDER BY l.created_at DESC LIMIT 100';
 
   try {
-    const logs = await c.env.DB.prepare(query).bind(...params).all();
+    const logs = await db.$client.prepare(query).bind(...params).all();
     return c.json({ logs: logs.results });
   } catch {
     throw new HTTPException(500, { message: 'Failed to fetch payment logs' });

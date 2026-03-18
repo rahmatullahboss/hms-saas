@@ -2,6 +2,8 @@ import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { Env, Variables } from '../../../types';
 import { requireTenantId } from '../../../lib/context-helpers';
+import { getDb } from '../../../db';
+
 
 type NursingEnv = { Bindings: Env; Variables: Variables };
 
@@ -9,8 +11,9 @@ const wardsRoutes = new Hono<NursingEnv>();
 
 // GET /wards — list all wards with bed count
 wardsRoutes.get('/', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
-  const { results } = await c.env.DB.prepare(`
+  const { results } = await db.$client.prepare(`
     SELECT w.*,
       (SELECT COUNT(*) FROM beds b WHERE b.ward_id = w.id AND b.tenant_id = w.tenant_id) AS total_beds,
       (SELECT COUNT(*) FROM beds b WHERE b.ward_id = w.id AND b.tenant_id = w.tenant_id AND b.status = 'occupied') AS occupied_beds
@@ -23,16 +26,17 @@ wardsRoutes.get('/', async (c) => {
 
 // GET /wards/:id — ward details with beds and patients
 wardsRoutes.get('/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = parseInt(c.req.param('id'));
   if (isNaN(id)) throw new HTTPException(400, { message: 'Invalid ward ID' });
 
-  const ward = await c.env.DB.prepare(
+  const ward = await db.$client.prepare(
     'SELECT * FROM wards WHERE id = ? AND tenant_id = ? AND is_active = 1'
   ).bind(id, tenantId).first();
   if (!ward) throw new HTTPException(404, { message: 'Ward not found' });
 
-  const { results: beds } = await c.env.DB.prepare(`
+  const { results: beds } = await db.$client.prepare(`
     SELECT b.*,
       p.name AS patient_name,
       p.patient_code,

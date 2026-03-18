@@ -16,6 +16,7 @@ import {
   safetyCheckRequestSchema,
   safetyCheckOverrideSchema,
 } from '../../schemas/ePrescribing';
+import { getDb } from '../../db';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -76,10 +77,11 @@ async function ensureSeedData(db: D1Database, tenantId: string): Promise<void> {
 
 // GET /api/e-prescribing/formulary/categories
 app.get('/formulary/categories', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   await ensureSeedData(c.env.DB, tenantId);
 
-  const { results } = await c.env.DB.prepare(`
+  const { results } = await db.$client.prepare(`
     SELECT fc.*, (SELECT COUNT(*) FROM formulary_items fi WHERE fi.category_id = fc.id AND fi.tenant_id = fc.tenant_id) as item_count
     FROM formulary_categories fc
     WHERE fc.tenant_id = ? AND fc.is_active = 1
@@ -91,10 +93,11 @@ app.get('/formulary/categories', async (c) => {
 
 // POST /api/e-prescribing/formulary/categories
 app.post('/formulary/categories', zValidator('json', createFormularyCategorySchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const data = c.req.valid('json');
 
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO formulary_categories (tenant_id, name, description, parent_id, sort_order)
     VALUES (?, ?, ?, ?, ?)
   `).bind(tenantId, data.name, data.description ?? null, data.parent_id ?? null, data.sort_order).run();
@@ -104,12 +107,13 @@ app.post('/formulary/categories', zValidator('json', createFormularyCategorySche
 
 // PUT /api/e-prescribing/formulary/categories/:id
 app.put('/formulary/categories/:id', zValidator('json', updateFormularyCategorySchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   requireClinicalRole(c);
   const id = parseId(c.req.param('id'), 'Category ID');
   const data = c.req.valid('json');
 
-  const existing = await c.env.DB.prepare(
+  const existing = await db.$client.prepare(
     'SELECT id FROM formulary_categories WHERE id = ? AND tenant_id = ? AND is_active = 1'
   ).bind(id, tenantId).first();
   if (!existing) throw new HTTPException(404, { message: 'Category not found' });
@@ -122,7 +126,7 @@ app.put('/formulary/categories/:id', zValidator('json', updateFormularyCategoryS
   if (data.sort_order !== undefined) { sets.push('sort_order = ?'); vals.push(data.sort_order); }
 
   vals.push(id, tenantId);
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     `UPDATE formulary_categories SET ${sets.join(', ')} WHERE id = ? AND tenant_id = ?`
   ).bind(...vals).run();
 
@@ -135,6 +139,7 @@ app.put('/formulary/categories/:id', zValidator('json', updateFormularyCategoryS
 
 // GET /api/e-prescribing/formulary
 app.get('/formulary', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const search = c.req.query('search') || '';
   const categoryId = c.req.query('category_id');
@@ -152,12 +157,12 @@ app.get('/formulary', async (c) => {
     params.push(Number(categoryId));
   }
 
-  const countResult = await c.env.DB.prepare(
+  const countResult = await db.$client.prepare(
     `SELECT COUNT(*) as total FROM formulary_items fi ${whereClause}`
   ).bind(...params).first<{ total: number }>();
   const total = countResult?.total ?? 0;
 
-  const { results } = await c.env.DB.prepare(`
+  const { results } = await db.$client.prepare(`
     SELECT fi.*, fc.name as category_name
     FROM formulary_items fi
     LEFT JOIN formulary_categories fc ON fi.category_id = fc.id AND fc.tenant_id = fi.tenant_id
@@ -171,10 +176,11 @@ app.get('/formulary', async (c) => {
 
 // GET /api/e-prescribing/formulary/:id
 app.get('/formulary/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = parseId(c.req.param('id'), 'Formulary ID');
 
-  const item = await c.env.DB.prepare(`
+  const item = await db.$client.prepare(`
     SELECT fi.*, fc.name as category_name
     FROM formulary_items fi
     LEFT JOIN formulary_categories fc ON fi.category_id = fc.id AND fc.tenant_id = fi.tenant_id
@@ -187,12 +193,13 @@ app.get('/formulary/:id', async (c) => {
 
 // POST /api/e-prescribing/formulary
 app.post('/formulary', zValidator('json', createFormularyItemSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   requireClinicalRole(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
 
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO formulary_items (
       tenant_id, name, generic_name, category_id, strength, dosage_form, route,
       manufacturer, common_dosages, default_frequency, default_duration, max_daily_dose_mg,
@@ -214,12 +221,13 @@ app.post('/formulary', zValidator('json', createFormularyItemSchema), async (c) 
 
 // PUT /api/e-prescribing/formulary/:id
 app.put('/formulary/:id', zValidator('json', updateFormularyItemSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   requireClinicalRole(c);
   const id = parseId(c.req.param('id'), 'Formulary ID');
   const data = c.req.valid('json');
 
-  const existing = await c.env.DB.prepare(
+  const existing = await db.$client.prepare(
     'SELECT id FROM formulary_items WHERE id = ? AND tenant_id = ?'
   ).bind(id, tenantId).first();
   if (!existing) throw new HTTPException(404, { message: 'Formulary item not found' });
@@ -245,7 +253,7 @@ app.put('/formulary/:id', zValidator('json', updateFormularyItemSchema), async (
   if (data.medicine_id !== undefined) { sets.push('medicine_id = ?'); vals.push(data.medicine_id); }
 
   vals.push(id, tenantId);
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     `UPDATE formulary_items SET ${sets.join(', ')} WHERE id = ? AND tenant_id = ?`
   ).bind(...vals).run();
 
@@ -258,6 +266,7 @@ app.put('/formulary/:id', zValidator('json', updateFormularyItemSchema), async (
 
 // GET /api/e-prescribing/interactions
 app.get('/interactions', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   await ensureSeedData(c.env.DB, tenantId);
 
@@ -277,12 +286,12 @@ app.get('/interactions', async (c) => {
     params.push(severity);
   }
 
-  const countResult = await c.env.DB.prepare(
+  const countResult = await db.$client.prepare(
     `SELECT COUNT(*) as total FROM drug_interaction_pairs ${whereClause}`
   ).bind(...params).first<{ total: number }>();
   const total = countResult?.total ?? 0;
 
-  const { results } = await c.env.DB.prepare(`
+  const { results } = await db.$client.prepare(`
     SELECT * FROM drug_interaction_pairs ${whereClause}
     ORDER BY CASE severity 
       WHEN 'contraindicated' THEN 1 WHEN 'major' THEN 2 
@@ -296,6 +305,7 @@ app.get('/interactions', async (c) => {
 
 // POST /api/e-prescribing/interactions
 app.post('/interactions', zValidator('json', createDrugInteractionSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   requireClinicalRole(c);
   const userId = requireUserId(c);
@@ -306,7 +316,7 @@ app.post('/interactions', zValidator('json', createDrugInteractionSchema), async
   const drugB = data.drug_b_name.toLowerCase().trim();
 
   // Check for duplicate (either direction)
-  const duplicate = await c.env.DB.prepare(`
+  const duplicate = await db.$client.prepare(`
     SELECT id FROM drug_interaction_pairs
     WHERE tenant_id = ? AND is_active = 1
       AND ((drug_a_name = ? AND drug_b_name = ?) OR (drug_a_name = ? AND drug_b_name = ?))
@@ -314,7 +324,7 @@ app.post('/interactions', zValidator('json', createDrugInteractionSchema), async
 
   if (duplicate) throw new HTTPException(400, { message: 'This interaction pair already exists' });
 
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO drug_interaction_pairs (tenant_id, drug_a_name, drug_b_name, severity, description, recommendation, evidence_level, created_by)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(tenantId, drugA, drugB, data.severity, data.description, data.recommendation ?? null, data.evidence_level ?? null, userId).run();
@@ -324,16 +334,17 @@ app.post('/interactions', zValidator('json', createDrugInteractionSchema), async
 
 // DELETE /api/e-prescribing/interactions/:id
 app.delete('/interactions/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   requireClinicalRole(c);
   const id = parseId(c.req.param('id'), 'Interaction ID');
 
-  const existing = await c.env.DB.prepare(
+  const existing = await db.$client.prepare(
     'SELECT id FROM drug_interaction_pairs WHERE id = ? AND tenant_id = ?'
   ).bind(id, tenantId).first();
   if (!existing) throw new HTTPException(404, { message: 'Interaction pair not found' });
 
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     'UPDATE drug_interaction_pairs SET is_active = 0 WHERE id = ? AND tenant_id = ?'
   ).bind(id, tenantId).run();
 
@@ -346,11 +357,12 @@ app.delete('/interactions/:id', async (c) => {
 
 // GET /api/e-prescribing/patient/:patientId/medications
 app.get('/patient/:patientId/medications', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const patientId = parseId(c.req.param('patientId'), 'Patient ID');
   const status = c.req.query('status') || 'active';
 
-  const { results } = await c.env.DB.prepare(`
+  const { results } = await db.$client.prepare(`
     SELECT pam.*, fi.name as formulary_name, fi.category_id,
            fc.name as category_name,
            s.name as prescribed_by_name
@@ -371,13 +383,14 @@ app.get('/patient/:patientId/medications', async (c) => {
 
 // POST /api/e-prescribing/patient/:patientId/medications
 app.post('/patient/:patientId/medications', zValidator('json', addPatientMedicationSchema.omit({ patient_id: true })), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const patientId = parseId(c.req.param('patientId'), 'Patient ID');
   const data = c.req.valid('json');
 
   // Validate patient exists
-  const patient = await c.env.DB.prepare(
+  const patient = await db.$client.prepare(
     'SELECT id FROM patients WHERE id = ? AND tenant_id = ?'
   ).bind(patientId, tenantId).first();
   if (!patient) throw new HTTPException(404, { message: 'Patient not found' });
@@ -385,13 +398,13 @@ app.post('/patient/:patientId/medications', zValidator('json', addPatientMedicat
   // If formulary_item_id provided, fetch generic_name from formulary
   let genericName = data.generic_name ?? null;
   if (data.formulary_item_id && !genericName) {
-    const fi = await c.env.DB.prepare(
+    const fi = await db.$client.prepare(
       'SELECT generic_name FROM formulary_items WHERE id = ? AND tenant_id = ?'
     ).bind(data.formulary_item_id, tenantId).first<{ generic_name: string }>();
     if (fi) genericName = fi.generic_name;
   }
 
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO patient_active_medications (
       tenant_id, patient_id, formulary_item_id, medication_name, generic_name,
       strength, dosage_form, dosage, frequency, duration, instructions,
@@ -411,12 +424,13 @@ app.post('/patient/:patientId/medications', zValidator('json', addPatientMedicat
 
 // PUT /api/e-prescribing/patient/:patientId/medications/:id
 app.put('/patient/:patientId/medications/:id', zValidator('json', updatePatientMedicationSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const patientId = parseId(c.req.param('patientId'), 'Patient ID');
   const id = parseId(c.req.param('id'), 'Medication ID');
   const data = c.req.valid('json');
 
-  const existing = await c.env.DB.prepare(
+  const existing = await db.$client.prepare(
     'SELECT id FROM patient_active_medications WHERE id = ? AND patient_id = ? AND tenant_id = ?'
   ).bind(id, patientId, tenantId).first();
   if (!existing) throw new HTTPException(404, { message: 'Medication record not found' });
@@ -434,7 +448,7 @@ app.put('/patient/:patientId/medications/:id', zValidator('json', updatePatientM
   if (sets.length === 1) throw new HTTPException(400, { message: 'No fields to update' });
 
   vals.push(id, patientId, tenantId);
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     `UPDATE patient_active_medications SET ${sets.join(', ')} WHERE id = ? AND patient_id = ? AND tenant_id = ?`
   ).bind(...vals).run();
 
@@ -455,6 +469,7 @@ interface SafetyWarning {
 
 // POST /api/e-prescribing/check-safety
 app.post('/check-safety', zValidator('json', safetyCheckRequestSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
@@ -467,7 +482,7 @@ app.post('/check-safety', zValidator('json', safetyCheckRequestSchema), async (c
 
   // ─── CHECK 1: Drug-Drug Interactions ─────────────────────────────────────
   // Get patient's currently active medications
-  const { results: activeMeds } = await c.env.DB.prepare(`
+  const { results: activeMeds } = await db.$client.prepare(`
     SELECT medication_name, generic_name FROM patient_active_medications
     WHERE tenant_id = ? AND patient_id = ? AND status = 'active' AND is_active = 1
   `).bind(tenantId, data.patient_id).all<{ medication_name: string; generic_name: string | null }>();
@@ -477,7 +492,7 @@ app.post('/check-safety', zValidator('json', safetyCheckRequestSchema), async (c
 
     // Check both directions: (new drug, existing drug) and (existing drug, new drug)
     // H3 fix: exact match only (both directions) — no fuzzy LIKE to avoid false positives
-    const interaction = await c.env.DB.prepare(`
+    const interaction = await db.$client.prepare(`
       SELECT * FROM drug_interaction_pairs
       WHERE tenant_id = ? AND is_active = 1
         AND (
@@ -508,7 +523,7 @@ app.post('/check-safety', zValidator('json', safetyCheckRequestSchema), async (c
   }
 
   // ─── CHECK 2: Allergy-Drug Contraindications ────────────────────────────
-  const { results: drugAllergies } = await c.env.DB.prepare(`
+  const { results: drugAllergies } = await db.$client.prepare(`
     SELECT allergen, severity, reaction FROM patient_allergies
     WHERE tenant_id = ? AND patient_id = ? AND allergy_type = 'drug' AND is_active = 1
   `).bind(tenantId, data.patient_id).all<{ allergen: string; severity: string; reaction: string | null }>();
@@ -556,7 +571,7 @@ app.post('/check-safety', zValidator('json', safetyCheckRequestSchema), async (c
 
   // ─── CHECK 4: Max Daily Dose (real comparison when dose provided) ─────
   // Exact match on formulary item name/generic_name — no fuzzy LIKE
-  const formularyItem = await c.env.DB.prepare(`
+  const formularyItem = await db.$client.prepare(`
     SELECT max_daily_dose_mg, generic_name, name FROM formulary_items
     WHERE tenant_id = ? AND is_active = 1
       AND (LOWER(name) = ? OR LOWER(generic_name) = ?)
@@ -592,7 +607,7 @@ app.post('/check-safety', zValidator('json', safetyCheckRequestSchema), async (c
   }
 
   // ─── Log safety check ───────────────────────────────────────────────────
-  const safetyCheckResult = await c.env.DB.prepare(`
+  const safetyCheckResult = await db.$client.prepare(`
     INSERT INTO prescription_safety_checks (
       tenant_id, prescription_id, patient_id, medication_name, generic_name,
       check_type, has_warnings, warning_count, warnings_json, checked_by
@@ -622,10 +637,11 @@ app.post('/check-safety', zValidator('json', safetyCheckRequestSchema), async (c
 
 // GET /api/e-prescribing/safety-checks/:prescriptionId
 app.get('/safety-checks/:prescriptionId', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const prescriptionId = parseId(c.req.param('prescriptionId'), 'Prescription ID');
 
-  const { results } = await c.env.DB.prepare(`
+  const { results } = await db.$client.prepare(`
     SELECT psc.*, s.name as checked_by_name
     FROM prescription_safety_checks psc
     LEFT JOIN staff s ON psc.checked_by = s.id AND s.tenant_id = psc.tenant_id
@@ -638,10 +654,11 @@ app.get('/safety-checks/:prescriptionId', async (c) => {
 
 // GET /api/e-prescribing/patient/:patientId/safety-checks
 app.get('/patient/:patientId/safety-checks', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const patientId = parseId(c.req.param('patientId'), 'Patient ID');
 
-  const { results } = await c.env.DB.prepare(`
+  const { results } = await db.$client.prepare(`
     SELECT psc.*, s.name as checked_by_name
     FROM prescription_safety_checks psc
     LEFT JOIN staff s ON psc.checked_by = s.id AND s.tenant_id = psc.tenant_id
@@ -655,6 +672,7 @@ app.get('/patient/:patientId/safety-checks', async (c) => {
 
 // PUT /api/e-prescribing/safety-checks/:id/override
 app.put('/safety-checks/:id/override', zValidator('json', safetyCheckOverrideSchema.omit({ safety_check_id: true })), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = parseId(c.req.param('id'), 'Safety Check ID');
   const data = c.req.valid('json');
@@ -665,12 +683,12 @@ app.put('/safety-checks/:id/override', zValidator('json', safetyCheckOverrideSch
     throw new HTTPException(403, { message: 'Only doctors and administrators can override safety checks' });
   }
 
-  const existing = await c.env.DB.prepare(
+  const existing = await db.$client.prepare(
     'SELECT id FROM prescription_safety_checks WHERE id = ? AND tenant_id = ?'
   ).bind(id, tenantId).first();
   if (!existing) throw new HTTPException(404, { message: 'Safety check not found' });
 
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     'UPDATE prescription_safety_checks SET action_taken = ?, override_reason = ? WHERE id = ? AND tenant_id = ?'
   ).bind(data.action_taken, data.override_reason, id, tenantId).run();
 
@@ -683,13 +701,14 @@ app.put('/safety-checks/:id/override', zValidator('json', safetyCheckOverrideSch
 
 // GET /api/e-prescribing/stats
 app.get('/stats', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
 
   const [formularyCount, interactionCount, safetyCheckCount, warningCount] = await Promise.all([
-    c.env.DB.prepare('SELECT COUNT(*) as count FROM formulary_items WHERE tenant_id = ? AND is_active = 1').bind(tenantId).first<{ count: number }>(),
-    c.env.DB.prepare('SELECT COUNT(*) as count FROM drug_interaction_pairs WHERE tenant_id = ? AND is_active = 1').bind(tenantId).first<{ count: number }>(),
-    c.env.DB.prepare('SELECT COUNT(*) as count FROM prescription_safety_checks WHERE tenant_id = ?').bind(tenantId).first<{ count: number }>(),
-    c.env.DB.prepare('SELECT COUNT(*) as count FROM prescription_safety_checks WHERE tenant_id = ? AND has_warnings = 1').bind(tenantId).first<{ count: number }>(),
+    db.$client.prepare('SELECT COUNT(*) as count FROM formulary_items WHERE tenant_id = ? AND is_active = 1').bind(tenantId).first<{ count: number }>(),
+    db.$client.prepare('SELECT COUNT(*) as count FROM drug_interaction_pairs WHERE tenant_id = ? AND is_active = 1').bind(tenantId).first<{ count: number }>(),
+    db.$client.prepare('SELECT COUNT(*) as count FROM prescription_safety_checks WHERE tenant_id = ?').bind(tenantId).first<{ count: number }>(),
+    db.$client.prepare('SELECT COUNT(*) as count FROM prescription_safety_checks WHERE tenant_id = ? AND has_warnings = 1').bind(tenantId).first<{ count: number }>(),
   ]);
 
   return c.json({

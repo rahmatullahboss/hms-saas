@@ -5,6 +5,8 @@ import type { Env, Variables } from '../../types';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 import { getNextSequence } from '../../lib/sequence';
 import { z } from 'zod';
+import { getDb } from '../../db';
+
 
 /**
  * Provisional billing routes — operates on the existing `billing_provisional_items` table
@@ -68,6 +70,7 @@ function parseId(raw: string): number {
 // ─── GET / — list provisional items ──────────────────────────────────────────
 
 billingProvisional.get('/', zValidator('query', listProvisionalSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const { patient_id, visit_id, bill_status, page, per_page } = c.req.valid('query');
   const offset = (page - 1) * per_page;
@@ -87,17 +90,18 @@ billingProvisional.get('/', zValidator('query', listProvisionalSchema), async (c
   sql += ` ORDER BY pi.created_at DESC LIMIT ? OFFSET ?`;
   params.push(per_page, offset);
 
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await db.$client.prepare(sql).bind(...params).all();
   return c.json({ data: results, page, per_page });
 });
 
 // ─── GET /patient/:patientId/summary — provisional summary ──────────────────
 
 billingProvisional.get('/patient/:patientId/summary', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const patientId = parseId(c.req.param('patientId'));
 
-  const summary = await c.env.DB.prepare(`
+  const summary = await db.$client.prepare(`
     SELECT
       COUNT(*) as total_items,
       COALESCE(SUM(CASE WHEN bill_status = 'provisional' THEN total_amount ELSE 0 END), 0) as pending_amount,
@@ -113,12 +117,13 @@ billingProvisional.get('/patient/:patientId/summary', async (c) => {
 // ─── POST / — create provisional items (batch) ──────────────────────────────
 
 billingProvisional.post('/', zValidator('json', createProvisionalItemsSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
 
   // Validate patient
-  const patient = await c.env.DB.prepare(
+  const patient = await db.$client.prepare(
     'SELECT id FROM patients WHERE id = ? AND tenant_id = ?'
   ).bind(data.patient_id, tenantId).first();
   if (!patient) throw new HTTPException(404, { message: 'Patient not found' });
@@ -128,7 +133,7 @@ billingProvisional.post('/', zValidator('json', createProvisionalItemsSchema), a
     const discountAmount = Math.round((subtotal * item.discount_percent / 100) * 100) / 100;
     const totalAmount = Math.max(0, Math.round((subtotal - discountAmount) * 100) / 100);
 
-    return c.env.DB.prepare(`
+    return db.$client.prepare(`
       INSERT INTO billing_provisional_items
         (tenant_id, patient_id, admission_id, visit_id, item_category, item_name,
          department, unit_price, quantity, discount_percent, discount_amount, total_amount,
@@ -144,19 +149,20 @@ billingProvisional.post('/', zValidator('json', createProvisionalItemsSchema), a
     );
   });
 
-  await c.env.DB.batch(stmts);
+  await db.$client.batch(stmts);
   return c.json({ message: `${data.items.length} provisional item(s) created`, count: data.items.length }, 201);
 });
 
 // ─── PATCH /:id/cancel — cancel a provisional item ──────────────────────────
 
 billingProvisional.patch('/:id/cancel', zValidator('json', cancelProvisionalSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const id = parseId(c.req.param('id'));
   const data = c.req.valid('json');
 
-  const item = await c.env.DB.prepare(
+  const item = await db.$client.prepare(
     'SELECT id, bill_status FROM billing_provisional_items WHERE id = ? AND tenant_id = ?'
   ).bind(id, tenantId).first<{ id: number; bill_status: string }>();
 
@@ -165,7 +171,7 @@ billingProvisional.patch('/:id/cancel', zValidator('json', cancelProvisionalSche
     throw new HTTPException(400, { message: `Cannot cancel item with status '${item.bill_status}'` });
   }
 
-  await c.env.DB.prepare(`
+  await db.$client.prepare(`
     UPDATE billing_provisional_items
     SET bill_status = 'cancelled', cancelled_by = ?, cancelled_at = CURRENT_TIMESTAMP,
         cancel_reason = ?
@@ -178,13 +184,14 @@ billingProvisional.patch('/:id/cancel', zValidator('json', cancelProvisionalSche
 // ─── POST /pay — convert provisional items to invoice (ATOMIC) ──────────────
 
 billingProvisional.post('/pay', zValidator('json', payProvisionalSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
 
   // Fetch all provisional items
   const placeholders = data.provisional_item_ids.map(() => '?').join(',');
-  const { results: items } = await c.env.DB.prepare(
+  const { results: items } = await db.$client.prepare(
     `SELECT * FROM billing_provisional_items WHERE id IN (${placeholders}) AND tenant_id = ? AND bill_status = 'provisional'`
   ).bind(...data.provisional_item_ids, tenantId).all<any>();
 
@@ -211,7 +218,7 @@ billingProvisional.post('/pay', zValidator('json', payProvisionalSchema), async 
 
   // 1. Create the bill
   batchStmts.push(
-    c.env.DB.prepare(`
+    db.$client.prepare(`
       INSERT INTO bills (patient_id, visit_id, invoice_no, discount, total, paid, due, status, payment_method, remarks, tenant_id, created_at)
       VALUES (?, ?, ?, ?, ?, 0, ?, 'open', ?, ?, ?, datetime('now'))
     `).bind(
@@ -228,7 +235,7 @@ billingProvisional.post('/pay', zValidator('json', payProvisionalSchema), async 
   for (const item of items) {
     // 2. Invoice items — use sub-select to get bill ID
     batchStmts.push(
-      c.env.DB.prepare(`
+      db.$client.prepare(`
         INSERT INTO invoice_items (bill_id, item_category, description, quantity, unit_price, line_total, tenant_id)
         VALUES (
           (SELECT id FROM bills WHERE invoice_no = ? AND tenant_id = ? LIMIT 1),
@@ -243,7 +250,7 @@ billingProvisional.post('/pay', zValidator('json', payProvisionalSchema), async 
 
     // 3. Mark provisional as finalized
     batchStmts.push(
-      c.env.DB.prepare(`
+      db.$client.prepare(`
         UPDATE billing_provisional_items
         SET bill_status = 'finalized',
             billed_bill_id = (SELECT id FROM bills WHERE invoice_no = ? AND tenant_id = ? LIMIT 1)
@@ -254,17 +261,17 @@ billingProvisional.post('/pay', zValidator('json', payProvisionalSchema), async 
 
   // 4. Income record
   batchStmts.push(
-    c.env.DB.prepare(`
+    db.$client.prepare(`
       INSERT INTO income (date, source, amount, description, bill_id, tenant_id)
       VALUES (?, 'billing', ?, ?,
         (SELECT id FROM bills WHERE invoice_no = ? AND tenant_id = ? LIMIT 1), ?)
     `).bind(today, totalAmount, `Invoice ${invoiceNo} (from provisional)`, invoiceNo, tenantId, tenantId)
   );
 
-  await c.env.DB.batch(batchStmts);
+  await db.$client.batch(batchStmts);
 
   // Fetch the created bill ID for the response
-  const bill = await c.env.DB.prepare(
+  const bill = await db.$client.prepare(
     'SELECT id FROM bills WHERE invoice_no = ? AND tenant_id = ?'
   ).bind(invoiceNo, tenantId).first<{ id: number }>();
 

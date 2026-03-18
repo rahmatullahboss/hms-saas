@@ -46,6 +46,8 @@ import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import type { Env, Variables } from '../../types';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
+import { getDb } from '../../db';
+
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -71,6 +73,7 @@ const paginationQuery = z.object({
 
 // GET /patients/provisional — insurance patients with provisional items
 app.get('/patients/provisional', zValidator('query', paginationQuery), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   requireRole(c.get('role'));
   const { page, limit, scheme_id, from_date, to_date } = c.req.valid('query');
@@ -97,17 +100,18 @@ app.get('/patients/provisional', zValidator('query', paginationQuery), async (c)
   sql += ' ORDER BY p.patient_code LIMIT ? OFFSET ?';
   params.push(limit, offset);
 
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await db.$client.prepare(sql).bind(...params).all();
   return c.json({ data: results, pagination: { page, limit } });
 });
 
 // GET /patients/:id/provisional — provisional items for one patient
 app.get('/patients/:id/provisional', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   requireRole(c.get('role'));
   const patientId = Number(c.req.param('id'));
 
-  const { results } = await c.env.DB.prepare(`
+  const { results } = await db.$client.prepare(`
     SELECT pi.*, is2.scheme_name
     FROM billing_provisional_items pi
     LEFT JOIN insurance_schemes is2 ON pi.tenant_id = is2.tenant_id
@@ -121,28 +125,29 @@ app.get('/patients/:id/provisional', async (c) => {
 
 // GET /patients/:id/summary — insurance billing KPIs
 app.get('/patients/:id/summary', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   requireRole(c.get('role'));
   const patientId = Number(c.req.param('id'));
 
-  const patient = await c.env.DB.prepare(
+  const patient = await db.$client.prepare(
     'SELECT id, patient_code, name FROM patients WHERE id = ? AND tenant_id = ?'
   ).bind(patientId, tenantId).first();
 
   if (!patient) throw new HTTPException(404, { message: 'Patient not found' });
 
-  const provisional = await c.env.DB.prepare(`
+  const provisional = await db.$client.prepare(`
     SELECT COALESCE(SUM(total_amount), 0) AS total, COUNT(*) AS count
     FROM billing_provisional_items
     WHERE patient_id = ? AND tenant_id = ? AND is_insurance = 1 AND bill_status = 'provisional'
   `).bind(patientId, tenantId).first<{ total: number; count: number }>();
 
-  const billed = await c.env.DB.prepare(`
+  const billed = await db.$client.prepare(`
     SELECT COALESCE(SUM(bill_amount), 0) AS total, COUNT(*) AS count
     FROM insurance_claims WHERE patient_id = ? AND tenant_id = ?
   `).bind(patientId, tenantId).first<{ total: number; count: number }>();
 
-  const claimed = await c.env.DB.prepare(`
+  const claimed = await db.$client.prepare(`
     SELECT COALESCE(SUM(claimed_amount), 0) AS total, COUNT(*) AS count
     FROM insurance_claims WHERE patient_id = ? AND tenant_id = ? AND status IN ('approved', 'settled')
   `).bind(patientId, tenantId).first<{ total: number; count: number }>();
@@ -163,6 +168,7 @@ app.get('/patients/:id/summary', async (c) => {
 
 // GET /claims/pending — claims not yet submitted/approved
 app.get('/claims/pending', zValidator('query', paginationQuery), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   requireRole(c.get('role'));
   const { page, limit, from_date, to_date } = c.req.valid('query');
@@ -183,12 +189,13 @@ app.get('/claims/pending', zValidator('query', paginationQuery), async (c) => {
   sql += ' ORDER BY ic.submitted_at DESC LIMIT ? OFFSET ?';
   params.push(limit, offset);
 
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await db.$client.prepare(sql).bind(...params).all();
   return c.json({ data: results, pagination: { page, limit } });
 });
 
 // GET /claims/submitted — claims that have been reviewed (approved/settled)
 app.get('/claims/submitted', zValidator('query', paginationQuery), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   requireRole(c.get('role'));
   const { page, limit, from_date, to_date } = c.req.valid('query');
@@ -209,7 +216,7 @@ app.get('/claims/submitted', zValidator('query', paginationQuery), async (c) => 
   sql += ' ORDER BY ic.reviewed_at DESC LIMIT ? OFFSET ?';
   params.push(limit, offset);
 
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await db.$client.prepare(sql).bind(...params).all();
   return c.json({ data: results, pagination: { page, limit } });
 });
 
@@ -218,6 +225,7 @@ app.get('/claims/submitted', zValidator('query', paginationQuery), async (c) => 
 // ═══════════════════════════════════════════════════════════════════════════════
 
 app.get('/insurance-patients', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   requireRole(c.get('role'));
   const { scheme_id, status, from_date, to_date } = c.req.query();
@@ -239,7 +247,7 @@ app.get('/insurance-patients', async (c) => {
 
   sql += ' ORDER BY pi.created_at DESC';
 
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await db.$client.prepare(sql).bind(...params).all();
   return c.json({ data: results });
 });
 
@@ -256,11 +264,12 @@ const createInsPatientSchema = z.object({
 });
 
 app.post('/insurance-patients', zValidator('json', createInsPatientSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   requireRole(c.get('role'));
   const data = c.req.valid('json');
 
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO patient_insurance (tenant_id, patient_id, scheme_id, policy_no, member_id, valid_from, valid_to, status)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(tenantId, data.patient_id, data.scheme_id, data.policy_no ?? null,
@@ -270,6 +279,7 @@ app.post('/insurance-patients', zValidator('json', createInsPatientSchema), asyn
 });
 
 app.put('/insurance-patients/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   requireRole(c.get('role'));
   const id = Number(c.req.param('id'));
@@ -287,7 +297,7 @@ app.put('/insurance-patients/:id', async (c) => {
   if (fields.length === 0) throw new HTTPException(400, { message: 'No fields to update' });
 
   values.push(id, tenantId);
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     `UPDATE patient_insurance SET ${fields.join(', ')} WHERE id = ? AND tenant_id = ?`
   ).bind(...values).run();
 
@@ -299,6 +309,7 @@ app.put('/insurance-patients/:id', async (c) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 app.get('/claim-records', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   requireRole(c.get('role'));
   const { status, from_date, to_date } = c.req.query();
@@ -317,16 +328,17 @@ app.get('/claim-records', async (c) => {
   if (to_date) { sql += ' AND DATE(ic.submitted_at) <= DATE(?)'; params.push(to_date); }
 
   sql += ' ORDER BY ic.submitted_at DESC LIMIT 200';
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await db.$client.prepare(sql).bind(...params).all();
   return c.json({ data: results });
 });
 
 app.get('/claim-records/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   requireRole(c.get('role'));
   const id = Number(c.req.param('id'));
 
-  const claim = await c.env.DB.prepare(`
+  const claim = await db.$client.prepare(`
     SELECT ic.*, p.name AS patient_name, p.patient_code, ip.provider_name
     FROM insurance_claims ic
     LEFT JOIN patients p ON ic.patient_id = p.id AND p.tenant_id = ic.tenant_id
@@ -336,7 +348,7 @@ app.get('/claim-records/:id', async (c) => {
 
   if (!claim) throw new HTTPException(404, { message: 'Claim not found' });
 
-  const { results: items } = await c.env.DB.prepare(
+  const { results: items } = await db.$client.prepare(
     'SELECT * FROM insurance_claim_items WHERE claim_id = ? AND tenant_id = ? AND is_active = 1'
   ).bind(id, tenantId).all();
 
@@ -363,6 +375,7 @@ const createClaimWithItemsSchema = z.object({
 });
 
 app.post('/claim-records', zValidator('json', createClaimWithItemsSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   requireRole(c.get('role'));
@@ -374,13 +387,13 @@ app.post('/claim-records', zValidator('json', createClaimWithItemsSchema), async
   const MAX_RETRIES = 3;
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    const row = await c.env.DB.prepare(
+    const row = await db.$client.prepare(
       `SELECT MAX(CAST(REPLACE(claim_no, 'CLM-', '') AS INTEGER)) AS max_num FROM insurance_claims WHERE tenant_id = ?`
     ).bind(tenantId).first<{ max_num: number | null }>();
     claimNo = `CLM-${String((row?.max_num ?? 0) + 1 + attempt).padStart(6, '0')}`;
 
     try {
-      result = await c.env.DB.prepare(`
+      result = await db.$client.prepare(`
         INSERT INTO insurance_claims
           (tenant_id, claim_no, patient_id, policy_id, bill_id, diagnosis, icd10_code,
            bill_amount, claimed_amount, status, created_by)
@@ -404,7 +417,7 @@ app.post('/claim-records', zValidator('json', createClaimWithItemsSchema), async
   // Insert line items
   if (data.items?.length) {
     const stmts = data.items.map((item) =>
-      c.env.DB.prepare(`
+      db.$client.prepare(`
         INSERT INTO insurance_claim_items
           (tenant_id, claim_id, service_code, description, quantity, unit_price, total_price, covered_amount, patient_payable)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -414,7 +427,7 @@ app.post('/claim-records', zValidator('json', createClaimWithItemsSchema), async
         item.covered_amount ?? 0, item.patient_payable ?? 0
       )
     );
-    await c.env.DB.batch(stmts);
+    await db.$client.batch(stmts);
   }
 
   return c.json({ data: { id: claimId, claim_no: claimNo } }, 201);
@@ -428,13 +441,14 @@ const updateClaimStatusSchema = z.object({
 });
 
 app.put('/claim-records/:id/status', zValidator('json', updateClaimStatusSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   requireRole(c.get('role'));
   const id = Number(c.req.param('id'));
   const data = c.req.valid('json');
   const now = new Date().toISOString();
 
-  await c.env.DB.prepare(`
+  await db.$client.prepare(`
     UPDATE insurance_claims SET
       status = ?, approved_amount = ?, rejection_reason = ?, reviewer_notes = ?,
       reviewed_at = ?, settled_at = ?, updated_at = ?
@@ -457,6 +471,7 @@ app.put('/claim-records/:id/status', zValidator('json', updateClaimStatusSchema)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 app.get('/ssf/patients', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   requireRole(c.get('role'));
   const { from_date, to_date, status } = c.req.query();
@@ -474,7 +489,7 @@ app.get('/ssf/patients', async (c) => {
   if (to_date) { sql += ' AND DATE(sp.created_at) <= DATE(?)'; params.push(to_date); }
 
   sql += ' ORDER BY sp.created_at DESC';
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await db.$client.prepare(sql).bind(...params).all();
   return c.json({ data: results });
 });
 
@@ -488,11 +503,12 @@ const createSsfPatientSchema = z.object({
 });
 
 app.post('/ssf/patients', zValidator('json', createSsfPatientSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   requireRole(c.get('role'));
   const data = c.req.valid('json');
 
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO ssf_patient_info
       (tenant_id, patient_id, ssf_policy_no, ssf_scheme_code, member_no, claim_code, claim_status)
     VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -503,12 +519,13 @@ app.post('/ssf/patients', zValidator('json', createSsfPatientSchema), async (c) 
 });
 
 app.put('/ssf/patients/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   requireRole(c.get('role'));
   const id = Number(c.req.param('id'));
   const body = await c.req.json<Record<string, unknown>>();
 
-  await c.env.DB.prepare(`
+  await db.$client.prepare(`
     UPDATE ssf_patient_info SET
       claim_status = ?, ssf_claim_id = ?, remarks = ?, updated_at = datetime('now')
     WHERE id = ? AND tenant_id = ?
@@ -524,6 +541,7 @@ app.put('/ssf/patients/:id', async (c) => {
 
 // SSF Invoices
 app.get('/ssf/invoices', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   requireRole(c.get('role'));
   const { from_date, to_date } = c.req.query();
@@ -539,7 +557,7 @@ app.get('/ssf/invoices', async (c) => {
   if (to_date) { sql += ' AND DATE(si.invoice_date) <= DATE(?)'; params.push(to_date); }
   sql += ' ORDER BY si.invoice_date DESC';
 
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await db.$client.prepare(sql).bind(...params).all();
   return c.json({ data: results });
 });
 
@@ -554,11 +572,12 @@ const createSsfInvoiceSchema = z.object({
 });
 
 app.post('/ssf/invoices', zValidator('json', createSsfInvoiceSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   requireRole(c.get('role'));
   const data = c.req.valid('json');
 
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO ssf_invoices
       (tenant_id, patient_id, ssf_patient_id, invoice_date, total_amount, claimed_amount, invoice_status, remarks)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -571,20 +590,22 @@ app.post('/ssf/invoices', zValidator('json', createSsfInvoiceSchema), async (c) 
 
 // SSF Settings
 app.get('/ssf/settings', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   requireRole(c.get('role'));
-  const row = await c.env.DB.prepare(
+  const row = await db.$client.prepare(
     'SELECT * FROM ssf_settings WHERE tenant_id = ? AND is_active = 1 ORDER BY id DESC LIMIT 1'
   ).bind(tenantId).first();
   return c.json({ data: row ?? {} });
 });
 
 app.post('/ssf/settings', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   requireRole(c.get('role'));
   const body = await c.req.json<Record<string, unknown>>();
 
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO ssf_settings (tenant_id, ssf_api_url, ssf_api_code, hosp_code, username, password)
     VALUES (?, ?, ?, ?, ?, ?)
   `).bind(tenantId, (body.ssf_api_url ?? null) as string | null,
@@ -595,12 +616,13 @@ app.post('/ssf/settings', async (c) => {
 });
 
 app.put('/ssf/settings/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   requireRole(c.get('role'));
   const id = Number(c.req.param('id'));
   const body = await c.req.json<Record<string, unknown>>();
 
-  await c.env.DB.prepare(`
+  await db.$client.prepare(`
     UPDATE ssf_settings SET ssf_api_url = ?, ssf_api_code = ?, hosp_code = ?, username = ?, password = ?
     WHERE id = ? AND tenant_id = ?
   `).bind(
@@ -620,20 +642,22 @@ app.put('/ssf/settings/:id', async (c) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 app.get('/settings', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   requireRole(c.get('role'));
-  const row = await c.env.DB.prepare(
+  const row = await db.$client.prepare(
     'SELECT * FROM insurance_settings WHERE tenant_id = ? AND is_active = 1 ORDER BY id DESC LIMIT 1'
   ).bind(tenantId).first();
   return c.json({ data: row ?? {} });
 });
 
 app.post('/settings', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   requireRole(c.get('role'));
   const body = await c.req.json<Record<string, unknown>>();
 
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO insurance_settings (tenant_id, api_url, api_code)
     VALUES (?, ?, ?)
   `).bind(tenantId, (body.api_url ?? null) as string | null, (body.api_code ?? null) as string | null).run();
@@ -647,6 +671,7 @@ app.post('/settings', async (c) => {
 
 // Claim Summary Report — grouped by provider and status
 app.get('/reports/claim-summary', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   requireRole(c.get('role'));
   const { from_date, to_date } = c.req.query();
@@ -666,12 +691,13 @@ app.get('/reports/claim-summary', async (c) => {
   if (to_date) { sql += ' AND DATE(ic.submitted_at) <= DATE(?)'; params.push(to_date); }
 
   sql += ' GROUP BY ip.provider_name, ic.status ORDER BY ip.provider_name';
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await db.$client.prepare(sql).bind(...params).all();
   return c.json({ data: results });
 });
 
 // Patient Credit Report — insurance credit balance per patient
 app.get('/reports/patient-credit', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   requireRole(c.get('role'));
   const { from_date, to_date } = c.req.query();
@@ -694,7 +720,7 @@ app.get('/reports/patient-credit', async (c) => {
   if (to_date) { sql += ' AND DATE(ic.submitted_at) <= DATE(?)'; params.push(to_date); }
 
   sql += ' GROUP BY ic.patient_id, p.name, p.patient_code, ip.provider_name';
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await db.$client.prepare(sql).bind(...params).all();
   return c.json({ data: results });
 });
 
@@ -703,6 +729,7 @@ app.get('/reports/patient-credit', async (c) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 app.get('/companies', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   requireRole(c.get('role'));
   const { active } = c.req.query();
@@ -713,7 +740,7 @@ app.get('/companies', async (c) => {
   if (active !== 'false') { sql += ' AND is_active = 1'; }
   sql += ' ORDER BY company_name';
 
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await db.$client.prepare(sql).bind(...params).all();
   return c.json({ data: results });
 });
 
@@ -728,11 +755,12 @@ const createCompanySchema = z.object({
 });
 
 app.post('/companies', zValidator('json', createCompanySchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   requireRole(c.get('role'));
   const data = c.req.valid('json');
 
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO insurance_companies (tenant_id, company_name, insurance_type, address, city, phone, email, payer_id)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(tenantId, data.company_name, data.insurance_type ?? null, data.address ?? null,
@@ -742,6 +770,7 @@ app.post('/companies', zValidator('json', createCompanySchema), async (c) => {
 });
 
 app.put('/companies/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   requireRole(c.get('role'));
   const id = Number(c.req.param('id'));
@@ -762,7 +791,7 @@ app.put('/companies/:id', async (c) => {
   if (fields.length === 0) throw new HTTPException(400, { message: 'No fields to update' });
 
   values.push(id, tenantId);
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     `UPDATE insurance_companies SET ${fields.join(', ')} WHERE id = ? AND tenant_id = ?`
   ).bind(...values).run();
 
@@ -780,6 +809,7 @@ const eligibilityCheckSchema = z.object({
 });
 
 app.post('/eligibility', zValidator('json', eligibilityCheckSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   requireRole(c.get('role'));
   const { patient_id, policy_id, service_type } = c.req.valid('json');
@@ -787,11 +817,11 @@ app.post('/eligibility', zValidator('json', eligibilityCheckSchema), async (c) =
   // Find patient's insurance policy
   let policy: Record<string, unknown> | null = null;
   if (policy_id) {
-    policy = await c.env.DB.prepare(
+    policy = await db.$client.prepare(
       `SELECT * FROM insurance_policies WHERE id = ? AND tenant_id = ? AND patient_id = ?`
     ).bind(policy_id, tenantId, patient_id).first();
   } else {
-    policy = await c.env.DB.prepare(
+    policy = await db.$client.prepare(
       `SELECT * FROM insurance_policies WHERE patient_id = ? AND tenant_id = ? AND status = 'active' ORDER BY created_at DESC LIMIT 1`
     ).bind(patient_id, tenantId).first();
   }
@@ -829,7 +859,7 @@ app.post('/eligibility', zValidator('json', eligibilityCheckSchema), async (c) =
   };
 
   // Log the check
-  await c.env.DB.prepare(`
+  await db.$client.prepare(`
     INSERT INTO eligibility_logs (tenant_id, patient_id, policy_id, service_type, eligible, status, response_json)
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `).bind(tenantId, patient_id, policy.id as number, service_type ?? '30',
@@ -844,6 +874,7 @@ const batchEligibilitySchema = z.object({
 });
 
 app.post('/eligibility/batch', zValidator('json', batchEligibilitySchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   requireRole(c.get('role'));
   const { patient_ids, service_type } = c.req.valid('json');
@@ -851,7 +882,7 @@ app.post('/eligibility/batch', zValidator('json', batchEligibilitySchema), async
   const results: Record<string, unknown>[] = [];
 
   for (const patientId of patient_ids) {
-    const policy = await c.env.DB.prepare(
+    const policy = await db.$client.prepare(
       `SELECT * FROM insurance_policies WHERE patient_id = ? AND tenant_id = ? AND status = 'active' ORDER BY created_at DESC LIMIT 1`
     ).bind(patientId, tenantId).first();
 

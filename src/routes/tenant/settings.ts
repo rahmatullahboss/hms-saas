@@ -3,6 +3,8 @@ import { HTTPException } from 'hono/http-exception';
 import { zValidator } from '@hono/zod-validator';
 import { requireTenantId } from '../../lib/context-helpers';
 import { updateSettingSchema, bulkUpdateSettingsSchema } from '../../schemas/clinical';
+import { getDb } from '../../db';
+
 
 const settingsRoutes = new Hono<{
   Bindings: { DB: D1Database; UPLOADS: R2Bucket };
@@ -11,10 +13,11 @@ const settingsRoutes = new Hono<{
 
 // ─── Get all settings ────────────────────────────────────────────────────────
 settingsRoutes.get('/', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
 
   try {
-    const settings = await c.env.DB.prepare(
+    const settings = await db.$client.prepare(
       'SELECT * FROM settings WHERE tenant_id = ?'
     ).bind(tenantId).all();
 
@@ -57,6 +60,7 @@ settingsRoutes.get('/', async (c) => {
 // Accepts multipart/form-data with a "logo" file field.
 // The image should be compressed client-side before uploading.
 settingsRoutes.post('/logo', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Unauthorized' });
 
@@ -90,7 +94,7 @@ settingsRoutes.post('/logo', async (c) => {
     });
 
     // Save R2 key in D1
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       'INSERT OR REPLACE INTO settings (key, value, tenant_id, updated_at) VALUES (?, ?, ?, datetime("now"))'
     ).bind('hospital_logo', r2Key, tenantId).run();
 
@@ -103,12 +107,13 @@ settingsRoutes.post('/logo', async (c) => {
 
 // ─── Serve hospital logo ─────────────────────────────────────────────────────
 settingsRoutes.get('/logo', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Unauthorized' });
 
   try {
     // Get R2 key from D1
-    const row = await c.env.DB.prepare(
+    const row = await db.$client.prepare(
       'SELECT value FROM settings WHERE key = ? AND tenant_id = ?'
     ).bind('hospital_logo', tenantId).first<{ value: string }>();
 
@@ -134,12 +139,13 @@ settingsRoutes.get('/logo', async (c) => {
 
 // ─── Delete hospital logo ────────────────────────────────────────────────────
 settingsRoutes.delete('/logo', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Unauthorized' });
 
   try {
     // Get R2 key
-    const row = await c.env.DB.prepare(
+    const row = await db.$client.prepare(
       'SELECT value FROM settings WHERE key = ? AND tenant_id = ?'
     ).bind('hospital_logo', tenantId).first<{ value: string }>();
 
@@ -147,7 +153,7 @@ settingsRoutes.delete('/logo', async (c) => {
       // Delete from R2
       await c.env.UPLOADS.delete(row.value);
       // Delete from D1
-      await c.env.DB.prepare(
+      await db.$client.prepare(
         'DELETE FROM settings WHERE key = ? AND tenant_id = ?'
       ).bind('hospital_logo', tenantId).run();
     }
@@ -161,6 +167,7 @@ settingsRoutes.delete('/logo', async (c) => {
 
 // ─── Update setting ──────────────────────────────────────────────────────────
 settingsRoutes.put('/:key', zValidator('json', updateSettingSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const callerRole = c.get('role');
   if (callerRole !== 'hospital_admin' && callerRole !== 'director' && callerRole !== 'md') {
     return c.json({ error: 'Forbidden: Insufficient permissions to update settings' }, 403);
@@ -171,7 +178,7 @@ settingsRoutes.put('/:key', zValidator('json', updateSettingSchema), async (c) =
   const { value } = c.req.valid('json');
 
   try {
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       'INSERT OR REPLACE INTO settings (key, value, tenant_id, updated_at) VALUES (?, ?, ?, datetime("now"))'
     ).bind(key, value, tenantId).run();
 
@@ -183,6 +190,7 @@ settingsRoutes.put('/:key', zValidator('json', updateSettingSchema), async (c) =
 
 // ─── Bulk update settings ────────────────────────────────────────────────────
 settingsRoutes.put('/', zValidator('json', bulkUpdateSettingsSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const callerRole = c.get('role');
   if (callerRole !== 'hospital_admin' && callerRole !== 'director' && callerRole !== 'md') {
     return c.json({ error: 'Forbidden: Insufficient permissions to update settings' }, 403);
@@ -193,7 +201,7 @@ settingsRoutes.put('/', zValidator('json', bulkUpdateSettingsSchema), async (c) 
 
   try {
     for (const [key, value] of Object.entries(settings)) {
-      await c.env.DB.prepare(
+      await db.$client.prepare(
         'INSERT OR REPLACE INTO settings (key, value, tenant_id, updated_at) VALUES (?, ?, ?, datetime("now"))'
       ).bind(key, String(value), tenantId).run();
     }

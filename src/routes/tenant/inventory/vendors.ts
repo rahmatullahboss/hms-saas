@@ -2,11 +2,14 @@ import { Hono } from "hono";
 import type { Env } from '../../../types';
 import { zValidator } from "@hono/zod-validator";
 import * as schemas from "../../../schemas/inventory";
+import { getDb } from '../../../db';
+
 
 const vendors = new Hono<{ Bindings: Env; Variables: { tenantId?: string; userId?: string; role?: string } }>();
 
 // GET /vendors
 vendors.get("/", zValidator("query", schemas.listVendorsSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const query = c.req.valid("query");
   const { page, limit, search, IsActive } = query;
   const offset = (page - 1) * limit;
@@ -25,12 +28,12 @@ vendors.get("/", zValidator("query", schemas.listVendorsSchema), async (c) => {
     params.push(IsActive === "true" ? 1 : 0);
   }
 
-  const countResult = await c.env.DB.prepare(
+  const countResult = await db.$client.prepare(
     `SELECT COUNT(*) as total FROM InventoryVendor WHERE ${conditions.join(" AND ")}`
   ).bind(...params).first<{ total: number }>();
   const total = countResult?.total || 0;
 
-  const results = await c.env.DB.prepare(
+  const results = await db.$client.prepare(
     `SELECT * FROM InventoryVendor WHERE ${conditions.join(" AND ")} ORDER BY VendorName ASC LIMIT ? OFFSET ?`
   ).bind(...params, limit, offset).all();
 
@@ -39,12 +42,13 @@ vendors.get("/", zValidator("query", schemas.listVendorsSchema), async (c) => {
 
 // POST /vendors
 vendors.post("/", zValidator("json", schemas.createVendorSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const body = c.req.valid("json");
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
   const today = new Date().toISOString();
 
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO InventoryVendor (tenant_id, VendorName, VendorCode, ContactPerson, ContactPhone, ContactEmail, ContactAddress, City, Country, PANNo, CreditPeriod, IsActive, IsTDSApplicable, TDSPercent, CreatedBy, CreatedOn)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
@@ -67,6 +71,7 @@ const VENDOR_UPDATABLE_COLUMNS = [
 ] as const;
 
 vendors.put("/:id", zValidator("json", schemas.updateVendorSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const id = c.req.param("id");
   const body = c.req.valid("json");
   const tenantId = c.get('tenantId');
@@ -85,7 +90,7 @@ vendors.put("/:id", zValidator("json", schemas.updateVendorSchema), async (c) =>
 
   if (updates.length > 0) {
     params.push(id, tenantId);
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       `UPDATE InventoryVendor SET ${updates.join(", ")} WHERE VendorId = ? AND tenant_id = ?`
     ).bind(...params).run();
   }

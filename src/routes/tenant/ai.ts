@@ -27,12 +27,15 @@ import {
 } from '../../lib/ai-memory';
 import type { Env, Variables } from '../../types';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
+import { getDb } from '../../db';
+
 
 const aiRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // ─── Middleware: check API key + rate limit ──────────────────────────────────
 
 aiRoutes.use('*', async (c, next) => {
+  const db = getDb(c.env.DB);
   if (!c.env.OPENROUTER_API_KEY) {
     throw new HTTPException(503, { message: 'AI service not configured. Contact your administrator.' });
   }
@@ -77,6 +80,7 @@ function handleAIError(err: unknown): never {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 aiRoutes.post('/prescription-assist', zValidator('json', prescriptionAssistSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
@@ -86,7 +90,7 @@ aiRoutes.post('/prescription-assist', zValidator('json', prescriptionAssistSchem
     // Fetch patient info if patientId is provided
     let patientContext = '';
     if (data.patientId) {
-      const patient = await c.env.DB.prepare(
+      const patient = await db.$client.prepare(
         `SELECT name, date_of_birth, gender, blood_group FROM patients WHERE id = ? AND tenant_id = ?`,
       ).bind(data.patientId, tenantId).first<{
         name: string; date_of_birth?: string; gender?: string; blood_group?: string;
@@ -132,6 +136,7 @@ ${data.patientWeight ? `Weight: ${data.patientWeight}kg` : ''}`;
 // ═══════════════════════════════════════════════════════════════════════════════
 
 aiRoutes.post('/diagnosis-suggest', zValidator('json', diagnosisSuggestSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
@@ -173,13 +178,14 @@ ${data.medicalHistory ? `Medical History: ${data.medicalHistory}` : ''}`;
 // ═══════════════════════════════════════════════════════════════════════════════
 
 aiRoutes.post('/billing-from-notes', zValidator('json', billingFromNotesSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
   const { apiKey, model } = getConfig(c.env);
 
   try {
-    const { results: tests } = await c.env.DB.prepare(
+    const { results: tests } = await db.$client.prepare(
       `SELECT name, price FROM lab_test_catalog WHERE tenant_id = ? AND is_active = 1 ORDER BY name LIMIT 50`,
     ).bind(tenantId).all<{ name: string; price: number }>();
 
@@ -212,13 +218,14 @@ aiRoutes.post('/billing-from-notes', zValidator('json', billingFromNotesSchema),
 // ═══════════════════════════════════════════════════════════════════════════════
 
 aiRoutes.post('/triage', zValidator('json', triageChatSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
   const { apiKey, model } = getConfig(c.env);
 
   try {
-    const { results: specialties } = await c.env.DB.prepare(
+    const { results: specialties } = await db.$client.prepare(
       `SELECT DISTINCT specialty FROM doctors WHERE tenant_id = ? AND is_active = 1 ORDER BY specialty`,
     ).bind(tenantId).all<{ specialty: string }>();
 
@@ -258,6 +265,7 @@ aiRoutes.post('/triage', zValidator('json', triageChatSchema), async (c) => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 aiRoutes.post('/summarize-note', zValidator('json', noteSummarySchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
@@ -288,6 +296,7 @@ aiRoutes.post('/summarize-note', zValidator('json', noteSummarySchema), async (c
 // ═══════════════════════════════════════════════════════════════════════════════
 
 aiRoutes.post('/interpret-lab', zValidator('json', labInterpretSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
@@ -322,6 +331,7 @@ ${data.patientGender ? `Patient Gender: ${data.patientGender}` : ''}`;
 // ═══════════════════════════════════════════════════════════════════════════════
 
 aiRoutes.post('/dashboard-insights', zValidator('json', dashboardInsightsSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const data = c.req.valid('json');
   const { apiKey, model } = getConfig(c.env);
@@ -329,7 +339,7 @@ aiRoutes.post('/dashboard-insights', zValidator('json', dashboardInsightsSchema)
   try {
     // Fetch aggregate data from D1
     const [revenueData, patientData, visitData, expenseData] = await Promise.all([
-      c.env.DB.prepare(`
+      db.$client.prepare(`
         SELECT strftime('%Y-%m', created_at) AS month,
                SUM(total) AS revenue,
                COUNT(*) AS bill_count
@@ -337,20 +347,20 @@ aiRoutes.post('/dashboard-insights', zValidator('json', dashboardInsightsSchema)
         GROUP BY month ORDER BY month
       `).bind(tenantId, data.dateRange.from, data.dateRange.to).all(),
 
-      c.env.DB.prepare(`
+      db.$client.prepare(`
         SELECT COUNT(*) AS total_patients,
                SUM(CASE WHEN date(created_at) BETWEEN ? AND ? THEN 1 ELSE 0 END) AS new_patients
         FROM patients WHERE tenant_id = ?
       `).bind(data.dateRange.from, data.dateRange.to, tenantId).first(),
 
-      c.env.DB.prepare(`
+      db.$client.prepare(`
         SELECT strftime('%Y-%m', visit_date) AS month,
                COUNT(*) AS visit_count
         FROM visits WHERE tenant_id = ? AND date(visit_date) BETWEEN ? AND ?
         GROUP BY month ORDER BY month
       `).bind(tenantId, data.dateRange.from, data.dateRange.to).all(),
 
-      c.env.DB.prepare(`
+      db.$client.prepare(`
         SELECT SUM(amount) AS total_expenses
         FROM expenses WHERE tenant_id = ? AND date(date) BETWEEN ? AND ?
       `).bind(tenantId, data.dateRange.from, data.dateRange.to).first(),
@@ -397,13 +407,14 @@ const feedbackSchema = z.object({
 });
 
 aiRoutes.post('/feedback', zValidator('json', feedbackSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
 
   try {
     // Verify ownership: interaction must belong to this tenant + user
-    const interaction = await c.env.DB.prepare(
+    const interaction = await db.$client.prepare(
       `SELECT id FROM ai_interactions WHERE id = ? AND tenant_id = ? AND user_id = ?`,
     ).bind(data.interactionId, tenantId, userId).first<{ id: number }>();
 

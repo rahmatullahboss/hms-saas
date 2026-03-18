@@ -1,5 +1,7 @@
 import { Hono } from 'hono';
 import { requireTenantId } from '../../lib/context-helpers';
+import { getDb } from '../../db';
+
 
 const dashboardRoutes = new Hono<{
   Bindings: { DB: D1Database };
@@ -8,15 +10,16 @@ const dashboardRoutes = new Hono<{
 
 // GET / — aggregated overview (backward compat)
 dashboardRoutes.get('/', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   try {
     const today = new Date().toISOString().split('T')[0];
     const [patients, revenue, appointments] = await Promise.all([
-      c.env.DB.prepare('SELECT COUNT(*) as cnt FROM patients WHERE tenant_id = ?')
+      db.$client.prepare('SELECT COUNT(*) as cnt FROM patients WHERE tenant_id = ?')
         .bind(tenantId).first<{ cnt: number }>(),
-      c.env.DB.prepare('SELECT COALESCE(SUM(total),0) as total, COALESCE(SUM(due),0) as due FROM bills WHERE tenant_id = ?')
+      db.$client.prepare('SELECT COALESCE(SUM(total),0) as total, COALESCE(SUM(due),0) as due FROM bills WHERE tenant_id = ?')
         .bind(tenantId).first<{ total: number; due: number }>(),
-      c.env.DB.prepare('SELECT COUNT(*) as cnt FROM appointments WHERE tenant_id = ? AND DATE(created_at) = ?')
+      db.$client.prepare('SELECT COUNT(*) as cnt FROM appointments WHERE tenant_id = ? AND DATE(created_at) = ?')
         .bind(tenantId, today).first<{ cnt: number }>().catch(() => ({ cnt: 0 })),
     ]);
     return c.json({
@@ -32,6 +35,7 @@ dashboardRoutes.get('/', async (c) => {
 
 // Get dashboard stats
 dashboardRoutes.get('/stats', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   
   try {
@@ -41,43 +45,43 @@ dashboardRoutes.get('/stats', async (c) => {
     const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
 
     // ⚡ BOLT OPTIMIZATION:
-    // Replaced Promise.all() with c.env.DB.batch() for dashboard stats.
+    // Replaced Promise.all() with db.$client.batch() for dashboard stats.
     // Why: Promise.all() sends 8 separate HTTP network requests to Cloudflare D1.
     //      DB.batch() sends a single network request containing all 8 statements.
     // Impact: Eliminates 7 network round-trips, significantly reducing latency and
     //         making the dashboard load much faster, especially for users far from
     //         the database region.
-    const batchResults = await c.env.DB.batch([
+    const batchResults = await db.$client.batch([
       // Total patients
-      c.env.DB.prepare('SELECT COUNT(*) as count FROM patients WHERE tenant_id = ?').bind(tenantId),
+      db.$client.prepare('SELECT COUNT(*) as count FROM patients WHERE tenant_id = ?').bind(tenantId),
       // Today's patients
-      c.env.DB.prepare('SELECT COUNT(*) as count FROM patients WHERE tenant_id = ? AND date(created_at) = ?').bind(tenantId, today),
+      db.$client.prepare('SELECT COUNT(*) as count FROM patients WHERE tenant_id = ? AND date(created_at) = ?').bind(tenantId, today),
       // Test stats (pending and completed)
-      c.env.DB.prepare(`
+      db.$client.prepare(`
         SELECT
           SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
           SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed
         FROM tests WHERE tenant_id = ?
       `).bind(tenantId),
       // Bill stats (pending bills and total revenue)
-      c.env.DB.prepare(`
+      db.$client.prepare(`
         SELECT
           SUM(CASE WHEN due > 0 THEN 1 ELSE 0 END) as pending_bills,
           SUM(total) as total_revenue
         FROM bills WHERE tenant_id = ?
       `).bind(tenantId),
       // Staff count
-      c.env.DB.prepare('SELECT COUNT(*) as count FROM staff WHERE tenant_id = ?').bind(tenantId),
+      db.$client.prepare('SELECT COUNT(*) as count FROM staff WHERE tenant_id = ?').bind(tenantId),
       // Low stock medicines count
-      c.env.DB.prepare('SELECT COUNT(*) as count FROM medicines WHERE tenant_id = ? AND quantity < 10').bind(tenantId),
+      db.$client.prepare('SELECT COUNT(*) as count FROM medicines WHERE tenant_id = ? AND quantity < 10').bind(tenantId),
       // Income for the last 7 days
-      c.env.DB.prepare(`
+      db.$client.prepare(`
         SELECT date, SUM(amount) as total FROM income
         WHERE tenant_id = ? AND date >= ?
         GROUP BY date ORDER BY date
       `).bind(tenantId, sevenDaysAgoStr),
       // Recent 5 patients
-      c.env.DB.prepare('SELECT id, name, mobile, created_at FROM patients WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 5').bind(tenantId)
+      db.$client.prepare('SELECT id, name, mobile, created_at FROM patients WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 5').bind(tenantId)
     ]);
 
     const [
@@ -138,16 +142,17 @@ dashboardRoutes.get('/stats', async (c) => {
 
 // Get daily income
 dashboardRoutes.get('/daily-income', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const date = c.req.query('date') || new Date().toISOString().split('T')[0];
   
   try {
-    const income = await c.env.DB.prepare(
+    const income = await db.$client.prepare(
       `SELECT source, SUM(amount) as total FROM income 
        WHERE date = ? AND tenant_id = ? GROUP BY source`
     ).bind(date, tenantId).all();
     
-    const totalResult = await c.env.DB.prepare(
+    const totalResult = await db.$client.prepare(
       'SELECT SUM(amount) as total FROM income WHERE date = ? AND tenant_id = ?'
     ).bind(date, tenantId).first<{total: number}>();
     
@@ -163,16 +168,17 @@ dashboardRoutes.get('/daily-income', async (c) => {
 
 // Get daily expenses
 dashboardRoutes.get('/daily-expenses', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const date = c.req.query('date') || new Date().toISOString().split('T')[0];
   
   try {
-    const expenses = await c.env.DB.prepare(
+    const expenses = await db.$client.prepare(
       `SELECT category, SUM(amount) as total FROM expenses 
        WHERE date = ? AND tenant_id = ? GROUP BY category`
     ).bind(date, tenantId).all();
     
-    const totalResult = await c.env.DB.prepare(
+    const totalResult = await db.$client.prepare(
       'SELECT SUM(amount) as total FROM expenses WHERE date = ? AND tenant_id = ?'
     ).bind(date, tenantId).first<{total: number}>();
     
@@ -188,16 +194,17 @@ dashboardRoutes.get('/daily-expenses', async (c) => {
 
 // Get monthly summary
 dashboardRoutes.get('/monthly-summary', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const month = c.req.query('month') || new Date().toISOString().slice(0, 7);
   
   try {
-    const totalIncome = await c.env.DB.prepare(
+    const totalIncome = await db.$client.prepare(
       `SELECT SUM(amount) as total FROM income 
        WHERE strftime('%Y-%m', date) = ? AND tenant_id = ?`
     ).bind(month, tenantId).first<{total: number}>();
     
-    const totalExpenses = await c.env.DB.prepare(
+    const totalExpenses = await db.$client.prepare(
       `SELECT SUM(amount) as total FROM expenses 
        WHERE strftime('%Y-%m', date) = ? AND tenant_id = ?`
     ).bind(month, tenantId).first<{total: number}>();

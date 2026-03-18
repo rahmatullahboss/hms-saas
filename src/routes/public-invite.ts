@@ -11,6 +11,8 @@ import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { generateToken } from '../middleware/auth';
 import type { Env } from '../types';
+import { getDb } from '../db';
+
 
 const publicInviteRoutes = new Hono<{ Bindings: Env }>();
 
@@ -34,10 +36,11 @@ const acceptSchema = z.object({
 
 // ─── GET /api/invite/:token — Validate token ──────────────────────────
 publicInviteRoutes.get('/:token', async (c) => {
+  const db = getDb(c.env.DB);
   const token = c.req.param('token');
 
   try {
-    const invite = await c.env.DB.prepare(
+    const invite = await db.$client.prepare(
       `SELECT i.email, i.role, i.expires_at, i.accepted_at, t.name AS hospital_name, t.subdomain
        FROM invitations i
        JOIN tenants t ON t.id = i.tenant_id
@@ -75,11 +78,12 @@ publicInviteRoutes.get('/:token', async (c) => {
 
 // ─── POST /api/invite/:token/accept — Accept + create account ─────────
 publicInviteRoutes.post('/:token/accept', zValidator('json', acceptSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const token = c.req.param('token');
   const { name, password } = c.req.valid('json');
 
   try {
-    const invite = await c.env.DB.prepare(
+    const invite = await db.$client.prepare(
       `SELECT i.id, i.email, i.role, i.tenant_id, i.expires_at, i.accepted_at
        FROM invitations i
        WHERE i.token = ?`
@@ -97,7 +101,7 @@ publicInviteRoutes.post('/:token/accept', zValidator('json', acceptSchema), asyn
     if (new Date(invite.expires_at) < new Date()) return c.json({ error: 'Invitation expired' }, 410);
 
     // Check email not already registered in this tenant
-    const existingUser = await c.env.DB.prepare(
+    const existingUser = await db.$client.prepare(
       'SELECT id FROM users WHERE email = ? AND tenant_id = ?'
     ).bind(invite.email, invite.tenant_id).first();
 
@@ -108,11 +112,11 @@ publicInviteRoutes.post('/:token/accept', zValidator('json', acceptSchema), asyn
     const passwordHash = await bcrypt.hash(password, 10);
 
     // Create user + mark invitation accepted atomically
-    const [userResult] = await c.env.DB.batch([
-      c.env.DB.prepare(
+    const [userResult] = await db.$client.batch([
+      db.$client.prepare(
         'INSERT INTO users (email, password_hash, name, role, tenant_id, created_at) VALUES (?, ?, ?, ?, ?, datetime("now"))'
       ).bind(invite.email, passwordHash, name, invite.role, invite.tenant_id),
-      c.env.DB.prepare(
+      db.$client.prepare(
         'UPDATE invitations SET accepted_at = datetime("now") WHERE id = ?'
       ).bind(invite.id),
     ]);

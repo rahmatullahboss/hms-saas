@@ -6,11 +6,14 @@ import type { Env, Variables } from '../../types';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 import { getNextSequence } from '../../lib/sequence';
 import { createPrescriptionSchema, updatePrescriptionSchema, updateDeliveryStatusSchema } from '../../schemas/clinical';
+import { getDb } from '../../db';
+
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // ─── GET /api/prescriptions?status=&patient= — list prescriptions ────────────
 app.get('/', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
@@ -32,17 +35,18 @@ app.get('/', async (c) => {
   if (patientId) { sql += ' AND p.patient_id = ?';  params.push(Number(patientId)); }
   sql += ' ORDER BY p.created_at DESC LIMIT 100';
 
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await db.$client.prepare(sql).bind(...params).all();
   return c.json({ prescriptions: results });
 });
 
 // ─── GET /api/prescriptions/:id — single prescription with items ─────────────
 app.get('/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
   const id = c.req.param('id');
-  const rx = await c.env.DB.prepare(
+  const rx = await db.$client.prepare(
     `SELECT p.*, pt.name AS patient_name, pt.patient_code,
             d.name AS doctor_name
      FROM prescriptions p
@@ -53,7 +57,7 @@ app.get('/:id', async (c) => {
 
   if (!rx) throw new HTTPException(404, { message: 'Prescription not found' });
 
-  const { results: items } = await c.env.DB.prepare(
+  const { results: items } = await db.$client.prepare(
     `SELECT * FROM prescription_items WHERE prescription_id = ? ORDER BY sort_order`
   ).bind(id).all();
 
@@ -62,11 +66,12 @@ app.get('/:id', async (c) => {
 
 // ─── GET /api/prescriptions/:id/print — rich print data ──────────────────────
 app.get('/:id/print', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
   const id = c.req.param('id');
-  const rx = await c.env.DB.prepare(`
+  const rx = await db.$client.prepare(`
     SELECT p.*,
            pt.name AS patient_name, pt.patient_code, pt.date_of_birth, pt.gender, pt.address,
            d.name AS doctor_name, d.specialty, d.bmdc_reg_no, d.qualifications, d.visiting_hours
@@ -78,12 +83,12 @@ app.get('/:id/print', async (c) => {
 
   if (!rx) throw new HTTPException(404, { message: 'Prescription not found' });
 
-  const { results: items } = await c.env.DB.prepare(
+  const { results: items } = await db.$client.prepare(
     `SELECT * FROM prescription_items WHERE prescription_id = ? ORDER BY sort_order`
   ).bind(id).all();
 
   // Get hospital name from settings
-  const setting = await c.env.DB.prepare(
+  const setting = await db.$client.prepare(
     `SELECT value FROM settings WHERE tenant_id = ? AND key = 'hospital_name'`
   ).bind(tenantId).first<{ value: string }>();
 
@@ -99,6 +104,7 @@ app.get('/:id/print', async (c) => {
 
 // ─── POST /api/prescriptions — create prescription ────────────────────────────
 app.post('/', zValidator('json', createPrescriptionSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
@@ -116,7 +122,7 @@ app.post('/', zValidator('json', createPrescriptionSchema), async (c) => {
 
   // ─── Step 1: Insert prescription first to get real ID ───────────────────
   // D1 batch does NOT propagate last_insert_rowid() across statements.
-  const rxResult = await c.env.DB.prepare(`
+  const rxResult = await db.$client.prepare(`
     INSERT INTO prescriptions (rx_no, patient_id, doctor_id, appointment_id, bp, temperature, weight, spo2,
       chief_complaint, diagnosis, examination_notes, advice, lab_tests, follow_up_date, status, created_by, tenant_id)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -133,7 +139,7 @@ app.post('/', zValidator('json', createPrescriptionSchema), async (c) => {
   // ─── Step 2: Batch insert items using the real prescription ID ─────────
   if (body.items?.length) {
     const itemStmts = body.items.map((item) =>
-      c.env.DB.prepare(`
+      db.$client.prepare(`
         INSERT INTO prescription_items (prescription_id, medicine_name, dosage, frequency, duration, instructions, sort_order)
         VALUES (?, ?, ?, ?, ?, ?, ?)
       `).bind(
@@ -142,7 +148,7 @@ app.post('/', zValidator('json', createPrescriptionSchema), async (c) => {
         item.instructions ?? null, item.sort_order ?? 0
       )
     );
-    await c.env.DB.batch(itemStmts);
+    await db.$client.batch(itemStmts);
   }
 
   return c.json({ id: rxId, rxNo }, 201);
@@ -150,6 +156,7 @@ app.post('/', zValidator('json', createPrescriptionSchema), async (c) => {
 
 // ─── PUT /api/prescriptions/:id — update prescription ─────────────────────────
 app.put('/:id', zValidator('json', updatePrescriptionSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
@@ -179,17 +186,17 @@ app.put('/:id', zValidator('json', updatePrescriptionSchema), async (c) => {
   if (body.status !== undefined)           { sets.push('status = ?'); vals.push(body.status); }
 
   vals.push(Number(id), tenantId as unknown as string);
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     `UPDATE prescriptions SET ${sets.join(', ')} WHERE id = ? AND tenant_id = ?`
   ).bind(...vals).run();
 
   // Replace items if provided
   if (body.items) {
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       'DELETE FROM prescription_items WHERE prescription_id = ? AND prescription_id IN (SELECT id FROM prescriptions WHERE tenant_id = ?)'
     ).bind(id, tenantId).run();
     for (const item of body.items) {
-      await c.env.DB.prepare(`
+      await db.$client.prepare(`
         INSERT INTO prescription_items (prescription_id, medicine_name, dosage, frequency, duration, instructions, sort_order)
         VALUES (?, ?, ?, ?, ?, ?, ?)
       `).bind(
@@ -205,6 +212,7 @@ app.put('/:id', zValidator('json', updatePrescriptionSchema), async (c) => {
 
 // ─── POST /api/prescriptions/:id/share — generate share token ─────────────────
 app.post('/:id/share', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
 
   const role = c.get('role');
@@ -216,7 +224,7 @@ app.post('/:id/share', async (c) => {
   const id = c.req.param('id');
 
   // Verify prescription exists for this tenant
-  const rx = await c.env.DB.prepare(
+  const rx = await db.$client.prepare(
     'SELECT id FROM prescriptions WHERE id = ? AND tenant_id = ?'
   ).bind(id, tenantId).first();
   if (!rx) throw new HTTPException(404, { message: 'Prescription not found' });
@@ -225,7 +233,7 @@ app.post('/:id/share', async (c) => {
   const token = crypto.randomUUID().replace(/-/g, '');
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours
 
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     `UPDATE prescriptions SET share_token = ?, share_expires_at = ? WHERE id = ? AND tenant_id = ?`
   ).bind(token, expiresAt, id, tenantId).run();
 
@@ -243,6 +251,7 @@ const orderDeliverySchema = z.object({
 });
 
 app.post('/:id/order-delivery', zValidator('json', orderDeliverySchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
 
   const role = c.get('role');
@@ -254,12 +263,12 @@ app.post('/:id/order-delivery', zValidator('json', orderDeliverySchema), async (
   const id = c.req.param('id');
   const body = c.req.valid('json');
 
-  const rx = await c.env.DB.prepare(
+  const rx = await db.$client.prepare(
     'SELECT id FROM prescriptions WHERE id = ? AND tenant_id = ?'
   ).bind(id, tenantId).first();
   if (!rx) throw new HTTPException(404, { message: 'Prescription not found' });
 
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     `UPDATE prescriptions SET delivery_status = 'ordered', delivery_address = ?, delivery_phone = ?
      WHERE id = ? AND tenant_id = ?`
   ).bind(body.address, body.phone, id, tenantId).run();
@@ -270,6 +279,7 @@ app.post('/:id/order-delivery', zValidator('json', orderDeliverySchema), async (
 // ─── PUT /api/prescriptions/:id/delivery-status — update delivery status ──────
 // Only admins and pharmacy staff may update delivery status (not patients)
 app.put('/:id/delivery-status', zValidator('json', updateDeliveryStatusSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = c.req.param('id');
   const role = c.get('role');
@@ -281,7 +291,7 @@ app.put('/:id/delivery-status', zValidator('json', updateDeliveryStatusSchema), 
 
   const { status } = c.req.valid('json');
 
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     'UPDATE prescriptions SET delivery_status = ? WHERE id = ? AND tenant_id = ?'
   ).bind(status, id, tenantId).run();
 

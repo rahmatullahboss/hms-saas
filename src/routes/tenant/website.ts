@@ -5,6 +5,8 @@ import { z } from 'zod';
 import type { Env, Variables } from '../../types';
 import { requireTenantId } from '../../lib/context-helpers';
 import { websiteConfigSchema, websiteServiceSchema } from '../../schemas/website';
+import { getDb } from '../../db';
+
 
 const websiteRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -16,8 +18,9 @@ async function triggerReRender(
   c: { env: Env; executionCtx: ExecutionContext },
   tenantId: string
 ): Promise<void> {
+  const db = getDb(c.env.DB);
   try {
-    const tenant = await c.env.DB.prepare(
+    const tenant = await db.$client.prepare(
       'SELECT subdomain FROM tenants WHERE id = ?'
     ).bind(tenantId).first<{ subdomain: string }>();
     if (!tenant?.subdomain) return;
@@ -45,8 +48,9 @@ const ALLOWED_SERVICE_COLUMNS = new Set([
 
 // ─── GET /api/website/config ─────────────────────────────────────────
 websiteRoutes.get('/config', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
-  const config = await c.env.DB.prepare(
+  const config = await db.$client.prepare(
     'SELECT * FROM website_config WHERE tenant_id = ?'
   ).bind(tenantId).first();
 
@@ -59,6 +63,7 @@ websiteRoutes.get('/config', async (c) => {
 
 // ─── PUT /api/website/config ─────────────────────────────────────────
 websiteRoutes.put('/config', zValidator('json', websiteConfigSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const data = c.req.valid('json');
 
@@ -74,7 +79,7 @@ websiteRoutes.put('/config', zValidator('json', websiteConfigSchema), async (c) 
   const values = fields.map(([, v]) => v);
 
   // Upsert: try UPDATE, if 0 rows affected → INSERT
-  const result = await c.env.DB.prepare(
+  const result = await db.$client.prepare(
     `UPDATE website_config SET ${setClauses} WHERE tenant_id = ?`
   ).bind(...values, tenantId).run();
 
@@ -82,7 +87,7 @@ websiteRoutes.put('/config', zValidator('json', websiteConfigSchema), async (c) 
     // Insert new config
     const insertFields = ['tenant_id', ...fields.map(([k]) => k)];
     const insertPlaceholders = insertFields.map(() => '?').join(', ');
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       `INSERT INTO website_config (${insertFields.join(', ')}) VALUES (${insertPlaceholders})`
     ).bind(tenantId, ...values).run();
   }
@@ -95,8 +100,9 @@ websiteRoutes.put('/config', zValidator('json', websiteConfigSchema), async (c) 
 
 // ─── GET /api/website/services ───────────────────────────────────────
 websiteRoutes.get('/services', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
-  const { results } = await c.env.DB.prepare(
+  const { results } = await db.$client.prepare(
     'SELECT * FROM website_services WHERE tenant_id = ? ORDER BY sort_order'
   ).bind(tenantId).all();
   return c.json({ data: results });
@@ -104,10 +110,11 @@ websiteRoutes.get('/services', async (c) => {
 
 // ─── POST /api/website/services ──────────────────────────────────────
 websiteRoutes.post('/services', zValidator('json', websiteServiceSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const data = c.req.valid('json');
 
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     `INSERT INTO website_services (tenant_id, name, name_bn, description, icon, category, is_active, sort_order)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
@@ -123,6 +130,7 @@ websiteRoutes.post('/services', zValidator('json', websiteServiceSchema), async 
 
 // ─── PUT /api/website/services/:id ───────────────────────────────────
 websiteRoutes.put('/services/:id', zValidator('json', websiteServiceSchema.partial()), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const serviceId = c.req.param('id');
   const data = c.req.valid('json');
@@ -133,7 +141,7 @@ websiteRoutes.put('/services/:id', zValidator('json', websiteServiceSchema.parti
   const setClauses = fields.map(([k]) => `${k} = ?`).join(', ');
   const values = fields.map(([, v]) => v);
 
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     `UPDATE website_services SET ${setClauses} WHERE id = ? AND tenant_id = ?`
   ).bind(...values, serviceId, tenantId).run();
 
@@ -145,10 +153,11 @@ websiteRoutes.put('/services/:id', zValidator('json', websiteServiceSchema.parti
 
 // ─── DELETE /api/website/services/:id ────────────────────────────────
 websiteRoutes.delete('/services/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const serviceId = c.req.param('id');
 
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     'DELETE FROM website_services WHERE id = ? AND tenant_id = ?'
   ).bind(serviceId, tenantId).run();
 
@@ -160,31 +169,32 @@ websiteRoutes.delete('/services/:id', async (c) => {
 
 // ─── GET /api/website/analytics ──────────────────────────────────────
 websiteRoutes.get('/analytics', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const days = Math.min(Math.max(parseInt(c.req.query('days') || '7'), 1), 90);
   const sinceDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 
   // Get subdomain for this tenant
-  const tenant = await c.env.DB.prepare(
+  const tenant = await db.$client.prepare(
     'SELECT subdomain FROM tenants WHERE id = ?'
   ).bind(tenantId).first<{ subdomain: string }>();
   if (!tenant) throw new HTTPException(404, { message: 'Tenant not found' });
 
   // Total views in period
-  const totalResult = await c.env.DB.prepare(
+  const totalResult = await db.$client.prepare(
     `SELECT COUNT(*) as total FROM website_pageviews
      WHERE (tenant_id = ? OR subdomain = ?) AND viewed_at >= ?`
   ).bind(tenantId, tenant.subdomain, sinceDate).first();
 
   // Views per page
-  const { results: perPage } = await c.env.DB.prepare(
+  const { results: perPage } = await db.$client.prepare(
     `SELECT page, COUNT(*) as views FROM website_pageviews
      WHERE (tenant_id = ? OR subdomain = ?) AND viewed_at >= ?
      GROUP BY page ORDER BY views DESC`
   ).bind(tenantId, tenant.subdomain, sinceDate).all();
 
   // Daily chart data
-  const { results: daily } = await c.env.DB.prepare(
+  const { results: daily } = await db.$client.prepare(
     `SELECT DATE(viewed_at) as date, COUNT(*) as views FROM website_pageviews
      WHERE (tenant_id = ? OR subdomain = ?) AND viewed_at >= ?
      GROUP BY DATE(viewed_at) ORDER BY date`

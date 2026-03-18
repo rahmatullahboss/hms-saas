@@ -4,15 +4,18 @@ import { HTTPException } from 'hono/http-exception';
 import { createBranchSchema, updateBranchSchema } from '../../schemas/branch';
 import type { Env, Variables } from '../../types';
 import { requireTenantId } from '../../lib/context-helpers';
+import { getDb } from '../../db';
+
 
 const branchRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // GET /api/branches — list all branches for this tenant
 branchRoutes.get('/', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
 
   try {
-    const branches = await c.env.DB.prepare(`
+    const branches = await db.$client.prepare(`
       SELECT b.*,
         (SELECT COUNT(*) FROM users    WHERE branch_id = b.id AND tenant_id = ?) as staff_count,
         (SELECT COUNT(*) FROM patients WHERE branch_id = b.id AND tenant_id = ?) as patient_count
@@ -28,13 +31,14 @@ branchRoutes.get('/', async (c) => {
 
 // GET /api/branches/analytics — aggregate stats per branch for multi-branch dashboard
 branchRoutes.get('/analytics', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
 
   try {
     const thisMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
     const lastMonth = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 7);
 
-    const branches = await c.env.DB.prepare(`
+    const branches = await db.$client.prepare(`
       SELECT b.id, b.name, b.address, b.is_active,
         (SELECT COUNT(*) FROM patients WHERE branch_id = b.id AND tenant_id = ?) as patients,
         (SELECT COUNT(*) FROM users WHERE branch_id = b.id AND tenant_id = ?) as staff,
@@ -81,24 +85,25 @@ branchRoutes.get('/analytics', async (c) => {
 
 // GET /api/branches/:id — single branch with summary stats
 branchRoutes.get('/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = c.req.param('id');
 
   try {
-    const branch = await c.env.DB.prepare(
+    const branch = await db.$client.prepare(
       'SELECT * FROM branches WHERE id = ? AND tenant_id = ?',
     ).bind(id, tenantId).first();
     if (!branch) throw new HTTPException(404, { message: 'Branch not found' });
 
     // Get aggregated financials for this branch (last 30 days)
-    const [income, expenses, patients] = await c.env.DB.batch([
-      c.env.DB.prepare(
+    const [income, expenses, patients] = await db.$client.batch([
+      db.$client.prepare(
         `SELECT COALESCE(SUM(amount), 0) as total FROM income WHERE branch_id = ? AND tenant_id = ? AND date >= date('now', '-30 days')`
       ).bind(id, tenantId),
-      c.env.DB.prepare(
+      db.$client.prepare(
         `SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE branch_id = ? AND tenant_id = ? AND date >= date('now', '-30 days')`
       ).bind(id, tenantId),
-      c.env.DB.prepare(
+      db.$client.prepare(
         `SELECT COUNT(*) as count FROM patients WHERE branch_id = ? AND tenant_id = ?`
       ).bind(id, tenantId),
     ]);
@@ -119,6 +124,7 @@ branchRoutes.get('/:id', async (c) => {
 
 // GET /api/branches/:id/report — detailed monthly income/expense breakdown
 branchRoutes.get('/:id/report', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const role     = c.get('role');
   const id = c.req.param('id');
@@ -129,27 +135,27 @@ branchRoutes.get('/:id/report', async (c) => {
   const dateTo   = to   ?? new Date().toISOString().slice(0, 10);
 
   try {
-    const branch = await c.env.DB.prepare(
+    const branch = await db.$client.prepare(
       'SELECT id, name FROM branches WHERE id = ? AND tenant_id = ?',
     ).bind(id, tenantId).first<{ id: number; name: string }>();
     if (!branch) throw new HTTPException(404, { message: 'Branch not found' });
 
-    const [income, expenses, bills] = await c.env.DB.batch([
-      c.env.DB.prepare(`
+    const [income, expenses, bills] = await db.$client.batch([
+      db.$client.prepare(`
         SELECT date, SUM(amount) as amount, source
         FROM income
         WHERE branch_id = ? AND tenant_id = ? AND date BETWEEN ? AND ?
         GROUP BY date, source
         ORDER BY date ASC
       `).bind(id, tenantId, dateFrom, dateTo),
-      c.env.DB.prepare(`
+      db.$client.prepare(`
         SELECT date, SUM(amount) as amount, category
         FROM expenses
         WHERE branch_id = ? AND tenant_id = ? AND date BETWEEN ? AND ?
         GROUP BY date, category
         ORDER BY date ASC
       `).bind(id, tenantId, dateFrom, dateTo),
-      c.env.DB.prepare(`
+      db.$client.prepare(`
         SELECT COUNT(*) as count, COALESCE(SUM(total),0) as total, COALESCE(SUM(paid),0) as paid
         FROM bills
         WHERE branch_id = ? AND tenant_id = ? AND date(created_at) BETWEEN ? AND ?
@@ -171,6 +177,7 @@ branchRoutes.get('/:id/report', async (c) => {
 
 // POST /api/branches — create new branch (hospital_admin only)
 branchRoutes.post('/', zValidator('json', createBranchSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const role     = c.get('role');
   if (role !== 'hospital_admin') throw new HTTPException(403, { message: 'Only admins can create branches' });
@@ -178,7 +185,7 @@ branchRoutes.post('/', zValidator('json', createBranchSchema), async (c) => {
   const data = c.req.valid('json');
 
   try {
-    const result = await c.env.DB.prepare(`
+    const result = await db.$client.prepare(`
       INSERT INTO branches (name, address, phone, email, tenant_id)
       VALUES (?, ?, ?, ?, ?)
     `).bind(data.name, data.address ?? null, data.phone ?? null, data.email ?? null, tenantId).run();
@@ -190,6 +197,7 @@ branchRoutes.post('/', zValidator('json', createBranchSchema), async (c) => {
 
 // PUT /api/branches/:id — update branch info (hospital_admin only)
 branchRoutes.put('/:id', zValidator('json', updateBranchSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const role     = c.get('role');
   const id       = c.req.param('id');
@@ -198,12 +206,12 @@ branchRoutes.put('/:id', zValidator('json', updateBranchSchema), async (c) => {
   const data = c.req.valid('json');
 
   try {
-    const existing = await c.env.DB.prepare(
+    const existing = await db.$client.prepare(
       'SELECT * FROM branches WHERE id = ? AND tenant_id = ?',
     ).bind(id, tenantId).first<Record<string, unknown>>();
     if (!existing) throw new HTTPException(404, { message: 'Branch not found' });
 
-    await c.env.DB.prepare(`
+    await db.$client.prepare(`
       UPDATE branches
       SET name = ?, address = ?, phone = ?, email = ?, updated_at = datetime('now')
       WHERE id = ? AND tenant_id = ?
@@ -223,18 +231,19 @@ branchRoutes.put('/:id', zValidator('json', updateBranchSchema), async (c) => {
 
 // DELETE /api/branches/:id — soft-delete (sets is_active=0, hospital_admin only)
 branchRoutes.delete('/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const role     = c.get('role');
   const id       = c.req.param('id');
   if (role !== 'hospital_admin') throw new HTTPException(403, { message: 'Only admins can delete branches' });
 
   try {
-    const branch = await c.env.DB.prepare(
+    const branch = await db.$client.prepare(
       'SELECT id FROM branches WHERE id = ? AND tenant_id = ?',
     ).bind(id, tenantId).first();
     if (!branch) throw new HTTPException(404, { message: 'Branch not found' });
 
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       `UPDATE branches SET is_active = 0, updated_at = datetime('now') WHERE id = ? AND tenant_id = ?`,
     ).bind(id, tenantId).run();
     return c.json({ message: 'Branch deactivated' });

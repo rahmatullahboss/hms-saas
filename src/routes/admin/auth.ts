@@ -3,6 +3,8 @@ import { zValidator } from '@hono/zod-validator';
 import bcrypt from 'bcryptjs';
 import { generateToken } from '../../middleware/auth';
 import { loginSchema, registerSchema } from '../../schemas/admin';
+import { getDb } from '../../db';
+
 
 const authRoutes = new Hono<{
   Bindings: {
@@ -14,11 +16,12 @@ const authRoutes = new Hono<{
 
 // Login for super admin (main domain)
 authRoutes.post('/login', zValidator('json', loginSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const { email, password } = c.req.valid('json');
   
   try {
     // Look up super admin user
-    const user = await c.env.DB.prepare(
+    const user = await db.$client.prepare(
       'SELECT id, email, password_hash, name, role FROM users WHERE email = ? AND tenant_id IS NULL'
     ).bind(email).first<{
       id: string;
@@ -63,10 +66,11 @@ authRoutes.post('/login', zValidator('json', loginSchema), async (c) => {
 
 // Register first super admin (only if no super admin exists)
 authRoutes.post('/register', zValidator('json', registerSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const { email, password, name } = c.req.valid('json');
   
   // Check if super admin already exists
-  const existing = await c.env.DB.prepare(
+  const existing = await db.$client.prepare(
     'SELECT id FROM users WHERE tenant_id IS NULL'
   ).first();
   
@@ -77,7 +81,7 @@ authRoutes.post('/register', zValidator('json', registerSchema), async (c) => {
   try {
     const passwordHash = await bcrypt.hash(password, 10);
     
-    const result = await c.env.DB.prepare(
+    const result = await db.$client.prepare(
       'INSERT INTO users (email, password_hash, name, role, created_at) VALUES (?, ?, ?, ?, datetime("now"))'
     ).bind(email, passwordHash, name, 'super_admin').run();
     

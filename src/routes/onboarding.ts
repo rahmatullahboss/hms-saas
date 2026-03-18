@@ -2,6 +2,8 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import type { Env } from '../types';
+import { getDb } from '../db';
+
 
 const onboardingRoutes = new Hono<{ Bindings: Env }>();
 
@@ -21,11 +23,12 @@ const applySchema = z.object({
 
 // ─── POST /api/onboarding/apply — Public, no auth ──────────────────────
 onboardingRoutes.post('/apply', zValidator('json', applySchema), async (c) => {
+  const db = getDb(c.env.DB);
   const data = c.req.valid('json');
 
   try {
     // Check for duplicate recent submissions (same WhatsApp within 24h)
-    const duplicate = await c.env.DB.prepare(
+    const duplicate = await db.$client.prepare(
       `SELECT id FROM onboarding_requests
        WHERE whatsapp_number = ? AND created_at > datetime('now', '-24 hours')`
     ).bind(data.whatsapp_number).first();
@@ -37,7 +40,7 @@ onboardingRoutes.post('/apply', zValidator('json', applySchema), async (c) => {
       }, 200);
     }
 
-    const result = await c.env.DB.prepare(
+    const result = await db.$client.prepare(
       `INSERT INTO onboarding_requests (hospital_name, bed_count, contact_name, whatsapp_number, email, status, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, 'pending', datetime('now'), datetime('now'))`
     ).bind(

@@ -1,16 +1,19 @@
 import { Hono } from 'hono';
 import type { Env, Variables } from '../../types';
 import { requireTenantId } from '../../lib/context-helpers';
+import { getDb } from '../../db';
+
 
 const dashboardRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 dashboardRoutes.get('/summary', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const today = new Date().toISOString().split('T')[0];
   const monthStart = today.substring(0, 7) + '-01';
 
   try {
-    const incomeResult = await c.env.DB.prepare(`
+    const incomeResult = await db.$client.prepare(`
       SELECT 
         COALESCE(SUM(CASE WHEN date = ? THEN amount ELSE 0 END), 0) as today_income,
         COALESCE(SUM(CASE WHEN date >= ? THEN amount ELSE 0 END), 0) as mtd_income
@@ -18,7 +21,7 @@ dashboardRoutes.get('/summary', async (c) => {
       WHERE tenant_id = ?
     `).bind(today, monthStart, tenantId).first<{ today_income: number; mtd_income: number }>();
 
-    const expenseResult = await c.env.DB.prepare(`
+    const expenseResult = await db.$client.prepare(`
       SELECT 
         COALESCE(SUM(CASE WHEN date = ? THEN amount ELSE 0 END), 0) as today_expense,
         COALESCE(SUM(CASE WHEN date >= ? THEN amount ELSE 0 END), 0) as mtd_expense
@@ -51,18 +54,19 @@ dashboardRoutes.get('/summary', async (c) => {
 });
 
 dashboardRoutes.get('/mtd', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const today = new Date().toISOString().split('T')[0];
   const monthStart = today.substring(0, 7) + '-01';
 
   try {
-    const incomeResult = await c.env.DB.prepare(`
+    const incomeResult = await db.$client.prepare(`
       SELECT COALESCE(SUM(amount), 0) as total
       FROM income
       WHERE tenant_id = ? AND date >= ?
     `).bind(tenantId, monthStart).first<{ total: number }>();
 
-    const expenseResult = await c.env.DB.prepare(`
+    const expenseResult = await db.$client.prepare(`
       SELECT COALESCE(SUM(amount), 0) as total
       FROM expenses
       WHERE tenant_id = ? AND date >= ? AND status = 'approved'
@@ -84,6 +88,7 @@ dashboardRoutes.get('/mtd', async (c) => {
 });
 
 dashboardRoutes.get('/trends', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
 
   try {
@@ -91,7 +96,7 @@ dashboardRoutes.get('/trends', async (c) => {
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
     const startDate = sixMonthsAgo.toISOString().split('T')[0];
 
-    const incomeTrends = await c.env.DB.prepare(`
+    const incomeTrends = await db.$client.prepare(`
       SELECT strftime('%Y-%m', date) as month, SUM(amount) as total
       FROM income
       WHERE tenant_id = ? AND date >= ?
@@ -99,7 +104,7 @@ dashboardRoutes.get('/trends', async (c) => {
       ORDER BY month
     `).bind(tenantId, startDate).all<{ month: string; total: number }>();
 
-    const expenseTrends = await c.env.DB.prepare(`
+    const expenseTrends = await db.$client.prepare(`
       SELECT strftime('%Y-%m', date) as month, SUM(amount) as total
       FROM expenses
       WHERE tenant_id = ? AND date >= ? AND status = 'approved'
@@ -131,12 +136,13 @@ dashboardRoutes.get('/trends', async (c) => {
 });
 
 dashboardRoutes.get('/income-breakdown', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const today = new Date().toISOString().split('T')[0];
   const monthStart = today.substring(0, 7) + '-01';
 
   try {
-    const result = await c.env.DB.prepare(`
+    const result = await db.$client.prepare(`
       SELECT source, SUM(amount) as total
       FROM income
       WHERE tenant_id = ? AND date >= ?
@@ -159,12 +165,13 @@ dashboardRoutes.get('/income-breakdown', async (c) => {
 });
 
 dashboardRoutes.get('/expense-breakdown', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const today = new Date().toISOString().split('T')[0];
   const monthStart = today.substring(0, 7) + '-01';
 
   try {
-    const result = await c.env.DB.prepare(`
+    const result = await db.$client.prepare(`
       SELECT category, SUM(amount) as total
       FROM expenses
       WHERE tenant_id = ? AND date >= ? AND status = 'approved'

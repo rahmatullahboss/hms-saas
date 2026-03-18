@@ -18,6 +18,8 @@ import { sendEmail, EmailTemplates } from '../../lib/email';
 import { createWhatsAppProvider, WhatsAppTemplates } from '../../lib/whatsapp';
 import type { Env, Variables } from '../../types';
 import { requireTenantId } from '../../lib/context-helpers';
+import { getDb } from '../../db';
+
 
 const notificationRoutes = new Hono<{
   Bindings: Env;
@@ -91,6 +93,7 @@ const invoiceSchema = z.object({
 
 // ─── POST /sms — Raw SMS ──────────────────────────────────────────────────────
 notificationRoutes.post('/sms', zValidator('json', smsSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const { phone, message } = c.req.valid('json');
   const role = c.get('role');
 
@@ -110,6 +113,7 @@ notificationRoutes.post('/sms', zValidator('json', smsSchema), async (c) => {
 
 // ─── POST /email — Raw Email ──────────────────────────────────────────────────
 notificationRoutes.post('/email', zValidator('json', emailSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const payload = c.req.valid('json');
   const role = c.get('role');
 
@@ -128,12 +132,13 @@ notificationRoutes.post('/email', zValidator('json', emailSchema), async (c) => 
 
 // ─── POST /appointment — Appointment reminder ─────────────────────────────────
 notificationRoutes.post('/appointment', zValidator('json', appointmentSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const data = c.req.valid('json');
   const tenantId = requireTenantId(c);
   requireNotificationRole(c.get('role'));
 
   // Get hospital name for this tenant
-  const tenant = await c.env.DB.prepare(
+  const tenant = await db.$client.prepare(
     'SELECT name FROM tenants WHERE id = ?'
   ).bind(tenantId).first<{ name: string }>();
 
@@ -186,11 +191,12 @@ notificationRoutes.post('/appointment', zValidator('json', appointmentSchema), a
 
 // ─── POST /lab-ready — Lab report notification ────────────────────────────────
 notificationRoutes.post('/lab-ready', zValidator('json', labReadySchema), async (c) => {
+  const db = getDb(c.env.DB);
   const data = c.req.valid('json');
   const tenantId = requireTenantId(c);
   requireNotificationRole(c.get('role'));
 
-  const tenant = await c.env.DB.prepare(
+  const tenant = await db.$client.prepare(
     'SELECT name FROM tenants WHERE id = ?'
   ).bind(tenantId).first<{ name: string }>();
 
@@ -228,11 +234,12 @@ notificationRoutes.post('/lab-ready', zValidator('json', labReadySchema), async 
 
 // ─── POST /invoice — Invoice summary email ────────────────────────────────────
 notificationRoutes.post('/invoice', zValidator('json', invoiceSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const data = c.req.valid('json');
   const tenantId = requireTenantId(c);
   requireNotificationRole(c.get('role'));
 
-  const tenant = await c.env.DB.prepare(
+  const tenant = await db.$client.prepare(
     'SELECT name FROM tenants WHERE id = ?'
   ).bind(tenantId).first<{ name: string }>();
 

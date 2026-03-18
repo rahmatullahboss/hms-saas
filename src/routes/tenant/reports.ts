@@ -1,5 +1,7 @@
 import { Hono } from 'hono';
 import { requireTenantId } from '../../lib/context-helpers';
+import { getDb } from '../../db';
+
 
 const reportsRoutes = new Hono<{
   Bindings: {
@@ -16,6 +18,7 @@ const reportsRoutes = new Hono<{
 }>();
 
 reportsRoutes.get('/pl', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const { startDate, endDate } = c.req.query();
 
@@ -24,14 +27,14 @@ reportsRoutes.get('/pl', async (c) => {
   }
 
   try {
-    const incomeResult = await c.env.DB.prepare(`
+    const incomeResult = await db.$client.prepare(`
       SELECT source, SUM(amount) as total
       FROM income
       WHERE tenant_id = ? AND date >= ? AND date <= ?
       GROUP BY source
     `).bind(tenantId, startDate, endDate).all<{ source: string; total: number }>();
 
-    const expenseResult = await c.env.DB.prepare(`
+    const expenseResult = await db.$client.prepare(`
       SELECT category, SUM(amount) as total
       FROM expenses
       WHERE tenant_id = ? AND date >= ? AND date <= ? AND status = 'approved'
@@ -62,6 +65,7 @@ reportsRoutes.get('/pl', async (c) => {
 });
 
 reportsRoutes.get('/income-by-source', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const { startDate, endDate } = c.req.query();
 
@@ -80,7 +84,7 @@ reportsRoutes.get('/income-by-source', async (c) => {
   query += ' GROUP BY source ORDER BY total DESC';
 
   try {
-    const result = await c.env.DB.prepare(query).bind(...params).all<{ source: string; total: number; count: number }>();
+    const result = await db.$client.prepare(query).bind(...params).all<{ source: string; total: number; count: number }>();
 
     const total = result.results.reduce((sum, r) => sum + r.total, 0);
     const breakdown = result.results.map(r => ({
@@ -98,6 +102,7 @@ reportsRoutes.get('/income-by-source', async (c) => {
 });
 
 reportsRoutes.get('/expense-by-category', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const { startDate, endDate } = c.req.query();
 
@@ -116,7 +121,7 @@ reportsRoutes.get('/expense-by-category', async (c) => {
   query += ' GROUP BY category ORDER BY total DESC';
 
   try {
-    const result = await c.env.DB.prepare(query).bind(...params).all<{ category: string; total: number; count: number }>();
+    const result = await db.$client.prepare(query).bind(...params).all<{ category: string; total: number; count: number }>();
 
     const total = result.results.reduce((sum, r) => sum + r.total, 0);
     const breakdown = result.results.map(r => ({
@@ -134,6 +139,7 @@ reportsRoutes.get('/expense-by-category', async (c) => {
 });
 
 reportsRoutes.get('/monthly', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const { year } = c.req.query();
   const targetYear = year || new Date().getFullYear().toString();
@@ -146,13 +152,13 @@ reportsRoutes.get('/monthly', async (c) => {
       const monthStart = `${monthStr}-01`;
       const nextMonth = month === 12 ? `${parseInt(targetYear) + 1}-01-01` : `${targetYear}-${(month + 1).toString().padStart(2, '0')}-01`;
 
-      const incomeResult = await c.env.DB.prepare(`
+      const incomeResult = await db.$client.prepare(`
         SELECT COALESCE(SUM(amount), 0) as total
         FROM income
         WHERE tenant_id = ? AND date >= ? AND date < ?
       `).bind(tenantId, monthStart, nextMonth).first<{ total: number }>();
 
-      const expenseResult = await c.env.DB.prepare(`
+      const expenseResult = await db.$client.prepare(`
         SELECT COALESCE(SUM(amount), 0) as total
         FROM expenses
         WHERE tenant_id = ? AND date >= ? AND date < ? AND status = 'approved'
@@ -190,17 +196,18 @@ reportsRoutes.get('/monthly', async (c) => {
 // ─── Advanced Reporting Endpoints ─────────────────────────────────────────────
 
 reportsRoutes.get('/bed-occupancy', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   try {
-    const total = await c.env.DB.prepare(
+    const total = await db.$client.prepare(
       `SELECT COUNT(*) as total FROM beds WHERE tenant_id = ?`
     ).bind(tenantId).first<{ total: number }>();
 
-    const occupied = await c.env.DB.prepare(
+    const occupied = await db.$client.prepare(
       `SELECT COUNT(*) as occupied FROM beds WHERE tenant_id = ? AND status = 'occupied'`
     ).bind(tenantId).first<{ occupied: number }>();
 
-    const byWard = await c.env.DB.prepare(`
+    const byWard = await db.$client.prepare(`
       SELECT ward_name as ward, COUNT(*) as total,
         SUM(CASE WHEN status = 'occupied' THEN 1 ELSE 0 END) as occupied
       FROM beds WHERE tenant_id = ?
@@ -231,6 +238,7 @@ reportsRoutes.get('/bed-occupancy', async (c) => {
 });
 
 reportsRoutes.get('/avg-length-of-stay', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const { startDate, endDate } = c.req.query();
   try {
@@ -249,7 +257,7 @@ reportsRoutes.get('/avg-length-of-stay', async (c) => {
 
     query += ' GROUP BY department ORDER BY avg_days DESC';
 
-    const result = await c.env.DB.prepare(query).bind(...params)
+    const result = await db.$client.prepare(query).bind(...params)
       .all<{ department: string; total_admissions: number; avg_days: number }>();
 
     const overall = result.results.reduce((acc, r) => ({
@@ -275,6 +283,7 @@ reportsRoutes.get('/avg-length-of-stay', async (c) => {
 });
 
 reportsRoutes.get('/department-revenue', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const { startDate, endDate } = c.req.query();
   try {
@@ -295,7 +304,7 @@ reportsRoutes.get('/department-revenue', async (c) => {
 
     query += ' GROUP BY department ORDER BY revenue DESC';
 
-    const result = await c.env.DB.prepare(query).bind(...params)
+    const result = await db.$client.prepare(query).bind(...params)
       .all<{ department: string; bill_count: number; revenue: number; patient_count: number }>();
 
     const totalRevenue = result.results.reduce((s, r) => s + r.revenue, 0);
@@ -317,6 +326,7 @@ reportsRoutes.get('/department-revenue', async (c) => {
 });
 
 reportsRoutes.get('/doctor-performance', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const { startDate, endDate } = c.req.query();
   try {
@@ -340,7 +350,7 @@ reportsRoutes.get('/doctor-performance', async (c) => {
 
     query += ' GROUP BY d.id ORDER BY revenue DESC';
 
-    const result = await c.env.DB.prepare(query).bind(...params)
+    const result = await db.$client.prepare(query).bind(...params)
       .all<{
         doctor_id: number; doctor_name: string; specialty: string;
         visit_count: number; unique_patients: number; revenue: number;
@@ -366,6 +376,7 @@ reportsRoutes.get('/doctor-performance', async (c) => {
 });
 
 reportsRoutes.get('/monthly-summary', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const { month } = c.req.query(); // format: YYYY-MM
   const targetMonth = month || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
@@ -377,28 +388,28 @@ reportsRoutes.get('/monthly-summary', async (c) => {
 
   try {
     // ⚡ BOLT OPTIMIZATION:
-    // Replaced Promise.all() with c.env.DB.batch() for monthly summary reports.
+    // Replaced Promise.all() with db.$client.batch() for monthly summary reports.
     // Why: Promise.all() sends 6 separate HTTP network requests to Cloudflare D1.
     //      DB.batch() sends a single network request containing all 6 statements.
     // Impact: Eliminates 5 network round-trips, significantly reducing latency and
     //         making the reports dashboard load much faster.
-    const batchResults = await c.env.DB.batch([
-      c.env.DB.prepare(`SELECT COALESCE(SUM(amount), 0) as total FROM income WHERE tenant_id = ? AND date >= ? AND date < ?`)
+    const batchResults = await db.$client.batch([
+      db.$client.prepare(`SELECT COALESCE(SUM(amount), 0) as total FROM income WHERE tenant_id = ? AND date >= ? AND date < ?`)
         .bind(tenantId, monthStart, nextMonth),
 
-      c.env.DB.prepare(`SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE tenant_id = ? AND date >= ? AND date < ? AND status = 'approved'`)
+      db.$client.prepare(`SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE tenant_id = ? AND date >= ? AND date < ? AND status = 'approved'`)
         .bind(tenantId, monthStart, nextMonth),
 
-      c.env.DB.prepare(`SELECT COUNT(*) as new_patients FROM patients WHERE tenant_id = ? AND created_at >= ? AND created_at < ?`)
+      db.$client.prepare(`SELECT COUNT(*) as new_patients FROM patients WHERE tenant_id = ? AND created_at >= ? AND created_at < ?`)
         .bind(tenantId, monthStart, nextMonth),
 
-      c.env.DB.prepare(`SELECT COUNT(*) as total FROM visits WHERE tenant_id = ? AND visit_date >= ? AND visit_date < ?`)
+      db.$client.prepare(`SELECT COUNT(*) as total FROM visits WHERE tenant_id = ? AND visit_date >= ? AND visit_date < ?`)
         .bind(tenantId, monthStart, nextMonth),
 
-      c.env.DB.prepare(`SELECT COUNT(*) as total, SUM(CASE WHEN status = 'discharged' THEN 1 ELSE 0 END) as discharged FROM admissions WHERE tenant_id = ? AND admission_date >= ? AND admission_date < ?`)
+      db.$client.prepare(`SELECT COUNT(*) as total, SUM(CASE WHEN status = 'discharged' THEN 1 ELSE 0 END) as discharged FROM admissions WHERE tenant_id = ? AND admission_date >= ? AND admission_date < ?`)
         .bind(tenantId, monthStart, nextMonth),
 
-      c.env.DB.prepare(`SELECT COALESCE(icd10_description, visit_type) as diagnosis, COUNT(*) as cnt FROM visits WHERE tenant_id = ? AND visit_date >= ? AND visit_date < ? AND (icd10_description IS NOT NULL OR visit_type IS NOT NULL) GROUP BY diagnosis ORDER BY cnt DESC LIMIT 10`)
+      db.$client.prepare(`SELECT COALESCE(icd10_description, visit_type) as diagnosis, COUNT(*) as cnt FROM visits WHERE tenant_id = ? AND visit_date >= ? AND visit_date < ? AND (icd10_description IS NOT NULL OR visit_type IS NOT NULL) GROUP BY diagnosis ORDER BY cnt DESC LIMIT 10`)
         .bind(tenantId, monthStart, nextMonth),
     ]);
 

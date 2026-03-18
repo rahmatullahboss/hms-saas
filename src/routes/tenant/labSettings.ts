@@ -9,6 +9,7 @@ import {
   createLabVendorSchema, updateLabVendorSchema,
   createRunNumberSettingsSchema,
 } from '../../schemas/labSettings';
+import { getDb } from '../../db';
 
 const labSettings = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -23,19 +24,21 @@ function parseId(raw: string): number {
 // ═══════════════════════════════════════════════════════════════════
 
 labSettings.get('/categories', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
-  const { results } = await c.env.DB.prepare(
+  const { results } = await db.$client.prepare(
     'SELECT * FROM lab_test_categories WHERE tenant_id = ? AND is_active = 1 ORDER BY category_name'
   ).bind(tenantId).all();
   return c.json({ data: results });
 });
 
 labSettings.post('/categories', zValidator('json', createLabCategorySchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
 
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO lab_test_categories (category_name, description, tenant_id, created_by)
     VALUES (?, ?, ?, ?)
   `).bind(data.category_name, data.description ?? null, tenantId, userId).run();
@@ -44,6 +47,7 @@ labSettings.post('/categories', zValidator('json', createLabCategorySchema), asy
 });
 
 labSettings.put('/categories/:id', zValidator('json', updateLabCategorySchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = parseId(c.req.param('id'));
   const data = c.req.valid('json');
@@ -56,16 +60,17 @@ labSettings.put('/categories/:id', zValidator('json', updateLabCategorySchema), 
   updates.push('updated_at = CURRENT_TIMESTAMP');
   values.push(id, tenantId);
 
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     `UPDATE lab_test_categories SET ${updates.join(', ')} WHERE id = ? AND tenant_id = ?`
   ).bind(...values).run();
   return c.json({ message: 'Category updated' });
 });
 
 labSettings.delete('/categories/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = parseId(c.req.param('id'));
-  const result = await c.env.DB.prepare(
+  const result = await db.$client.prepare(
     'UPDATE lab_test_categories SET is_active = 0 WHERE id = ? AND tenant_id = ? AND is_active = 1'
   ).bind(id, tenantId).run();
   if (!result.meta.changes) throw new HTTPException(404, { message: 'Category not found' });
@@ -77,19 +82,21 @@ labSettings.delete('/categories/:id', async (c) => {
 // ═══════════════════════════════════════════════════════════════════
 
 labSettings.get('/templates', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
-  const { results } = await c.env.DB.prepare(
+  const { results } = await db.$client.prepare(
     'SELECT * FROM lab_report_templates WHERE tenant_id = ? AND is_active = 1 ORDER BY display_order, template_name'
   ).bind(tenantId).all();
   return c.json({ data: results });
 });
 
 labSettings.post('/templates', zValidator('json', createLabTemplateSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
 
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO lab_report_templates (template_name, template_short_name, template_type, template_html,
       header_text, footer_text, display_order, tenant_id, created_by)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -103,6 +110,7 @@ labSettings.post('/templates', zValidator('json', createLabTemplateSchema), asyn
 });
 
 labSettings.put('/templates/:id', zValidator('json', updateLabTemplateSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = parseId(c.req.param('id'));
   const data = c.req.valid('json');
@@ -120,16 +128,17 @@ labSettings.put('/templates/:id', zValidator('json', updateLabTemplateSchema), a
   updates.push('updated_at = CURRENT_TIMESTAMP');
   values.push(id, tenantId);
 
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     `UPDATE lab_report_templates SET ${updates.join(', ')} WHERE id = ? AND tenant_id = ?`
   ).bind(...values).run();
   return c.json({ message: 'Template updated' });
 });
 
 labSettings.delete('/templates/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = parseId(c.req.param('id'));
-  const result = await c.env.DB.prepare(
+  const result = await db.$client.prepare(
     'UPDATE lab_report_templates SET is_active = 0 WHERE id = ? AND tenant_id = ? AND is_active = 1'
   ).bind(id, tenantId).run();
   if (!result.meta.changes) throw new HTTPException(404, { message: 'Template not found' });
@@ -141,19 +150,21 @@ labSettings.delete('/templates/:id', async (c) => {
 // ═══════════════════════════════════════════════════════════════════
 
 labSettings.get('/vendors', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
-  const { results } = await c.env.DB.prepare(
+  const { results } = await db.$client.prepare(
     'SELECT * FROM lab_vendors WHERE tenant_id = ? AND is_active = 1 ORDER BY vendor_name'
   ).bind(tenantId).all();
   return c.json({ data: results });
 });
 
 labSettings.post('/vendors', zValidator('json', createLabVendorSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
 
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO lab_vendors (vendor_code, vendor_name, is_external, contact_address, contact_no, email, remarks, is_default, tenant_id, created_by)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
@@ -166,11 +177,12 @@ labSettings.post('/vendors', zValidator('json', createLabVendorSchema), async (c
 });
 
 labSettings.put('/vendors/:id', zValidator('json', updateLabVendorSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = parseId(c.req.param('id'));
   const data = c.req.valid('json');
 
-  const existing = await c.env.DB.prepare(
+  const existing = await db.$client.prepare(
     'SELECT id FROM lab_vendors WHERE id = ? AND tenant_id = ?'
   ).bind(id, tenantId).first();
   if (!existing) throw new HTTPException(404, { message: 'Vendor not found' });
@@ -189,16 +201,17 @@ labSettings.put('/vendors/:id', zValidator('json', updateLabVendorSchema), async
   updates.push('updated_at = CURRENT_TIMESTAMP');
   values.push(id, tenantId);
 
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     `UPDATE lab_vendors SET ${updates.join(', ')} WHERE id = ? AND tenant_id = ?`
   ).bind(...values).run();
   return c.json({ message: 'Vendor updated' });
 });
 
 labSettings.delete('/vendors/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = parseId(c.req.param('id'));
-  const result = await c.env.DB.prepare(
+  const result = await db.$client.prepare(
     'UPDATE lab_vendors SET is_active = 0 WHERE id = ? AND tenant_id = ? AND is_active = 1'
   ).bind(id, tenantId).run();
   if (!result.meta.changes) throw new HTTPException(404, { message: 'Vendor not found' });
@@ -210,18 +223,20 @@ labSettings.delete('/vendors/:id', async (c) => {
 // ═══════════════════════════════════════════════════════════════════
 
 labSettings.get('/run-number-settings', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
-  const { results } = await c.env.DB.prepare(
+  const { results } = await db.$client.prepare(
     'SELECT * FROM lab_run_number_settings WHERE tenant_id = ? AND is_active = 1 ORDER BY format_name'
   ).bind(tenantId).all();
   return c.json({ data: results });
 });
 
 labSettings.post('/run-number-settings', zValidator('json', createRunNumberSettingsSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const data = c.req.valid('json');
 
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO lab_run_number_settings
       (format_name, grouping_index, visit_type, run_number_type, reset_daily, reset_monthly, reset_yearly,
        starting_letter, format_initial_part, format_separator, format_last_part, under_insurance, tenant_id)

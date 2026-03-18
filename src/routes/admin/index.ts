@@ -6,6 +6,8 @@ import { generateToken } from '../../middleware/auth';
 import { PLANS, ADDONS, TRIAL_DAYS, type PlanId } from '../../schemas/pricing';
 import { loginSchema, createHospitalSchema, updateHospitalSchema } from '../../schemas/admin';
 import type { Env, Variables } from '../../types';
+import { getDb } from '../../db';
+
 
 const adminRoutes = new Hono<{
   Bindings: Env;
@@ -14,10 +16,11 @@ const adminRoutes = new Hono<{
 
 // ─── Super admin login (no tenant required) ───────────────────────────
 adminRoutes.post('/login', zValidator('json', loginSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const { email, password } = c.req.valid('json');
 
   try {
-    const user = await c.env.DB.prepare(
+    const user = await db.$client.prepare(
       'SELECT id, email, password_hash, name, role, tenant_id FROM users WHERE email = ?'
     ).bind(email).first<{
       id: string;
@@ -87,19 +90,20 @@ adminRoutes.get('/plans', (c) => {
 
 // Get all hospitals (with pagination)
 adminRoutes.get('/hospitals', async (c) => {
+  const db = getDb(c.env.DB);
   const page = Math.max(1, parseInt(c.req.query('page') || '1', 10) || 1);
   const limit = Math.min(100, Math.max(1, parseInt(c.req.query('limit') || '50', 10) || 50));
   const offset = (page - 1) * limit;
 
   try {
     const [hospitals, total] = await Promise.all([
-      c.env.DB.prepare(
+      db.$client.prepare(
         `SELECT t.id, t.name, t.subdomain, t.status, t.plan, t.created_at,
                 (SELECT COUNT(*) FROM users WHERE tenant_id = t.id) as user_count,
                 (SELECT COUNT(*) FROM patients WHERE tenant_id = t.id) as patient_count
          FROM tenants t ORDER BY t.created_at DESC LIMIT ? OFFSET ?`
       ).bind(limit, offset).all(),
-      c.env.DB.prepare('SELECT COUNT(*) as count FROM tenants').first<{ count: number }>(),
+      db.$client.prepare('SELECT COUNT(*) as count FROM tenants').first<{ count: number }>(),
     ]);
 
     return c.json({
@@ -114,13 +118,14 @@ adminRoutes.get('/hospitals', async (c) => {
 
 // Get single hospital with detailed stats
 adminRoutes.get('/hospitals/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const id = parseInt(c.req.param('id'), 10);
   if (isNaN(id) || id <= 0) {
     return c.json({ error: 'Invalid hospital ID' }, 400);
   }
 
   try {
-    const hospital = await c.env.DB.prepare(
+    const hospital = await db.$client.prepare(
       'SELECT * FROM tenants WHERE id = ?'
     ).bind(id).first();
 
@@ -129,16 +134,16 @@ adminRoutes.get('/hospitals/:id', async (c) => {
     }
 
     // Get users for this hospital
-    const users = await c.env.DB.prepare(
+    const users = await db.$client.prepare(
       'SELECT id, email, name, role, created_at FROM users WHERE tenant_id = ?'
     ).bind(id).all();
 
     // Get stats
-    const patientCount = await c.env.DB.prepare(
+    const patientCount = await db.$client.prepare(
       'SELECT COUNT(*) as count FROM patients WHERE tenant_id = ?'
     ).bind(id).first<{ count: number }>();
 
-    const billTotal = await c.env.DB.prepare(
+    const billTotal = await db.$client.prepare(
       'SELECT COALESCE(SUM(total), 0) as total, COALESCE(SUM(paid), 0) as paid FROM bills WHERE tenant_id = ?'
     ).bind(id).first<{ total: number; paid: number }>();
 
@@ -158,6 +163,7 @@ adminRoutes.get('/hospitals/:id', async (c) => {
 
 // Create hospital
 adminRoutes.post('/hospitals', zValidator('json', createHospitalSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const { name, subdomain, adminEmail, adminName, adminPassword } = c.req.valid('json');
 
   const RESERVED = ['www', 'api', 'admin', 'super', 'mail', 'ftp', 'test', 'dev'];
@@ -166,7 +172,7 @@ adminRoutes.post('/hospitals', zValidator('json', createHospitalSchema), async (
   }
 
   try {
-    const existing = await c.env.DB.prepare(
+    const existing = await db.$client.prepare(
       'SELECT id FROM tenants WHERE subdomain = ?'
     ).bind(subdomain).first();
 
@@ -174,7 +180,7 @@ adminRoutes.post('/hospitals', zValidator('json', createHospitalSchema), async (
       return c.json({ error: 'Subdomain already exists' }, 400);
     }
 
-    const result = await c.env.DB.prepare(
+    const result = await db.$client.prepare(
       'INSERT INTO tenants (name, subdomain, status, plan, created_at) VALUES (?, ?, ?, ?, datetime("now"))'
     ).bind(name, subdomain, 'active', 'basic').run();
 
@@ -183,7 +189,7 @@ adminRoutes.post('/hospitals', zValidator('json', createHospitalSchema), async (
     // If admin credentials provided, create the hospital admin user
     if (adminEmail && adminName && adminPassword) {
       const passwordHash = await bcrypt.hash(adminPassword, 10);
-      await c.env.DB.prepare(
+      await db.$client.prepare(
         'INSERT INTO users (email, password_hash, name, role, tenant_id, created_at) VALUES (?, ?, ?, ?, ?, datetime("now"))'
       ).bind(adminEmail, passwordHash, adminName, 'hospital_admin', tenantId).run();
     }
@@ -200,6 +206,7 @@ adminRoutes.post('/hospitals', zValidator('json', createHospitalSchema), async (
 
 // Update hospital
 adminRoutes.put('/hospitals/:id', zValidator('json', updateHospitalSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const id = parseInt(c.req.param('id'), 10);
   if (isNaN(id) || id <= 0) {
     return c.json({ error: 'Invalid hospital ID' }, 400);
@@ -207,7 +214,7 @@ adminRoutes.put('/hospitals/:id', zValidator('json', updateHospitalSchema), asyn
   const { name, status, plan } = c.req.valid('json');
 
   try {
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       'UPDATE tenants SET name = ?, status = ?, plan = ?, updated_at = datetime("now") WHERE id = ?'
     ).bind(name, status, plan, id).run();
 
@@ -219,13 +226,14 @@ adminRoutes.put('/hospitals/:id', zValidator('json', updateHospitalSchema), asyn
 
 // Delete hospital (soft delete)
 adminRoutes.delete('/hospitals/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const id = parseInt(c.req.param('id'), 10);
   if (isNaN(id) || id <= 0) {
     return c.json({ error: 'Invalid hospital ID' }, 400);
   }
 
   try {
-    const existing = await c.env.DB.prepare(
+    const existing = await db.$client.prepare(
       'SELECT id FROM tenants WHERE id = ?'
     ).bind(id).first();
 
@@ -233,7 +241,7 @@ adminRoutes.delete('/hospitals/:id', async (c) => {
       return c.json({ error: 'Hospital not found' }, 404);
     }
 
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       'UPDATE tenants SET status = ?, updated_at = datetime("now") WHERE id = ?'
     ).bind('inactive', id).run();
 
@@ -248,10 +256,11 @@ adminRoutes.delete('/hospitals/:id', async (c) => {
 // ═══════════════════════════════════════════════════════════════════════
 
 adminRoutes.get('/stats', async (c) => {
+  const db = getDb(c.env.DB);
   try {
     const [hospitals, users, patients, revenue, recentHospitals, pendingOnboarding] =
       await Promise.all([
-        c.env.DB.prepare(
+        db.$client.prepare(
           `SELECT
              COUNT(*) as total,
              SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active,
@@ -259,20 +268,20 @@ adminRoutes.get('/stats', async (c) => {
              SUM(CASE WHEN status = 'suspended' THEN 1 ELSE 0 END) as suspended
            FROM tenants`
         ).first(),
-        c.env.DB.prepare(
+        db.$client.prepare(
           'SELECT COUNT(*) as count FROM users WHERE tenant_id IS NOT NULL'
         ).first<{ count: number }>(),
-        c.env.DB.prepare(
+        db.$client.prepare(
           'SELECT COUNT(*) as count FROM patients'
         ).first<{ count: number }>(),
-        c.env.DB.prepare(
+        db.$client.prepare(
           'SELECT COALESCE(SUM(total), 0) as total_billed, COALESCE(SUM(paid), 0) as total_paid FROM bills'
         ).first<{ total_billed: number; total_paid: number }>(),
-        c.env.DB.prepare(
+        db.$client.prepare(
           `SELECT id, name, subdomain, plan, status, created_at FROM tenants
            WHERE created_at > datetime('now', '-7 days') ORDER BY created_at DESC LIMIT 5`
         ).all(),
-        c.env.DB.prepare(
+        db.$client.prepare(
           `SELECT COUNT(*) as count FROM onboarding_requests WHERE status = 'pending'`
         ).first<{ count: number }>(),
       ]);
@@ -296,12 +305,13 @@ adminRoutes.get('/stats', async (c) => {
 
 // Legacy usage endpoint (backward compat)
 adminRoutes.get('/usage', async (c) => {
+  const db = getDb(c.env.DB);
   try {
-    const hospitalCount = await c.env.DB.prepare(
+    const hospitalCount = await db.$client.prepare(
       'SELECT COUNT(*) as count FROM tenants WHERE status = ?'
     ).bind('active').first<{ count: number }>();
 
-    const userCount = await c.env.DB.prepare(
+    const userCount = await db.$client.prepare(
       'SELECT COUNT(*) as count FROM users WHERE tenant_id IS NOT NULL'
     ).first<{ count: number }>();
 
@@ -320,6 +330,7 @@ adminRoutes.get('/usage', async (c) => {
 
 // List onboarding requests
 adminRoutes.get('/onboarding', async (c) => {
+  const db = getDb(c.env.DB);
   const status = c.req.query('status');
 
   try {
@@ -333,7 +344,7 @@ adminRoutes.get('/onboarding', async (c) => {
 
     query += ' ORDER BY created_at DESC';
 
-    const stmt = c.env.DB.prepare(query);
+    const stmt = db.$client.prepare(query);
     const results = params.length > 0
       ? await stmt.bind(...params).all()
       : await stmt.all();
@@ -352,12 +363,13 @@ const updateOnboardingSchema = z.object({
 });
 
 adminRoutes.put('/onboarding/:id', zValidator('json', updateOnboardingSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const id = c.req.param('id');
   const { status, notes } = c.req.valid('json');
   const userId = c.get('userId');
 
   try {
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       `UPDATE onboarding_requests
        SET status = ?, notes = ?, reviewed_by = ?, reviewed_at = datetime('now'), updated_at = datetime('now')
        WHERE id = ?`
@@ -383,6 +395,7 @@ const provisionSchema = z.object({
 });
 
 adminRoutes.post('/onboarding/:id/provision', zValidator('json', provisionSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const requestId = c.req.param('id');
   const { slug, adminEmail, adminName, plan } = c.req.valid('json');
   const userId = c.get('userId');
@@ -394,7 +407,7 @@ adminRoutes.post('/onboarding/:id/provision', zValidator('json', provisionSchema
 
   try {
     // Verify the request exists and is not already provisioned
-    const request = await c.env.DB.prepare(
+    const request = await db.$client.prepare(
       'SELECT * FROM onboarding_requests WHERE id = ?'
     ).bind(requestId).first();
 
@@ -407,7 +420,7 @@ adminRoutes.post('/onboarding/:id/provision', zValidator('json', provisionSchema
     }
 
     // Check slug uniqueness
-    const existingSlug = await c.env.DB.prepare(
+    const existingSlug = await db.$client.prepare(
       'SELECT id FROM tenants WHERE subdomain = ?'
     ).bind(slug).first();
 
@@ -416,7 +429,7 @@ adminRoutes.post('/onboarding/:id/provision', zValidator('json', provisionSchema
     }
 
     // Check email uniqueness
-    const existingEmail = await c.env.DB.prepare(
+    const existingEmail = await db.$client.prepare(
       'SELECT id FROM users WHERE email = ?'
     ).bind(adminEmail).first();
 
@@ -432,14 +445,14 @@ adminRoutes.post('/onboarding/:id/provision', zValidator('json', provisionSchema
     // D1 batch is transactional — all or nothing.
     const hospitalName = (request as Record<string, unknown>).hospital_name as string;
 
-    const batchResults = await c.env.DB.batch([
+    const batchResults = await db.$client.batch([
       // [0] Create tenant
-      c.env.DB.prepare(
+      db.$client.prepare(
         `INSERT INTO tenants (name, subdomain, status, plan, plan_price, billing_cycle, trial_ends_at, plan_started_at, created_at, updated_at)
          VALUES (?, ?, 'active', ?, 0, 'monthly', datetime('now', '+' || ? || ' days'), datetime('now'), datetime('now'), datetime('now'))`
       ).bind(hospitalName, slug, plan, TRIAL_DAYS),
       // [1] Get the new tenant ID (last_insert_rowid)
-      c.env.DB.prepare('SELECT last_insert_rowid() as id'),
+      db.$client.prepare('SELECT last_insert_rowid() as id'),
     ]);
 
     const tenantId = (batchResults[1].results?.[0] as { id: number } | undefined)?.id;
@@ -448,11 +461,11 @@ adminRoutes.post('/onboarding/:id/provision', zValidator('json', provisionSchema
     }
 
     // Second batch: create user + update onboarding (references tenantId from first batch)
-    await c.env.DB.batch([
-      c.env.DB.prepare(
+    await db.$client.batch([
+      db.$client.prepare(
         'INSERT INTO users (email, password_hash, name, role, tenant_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, datetime("now"), datetime("now"))'
       ).bind(adminEmail, passwordHash, adminName, 'hospital_admin', tenantId),
-      c.env.DB.prepare(
+      db.$client.prepare(
         `UPDATE onboarding_requests
          SET status = 'provisioned', tenant_id = ?, reviewed_by = ?, reviewed_at = datetime('now'), updated_at = datetime('now')
          WHERE id = ?`
@@ -485,6 +498,7 @@ adminRoutes.post('/onboarding/:id/provision', zValidator('json', provisionSchema
 // ═══════════════════════════════════════════════════════════════════════
 
 adminRoutes.post('/impersonate/:tenantId', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantIdParam = parseInt(c.req.param('tenantId'), 10);
   if (isNaN(tenantIdParam) || tenantIdParam <= 0) {
     return c.json({ error: 'Invalid tenant ID' }, 400);
@@ -494,7 +508,7 @@ adminRoutes.post('/impersonate/:tenantId', async (c) => {
 
   try {
     // Verify tenant exists
-    const tenant = await c.env.DB.prepare(
+    const tenant = await db.$client.prepare(
       'SELECT id, name, subdomain, status, plan FROM tenants WHERE id = ?'
     ).bind(tenantId).first<{
       id: number;
@@ -522,7 +536,7 @@ adminRoutes.post('/impersonate/:tenantId', async (c) => {
 
     // Log impersonation for audit
     try {
-      await c.env.DB.prepare(
+      await db.$client.prepare(
         `INSERT INTO audit_logs (tenant_id, user_id, action, table_name, created_at)
          VALUES (?, ?, 'impersonate_start', 'tenants', datetime('now'))`
       ).bind(tenant.id, superAdminId || null).run();
@@ -552,13 +566,14 @@ adminRoutes.post('/impersonate/:tenantId', async (c) => {
 // ═══════════════════════════════════════════════════════════════════════
 
 adminRoutes.get('/audit-logs', async (c) => {
+  const db = getDb(c.env.DB);
   const page = Math.max(1, parseInt(c.req.query('page') || '1', 10) || 1);
   const limit = Math.min(200, Math.max(1, parseInt(c.req.query('limit') || '50', 10) || 50));
   const offset = (page - 1) * limit;
 
   try {
     const [logs, total] = await Promise.all([
-      c.env.DB.prepare(
+      db.$client.prepare(
         `SELECT a.id, a.tenant_id, a.user_id, a.action, a.table_name, a.record_id, a.created_at,
                 t.name as tenant_name, u.email as user_email
          FROM audit_logs a
@@ -567,7 +582,7 @@ adminRoutes.get('/audit-logs', async (c) => {
          ORDER BY a.created_at DESC
          LIMIT ? OFFSET ?`
       ).bind(limit, offset).all(),
-      c.env.DB.prepare('SELECT COUNT(*) as count FROM audit_logs').first<{ count: number }>(),
+      db.$client.prepare('SELECT COUNT(*) as count FROM audit_logs').first<{ count: number }>(),
     ]);
 
     return c.json({
@@ -586,6 +601,7 @@ adminRoutes.get('/audit-logs', async (c) => {
 // ═══════════════════════════════════════════════════════════════════════
 
 adminRoutes.get('/system-health', async (c) => {
+  const db = getDb(c.env.DB);
   try {
     // Get table row counts for key tables.
     // SAFETY: table names are hardcoded constants below — never from user input.
@@ -597,7 +613,7 @@ adminRoutes.get('/system-health', async (c) => {
 
     for (const table of tables) {
       try {
-        const result = await c.env.DB.prepare(
+        const result = await db.$client.prepare(
           `SELECT COUNT(*) as count FROM "${table}"`
         ).first<{ count: number }>();
         tableStats.push({ table, count: result?.count || 0 });

@@ -4,6 +4,8 @@ import { HTTPException } from 'hono/http-exception';
 import { z } from 'zod';
 import type { Env, Variables } from '../../types';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
+import { getDb } from '../../db';
+
 
 const pushRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -28,6 +30,7 @@ const sendSchema = z.object({
 
 // GET /api/push/vapid-key — return the VAPID public key
 pushRoutes.get('/vapid-key', async (c) => {
+  const db = getDb(c.env.DB);
   const vapidPublicKey = (c.env as any).VAPID_PUBLIC_KEY;
   if (!vapidPublicKey) {
     return c.json({ error: 'VAPID not configured' }, 503);
@@ -37,12 +40,13 @@ pushRoutes.get('/vapid-key', async (c) => {
 
 // POST /api/push/subscribe — save a push subscription
 pushRoutes.post('/subscribe', zValidator('json', subscribeSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const { endpoint, keys } = c.req.valid('json');
 
   try {
-    await c.env.DB.prepare(`
+    await db.$client.prepare(`
       INSERT INTO push_subscriptions (tenant_id, user_id, endpoint, p256dh, auth)
       VALUES (?, ?, ?, ?, ?)
       ON CONFLICT(endpoint, tenant_id) DO UPDATE SET
@@ -59,11 +63,12 @@ pushRoutes.post('/subscribe', zValidator('json', subscribeSchema), async (c) => 
 
 // DELETE /api/push/unsubscribe — remove a push subscription
 pushRoutes.delete('/unsubscribe', zValidator('json', unsubscribeSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const { endpoint } = c.req.valid('json');
 
   try {
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       'DELETE FROM push_subscriptions WHERE endpoint = ? AND tenant_id = ?',
     ).bind(endpoint, tenantId).run();
     return c.json({ ok: true });
@@ -75,6 +80,7 @@ pushRoutes.delete('/unsubscribe', zValidator('json', unsubscribeSchema), async (
 
 // POST /api/push/send — broadcast a push notification (admin only)
 pushRoutes.post('/send', zValidator('json', sendSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const role = c.get('role');
 
@@ -93,7 +99,7 @@ pushRoutes.post('/send', zValidator('json', sendSchema), async (c) => {
   const { title, body, url, icon } = c.req.valid('json');
 
   try {
-    const subs = await c.env.DB.prepare(
+    const subs = await db.$client.prepare(
       'SELECT * FROM push_subscriptions WHERE tenant_id = ?',
     ).bind(tenantId).all<{ endpoint: string; p256dh: string; auth: string }>();
 

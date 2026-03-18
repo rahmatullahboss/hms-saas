@@ -16,6 +16,8 @@ import { woundCareRoutes } from './wound-care';
 import { handoverRoutes } from './handover';
 import { opdRoutes } from './opd';
 import wardsRoutes from './wards';
+import { getDb } from '../../../db';
+
 
 type NursingEnv = { Bindings: Env; Variables: Variables };
 
@@ -25,6 +27,7 @@ const nursing = new Hono<NursingEnv>();
 // GETs = open to all authenticated users (viewing patient data)
 // POST/PUT/DELETE = restricted to nursing roles
 nursing.use('/*', async (c, next) => {
+  const db = getDb(c.env.DB);
   const method = c.req.method;
   if (method === 'GET') return next();
 
@@ -41,6 +44,7 @@ nursing.get(
   '/patients',
   zValidator('query', z.object({ ward_id: z.coerce.number().int().positive().optional() })),
   async (c) => {
+    const db = getDb(c.env.DB);
     const tenantId = requireTenantId(c);
     const { ward_id } = c.req.valid('query');
 
@@ -66,7 +70,7 @@ nursing.get(
     if (ward_id) { sql += ' AND a.ward_id = ?'; params.push(ward_id); }
     sql += ' ORDER BY a.admission_date DESC LIMIT 100';
 
-    const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+    const { results } = await db.$client.prepare(sql).bind(...params).all();
     return c.json({ Results: results, TotalCount: results.length });
   }
 );

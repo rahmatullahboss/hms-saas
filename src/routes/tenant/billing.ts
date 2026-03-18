@@ -7,6 +7,8 @@ import { createAuditLog } from '../../lib/accounting-helpers';
 import type { Env, Variables } from '../../types';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 import { getPagination, paginationMeta } from '../../lib/pagination';
+import { getDb } from '../../db';
+
 
 const billingRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -29,6 +31,7 @@ const billingRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
  * // GET /api/billing?status=open&page=1&limit=20
  */
 billingRoutes.get('/', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const { status, from, to, search } = c.req.query();
   const { page, limit, offset } = getPagination(c);
@@ -42,12 +45,12 @@ billingRoutes.get('/', async (c) => {
     if (to)     { whereClause += ' AND date(b.created_at) <= ?'; params.push(to); }
     if (search) { whereClause += ' AND (p.name LIKE ? OR b.invoice_no LIKE ? OR p.patient_code LIKE ?)'; params.push(`%${search}%`, `%${search}%`, `%${search}%`); }
 
-    const countResult = await c.env.DB.prepare(
+    const countResult = await db.$client.prepare(
       `SELECT COUNT(*) as total FROM bills b JOIN patients p ON b.patient_id = p.id ${whereClause}`
     ).bind(...params).first<{ total: number }>();
     const total = countResult?.total ?? 0;
 
-    const bills = await c.env.DB.prepare(
+    const bills = await db.$client.prepare(
       `SELECT b.*, b.total AS total_amount, b.paid AS paid_amount, (b.total - b.paid) AS outstanding,
               p.name as patient_name, p.patient_code, p.mobile as patient_mobile
        FROM bills b JOIN patients p ON b.patient_id = p.id
@@ -72,10 +75,11 @@ billingRoutes.get('/', async (c) => {
  * // GET /api/billing/due
  */
 billingRoutes.get('/due', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
 
   try {
-    const bills = await c.env.DB.prepare(`
+    const bills = await db.$client.prepare(`
       SELECT b.*, b.total AS total_amount, b.paid AS paid_amount,
              p.name as patient_name, p.patient_code, p.mobile as patient_mobile,
              (b.total - b.paid) as outstanding
@@ -104,11 +108,12 @@ billingRoutes.get('/due', async (c) => {
  * // GET /api/billing/patient/123
  */
 billingRoutes.get('/patient/:patientId', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const patientId = c.req.param('patientId');
 
   try {
-    const bills = await c.env.DB.prepare(`
+    const bills = await db.$client.prepare(`
       SELECT b.*, b.total AS total_amount, b.paid AS paid_amount, (b.total - b.paid) as outstanding
       FROM bills b
       WHERE b.patient_id = ? AND b.tenant_id = ?
@@ -135,11 +140,12 @@ billingRoutes.get('/patient/:patientId', async (c) => {
  * // GET /api/billing/456
  */
 billingRoutes.get('/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = c.req.param('id');
 
   try {
-    const bill = await c.env.DB.prepare(`
+    const bill = await db.$client.prepare(`
       SELECT b.*, b.total AS total_amount, b.paid AS paid_amount, (b.total - b.paid) AS outstanding,
              p.name as patient_name, p.patient_code, p.mobile, p.address
       FROM bills b JOIN patients p ON b.patient_id = p.id
@@ -147,11 +153,11 @@ billingRoutes.get('/:id', async (c) => {
     `).bind(id, tenantId).first();
     if (!bill) throw new HTTPException(404, { message: 'Bill not found' });
 
-    const items = await c.env.DB.prepare(
+    const items = await db.$client.prepare(
       'SELECT * FROM invoice_items WHERE bill_id = ? AND tenant_id = ?',
     ).bind(id, tenantId).all();
 
-    const payments = await c.env.DB.prepare(
+    const payments = await db.$client.prepare(
       'SELECT * FROM payments WHERE bill_id = ? AND tenant_id = ?',
     ).bind(id, tenantId).all();
 
@@ -181,6 +187,7 @@ billingRoutes.get('/:id', async (c) => {
  * // Body: { "patientId": 1, "items": [...], "discount": 10 }
  */
 billingRoutes.post('/', zValidator('json', createBillSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
@@ -199,7 +206,7 @@ billingRoutes.post('/', zValidator('json', createBillSchema), async (c) => {
     // ─── Step 1: Insert bill (need billId before items can reference it) ─────
     // D1 batch does NOT propagate last_insert_rowid() across statements,
     // so we must insert the bill separately to get the real ID.
-    const billResult = await c.env.DB.prepare(`
+    const billResult = await db.$client.prepare(`
       INSERT INTO bills
         (patient_id, visit_id, invoice_no, discount, total, paid, due, status, tenant_id, created_at)
       VALUES (?, ?, ?, ?, ?, 0, ?, 'open', ?, datetime('now'))
@@ -210,19 +217,19 @@ billingRoutes.post('/', zValidator('json', createBillSchema), async (c) => {
     // ─── Step 2: Batch insert items + income using the real billId ───────────
     const itemStatements = data.items.map((item) => {
       const lineTotal = item.quantity * item.unitPrice;
-      return c.env.DB.prepare(`
+      return db.$client.prepare(`
         INSERT INTO invoice_items
           (bill_id, item_category, description, quantity, unit_price, line_total, reference_id, tenant_id)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(billId, item.itemCategory, item.description ?? null, item.quantity, item.unitPrice, lineTotal, item.referenceId ?? null, tenantId);
     });
 
-    const incomeStatement = c.env.DB.prepare(`
+    const incomeStatement = db.$client.prepare(`
       INSERT INTO income (date, source, amount, description, bill_id, tenant_id)
       VALUES (?, 'billing', ?, ?, ?, ?)
     `).bind(today, total, `Invoice ${invoiceNo}`, billId, tenantId);
 
-    await c.env.DB.batch([...itemStatements, incomeStatement]);
+    await db.$client.batch([...itemStatements, incomeStatement]);
 
     // Audit log (fire-and-forget — non-critical path)
     void createAuditLog(c.env, tenantId!, userId!, 'create', 'bills', billId, null, { patientId: data.patientId, invoiceNo, total });
@@ -257,12 +264,13 @@ billingRoutes.post('/', zValidator('json', createBillSchema), async (c) => {
  * // Body: { "billId": 123, "amount": 500, "paymentMethod": "cash" }
  */
 billingRoutes.post('/pay', zValidator('json', paymentSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
 
   try {
-    const bill = await c.env.DB.prepare(
+    const bill = await db.$client.prepare(
       'SELECT id, total, paid, status FROM bills WHERE id = ? AND tenant_id = ?',
     ).bind(data.billId, tenantId).first<{
       id: number; total: number; paid: number; status: string;
@@ -283,13 +291,13 @@ billingRoutes.post('/pay', zValidator('json', paymentSchema), async (c) => {
 
     const receiptNo = await getNextSequence(c.env.DB, tenantId!, 'receipt', 'RCP');
 
-    await c.env.DB.prepare(`
+    await db.$client.prepare(`
       INSERT INTO payments
         (bill_id, amount, type, receipt_no, payment_method, received_by, tenant_id, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
     `).bind(data.billId, data.amount, data.type, receiptNo, data.paymentMethod ?? null, userId, tenantId).run();
 
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       `UPDATE bills SET paid = ?, due = ?, status = ? WHERE id = ? AND tenant_id = ?`,
     ).bind(newPaid, Math.max(0, bill.total - newPaid), status, data.billId, tenantId).run();
 
@@ -323,6 +331,7 @@ billingRoutes.post('/pay', zValidator('json', paymentSchema), async (c) => {
  * @throws {HTTPException} 409 if bill already has payments (cannot edit).
  */
 billingRoutes.put('/:id', zValidator('json', editBillSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const id = c.req.param('id');
@@ -330,7 +339,7 @@ billingRoutes.put('/:id', zValidator('json', editBillSchema), async (c) => {
 
   try {
     // Verify bill exists and belongs to tenant
-    const bill = await c.env.DB.prepare(
+    const bill = await db.$client.prepare(
       `SELECT id, status, paid, invoice_no FROM bills WHERE id = ? AND tenant_id = ?`
     ).bind(id, tenantId).first<{ id: number; status: string; paid: number; invoice_no: string }>();
 
@@ -351,12 +360,12 @@ billingRoutes.put('/:id', zValidator('json', editBillSchema), async (c) => {
     // Atomic batch: delete old items, insert new ones, update bill totals
     const batchStmts: D1PreparedStatement[] = [
       // Delete existing items
-      c.env.DB.prepare(
+      db.$client.prepare(
         `DELETE FROM invoice_items WHERE bill_id = ? AND tenant_id = ?`
       ).bind(id, tenantId),
 
       // Update bill totals
-      c.env.DB.prepare(
+      db.$client.prepare(
         `UPDATE bills SET total = ?, discount = ?, due = ?, updated_at = datetime('now')
          WHERE id = ? AND tenant_id = ?`
       ).bind(totalAmount, discount, totalAmount, id, tenantId),
@@ -366,7 +375,7 @@ billingRoutes.put('/:id', zValidator('json', editBillSchema), async (c) => {
     for (const item of data.items) {
       const lineTotal = item.quantity * item.unitPrice;
       batchStmts.push(
-        c.env.DB.prepare(
+        db.$client.prepare(
           `INSERT INTO invoice_items (bill_id, item_category, description, quantity, unit_price, line_total, tenant_id)
            VALUES (?, ?, ?, ?, ?, ?, ?)`
         ).bind(id, item.itemCategory, item.description ?? null, item.quantity, item.unitPrice, lineTotal, tenantId)
@@ -375,13 +384,13 @@ billingRoutes.put('/:id', zValidator('json', editBillSchema), async (c) => {
 
     // Audit log
     batchStmts.push(
-      c.env.DB.prepare(
+      db.$client.prepare(
         `INSERT INTO audit_log (tenant_id, user_id, action, entity, entity_id, details)
          VALUES (?, ?, 'edit', 'bill', ?, ?)`
       ).bind(tenantId, userId, id, `Bill ${bill.invoice_no} edited — new total: ${totalAmount}`)
     );
 
-    await c.env.DB.batch(batchStmts);
+    await db.$client.batch(batchStmts);
 
     return c.json({
       message: 'Bill updated',

@@ -3,11 +3,14 @@ import { zValidator } from "@hono/zod-validator";
 import * as schemas from "../../../schemas/inventory";
 import type { Env } from '../../../types';
 import { generateSequenceNo } from "../../../utils/sequence";
+import { getDb } from '../../../db';
+
 
 const gr = new Hono<{ Bindings: Env; Variables: { tenantId?: string; userId?: string; role?: string } }>();
 
 // GET /gr
 gr.get("/", zValidator("query", schemas.listGoodsReceiptsSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const { page, limit, VendorId, StoreId, FromDate, ToDate } = c.req.valid("query");
   const offset = (page - 1) * limit;
 
@@ -21,11 +24,11 @@ gr.get("/", zValidator("query", schemas.listGoodsReceiptsSchema), async (c) => {
   if (ToDate) { conditions.push("G.GoodsReceiptDate <= ?"); params.push(ToDate); }
 
   const whereClause = conditions.join(" AND ");
-  const count = await c.env.DB.prepare(
+  const count = await db.$client.prepare(
     `SELECT COUNT(*) as total FROM InventoryGoodsReceipt G WHERE ${whereClause}`
   ).bind(...params).first<{ total: number }>();
 
-  const results = await c.env.DB.prepare(`
+  const results = await db.$client.prepare(`
     SELECT G.*, V.VendorName
     FROM InventoryGoodsReceipt G
     JOIN InventoryVendor V ON G.VendorId = V.VendorId
@@ -39,6 +42,7 @@ gr.get("/", zValidator("query", schemas.listGoodsReceiptsSchema), async (c) => {
 
 // POST /gr
 gr.post("/", zValidator("json", schemas.createGoodsReceiptSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const body = c.req.valid("json");
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
@@ -58,7 +62,7 @@ gr.post("/", zValidator("json", schemas.createGoodsReceiptSchema), async (c) => 
   const nextGRNo = await generateSequenceNo(c.env.DB, 'GRN', 'InventoryGoodsReceipt', 'GoodsReceiptNo', tenantId);
 
   // Insert GR Header
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO InventoryGoodsReceipt (tenant_id, GoodsReceiptNo, GoodsReceiptDate, PurchaseOrderId, VendorId, StoreId, VendorBillNo, VendorBillDate, SubTotal, DiscountAmount, VATAmount, TotalAmount, PaymentMode, CreditPeriod, Remarks, CreatedBy, CreatedOn)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
@@ -73,7 +77,7 @@ gr.post("/", zValidator("json", schemas.createGoodsReceiptSchema), async (c) => 
   // Process Items (sequential for linked IDs)
   for (const item of body.Items) {
     // 1. Insert GR Item
-    const grItemRes = await c.env.DB.prepare(`
+    const grItemRes = await db.$client.prepare(`
       INSERT INTO InventoryGoodsReceiptItem (tenant_id, GoodsReceiptId, ItemId, BatchNo, ExpiryDate, ManufactureDate, ReceivedQuantity, FreeQuantity, RejectedQuantity, ItemRate, MRP, TotalAmount, VATAmount, DiscountAmount, CreatedBy, CreatedOn)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
@@ -86,7 +90,7 @@ gr.post("/", zValidator("json", schemas.createGoodsReceiptSchema), async (c) => 
     const grItemId = grItemRes.meta.last_row_id;
 
     // 2. Insert Stock
-    const stockRes = await c.env.DB.prepare(`
+    const stockRes = await db.$client.prepare(`
       INSERT INTO InventoryStock (tenant_id, ItemId, StoreId, GRItemId, BatchNo, ExpiryDate, CostPrice, MRP, AvailableQuantity, CreatedBy, CreatedOn)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
@@ -98,7 +102,7 @@ gr.post("/", zValidator("json", schemas.createGoodsReceiptSchema), async (c) => 
     const stockId = stockRes.meta.last_row_id;
 
     // 3. Stock Transaction
-    await c.env.DB.prepare(`
+    await db.$client.prepare(`
       INSERT INTO InventoryStockTransaction (tenant_id, StockId, ItemId, StoreId, TransactionType, Quantity, InOut, ReferenceNo, CreatedBy, CreatedOn)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
@@ -111,11 +115,11 @@ gr.post("/", zValidator("json", schemas.createGoodsReceiptSchema), async (c) => 
   // Update PO Status if linked — check for partial vs complete
   if (body.PurchaseOrderId) {
     // Check total PO quantities vs total received across all GRs
-    const poItems = await c.env.DB.prepare(
+    const poItems = await db.$client.prepare(
       "SELECT SUM(Quantity) as totalOrdered FROM InventoryPurchaseOrderItem WHERE PurchaseOrderId = ? AND tenant_id = ?"
     ).bind(body.PurchaseOrderId, tenantId).first<{ totalOrdered: number }>();
 
-    const grItems = await c.env.DB.prepare(`
+    const grItems = await db.$client.prepare(`
       SELECT SUM(GRI.ReceivedQuantity) as totalReceived
       FROM InventoryGoodsReceiptItem GRI
       JOIN InventoryGoodsReceipt GR ON GRI.GoodsReceiptId = GR.GoodsReceiptId
@@ -126,7 +130,7 @@ gr.post("/", zValidator("json", schemas.createGoodsReceiptSchema), async (c) => 
     const totalReceived = grItems?.totalReceived || 0;
     const newStatus = totalReceived >= totalOrdered ? 'complete' : 'partial';
 
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       "UPDATE InventoryPurchaseOrder SET POStatus = ? WHERE PurchaseOrderId = ? AND tenant_id = ?"
     ).bind(newStatus, body.PurchaseOrderId, tenantId).run();
   }

@@ -6,12 +6,15 @@ import { getNextSequence } from '../../lib/sequence';
 import { createAuditLog } from '../../lib/accounting-helpers';
 import type { Env, Variables } from '../../types';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
+import { getDb } from '../../db';
+
 
 const appointmentRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // ─── GET /api/appointments ───────────────────────────────────────────────────
 // Params: date, doctorId, status, patientId
 appointmentRoutes.get('/', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = String(requireTenantId(c));
   const { date, doctorId, status, patientId } = c.req.query();
 
@@ -35,7 +38,7 @@ appointmentRoutes.get('/', async (c) => {
     if (patientId) { query += ' AND a.patient_id = ?'; params.push(patientId); }
 
     query += ' ORDER BY a.appt_date ASC, a.token_no ASC LIMIT 200';
-    const appts = await c.env.DB.prepare(query).bind(...params).all();
+    const appts = await db.$client.prepare(query).bind(...params).all();
     return c.json({ appointments: appts.results });
   } catch {
     throw new HTTPException(500, { message: 'Failed to fetch appointments' });
@@ -44,6 +47,7 @@ appointmentRoutes.get('/', async (c) => {
 
 // ─── GET /api/appointments/today ─────────────────────────────────────────────
 appointmentRoutes.get('/today', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = String(requireTenantId(c));
   // Use Bangladesh time (UTC+6) so "today" is correct for local users
   const now = new Date();
@@ -52,7 +56,7 @@ appointmentRoutes.get('/today', async (c) => {
   const today = bst.toISOString().split('T')[0];
 
   try {
-    const appts = await c.env.DB.prepare(`
+    const appts = await db.$client.prepare(`
       SELECT a.*,
              p.name        AS patient_name,
              p.patient_code,
@@ -72,11 +76,12 @@ appointmentRoutes.get('/today', async (c) => {
 
 // ─── GET /api/appointments/:id ────────────────────────────────────────────────
 appointmentRoutes.get('/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = String(requireTenantId(c));
   const id = c.req.param('id');
 
   try {
-    const appt = await c.env.DB.prepare(`
+    const appt = await db.$client.prepare(`
       SELECT a.*,
              p.name AS patient_name, p.patient_code, p.mobile AS patient_mobile,
              d.name AS doctor_name, d.specialty, d.consultation_fee
@@ -96,6 +101,7 @@ appointmentRoutes.get('/:id', async (c) => {
 
 // ─── POST /api/appointments ───────────────────────────────────────────────────
 appointmentRoutes.post('/', zValidator('json', createAppointmentSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = String(requireTenantId(c));
   const userId   = String(requireUserId(c));
   const data     = c.req.valid('json');
@@ -104,7 +110,7 @@ appointmentRoutes.post('/', zValidator('json', createAppointmentSchema), async (
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       // Calculate the next token number for this doctor on this date
-      const tokenRow = await c.env.DB.prepare(`
+      const tokenRow = await db.$client.prepare(`
         SELECT COALESCE(MAX(token_no), 0) + 1 AS next_token
         FROM appointments
         WHERE tenant_id = ? AND appt_date = ? AND (doctor_id = ? OR (doctor_id IS NULL AND ? IS NULL))
@@ -113,7 +119,7 @@ appointmentRoutes.post('/', zValidator('json', createAppointmentSchema), async (
       const tokenNo = tokenRow?.next_token ?? 1;
       const apptNo  = await getNextSequence(c.env.DB, tenantId!, 'appointment', 'APT');
 
-      const result = await c.env.DB.prepare(`
+      const result = await db.$client.prepare(`
         INSERT INTO appointments
           (appt_no, token_no, patient_id, doctor_id, appt_date, appt_time,
            visit_type, status, chief_complaint, notes, fee, created_by, tenant_id)
@@ -151,13 +157,14 @@ appointmentRoutes.post('/', zValidator('json', createAppointmentSchema), async (
 
 // ─── PUT /api/appointments/:id ────────────────────────────────────────────────
 appointmentRoutes.put('/:id', zValidator('json', updateAppointmentSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = String(requireTenantId(c));
   const userId   = String(requireUserId(c));
   const id       = c.req.param('id');
   const data     = c.req.valid('json');
 
   try {
-    const existing = await c.env.DB.prepare(
+    const existing = await db.$client.prepare(
       'SELECT * FROM appointments WHERE id = ? AND tenant_id = ?',
     ).bind(id, tenantId).first<Record<string, unknown>>();
     if (!existing) throw new HTTPException(404, { message: 'Appointment not found' });
@@ -175,7 +182,7 @@ appointmentRoutes.put('/:id', zValidator('json', updateAppointmentSchema), async
 
     vals.push(id as string, tenantId as string);
 
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       `UPDATE appointments SET ${sets.join(', ')} WHERE id = ? AND tenant_id = ?`
     ).bind(...vals).run();
 
@@ -189,17 +196,18 @@ appointmentRoutes.put('/:id', zValidator('json', updateAppointmentSchema), async
 
 // ─── DELETE /api/appointments/:id — cancel ────────────────────────────────────
 appointmentRoutes.delete('/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = String(requireTenantId(c));
   const userId   = String(requireUserId(c));
   const id       = c.req.param('id');
 
   try {
-    const existing = await c.env.DB.prepare(
+    const existing = await db.$client.prepare(
       'SELECT * FROM appointments WHERE id = ? AND tenant_id = ?',
     ).bind(id, tenantId).first();
     if (!existing) throw new HTTPException(404, { message: 'Appointment not found' });
 
-    await c.env.DB.prepare(`
+    await db.$client.prepare(`
       UPDATE appointments SET status = 'cancelled', updated_at = datetime('now')
       WHERE id = ? AND tenant_id = ?
     `).bind(id, tenantId).run();

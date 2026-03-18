@@ -4,6 +4,8 @@ import { zValidator } from '@hono/zod-validator';
 import { HTTPException } from 'hono/http-exception';
 import type { Env, Variables } from '../../types';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
+import { getDb } from '../../db';
+
 
 const ot = new Hono<{
   Bindings: Env;
@@ -104,16 +106,17 @@ const updateSummarySchema = z.object({
 
 // GET /bookings — list OT bookings with team members (N+1 optimized)
 ot.get('/bookings', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const dateFilter = c.req.query('date') || new Date().toISOString().split('T')[0];
   const limit = Math.min(parseInt(c.req.query('limit') || '50'), 100);
   const offset = Math.max(parseInt(c.req.query('offset') || '0'), 0);
 
-  const countResult = await c.env.DB.prepare(
+  const countResult = await db.$client.prepare(
     'SELECT COUNT(*) as total FROM ot_bookings WHERE tenant_id = ? AND is_active = 1 AND booked_for_date >= ?'
   ).bind(tenantId, dateFilter).first<{ total: number }>();
 
-  const { results: bookings } = await c.env.DB.prepare(`
+  const { results: bookings } = await db.$client.prepare(`
     SELECT b.*, p.name as patient_name, p.patient_code, p.gender, p.date_of_birth, p.mobile
     FROM ot_bookings b
     LEFT JOIN patients p ON b.patient_id = p.id AND b.tenant_id = p.tenant_id
@@ -127,7 +130,7 @@ ot.get('/bookings', async (c) => {
     const bookingIds = bookings.map((b: any) => b.id);
     const placeholders = bookingIds.map(() => '?').join(', ');
 
-    const { results: allTeam } = await c.env.DB.prepare(`
+    const { results: allTeam } = await db.$client.prepare(`
       SELECT t.*, s.name as staff_name, s.position as designation
       FROM ot_team_members t
       LEFT JOIN staff s ON t.staff_id = s.id AND t.tenant_id = s.tenant_id
@@ -162,17 +165,18 @@ ot.get('/bookings', async (c) => {
 
 // GET /stats — OT dashboard KPIs
 ot.get('/stats', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const today = new Date().toISOString().split('T')[0];
 
   const [todayCount, weekCount, totalActive, cancelled] = await Promise.all([
-    c.env.DB.prepare(`SELECT COUNT(*) as cnt FROM ot_bookings WHERE tenant_id = ? AND is_active = 1 AND booked_for_date = ?`)
+    db.$client.prepare(`SELECT COUNT(*) as cnt FROM ot_bookings WHERE tenant_id = ? AND is_active = 1 AND booked_for_date = ?`)
       .bind(tenantId, today).first<{ cnt: number }>(),
-    c.env.DB.prepare(`SELECT COUNT(*) as cnt FROM ot_bookings WHERE tenant_id = ? AND is_active = 1 AND booked_for_date >= ? AND booked_for_date <= ?`)
+    db.$client.prepare(`SELECT COUNT(*) as cnt FROM ot_bookings WHERE tenant_id = ? AND is_active = 1 AND booked_for_date >= ? AND booked_for_date <= ?`)
       .bind(tenantId, today, new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]).first<{ cnt: number }>(),
-    c.env.DB.prepare(`SELECT COUNT(*) as cnt FROM ot_bookings WHERE tenant_id = ? AND is_active = 1 AND booked_for_date >= ?`)
+    db.$client.prepare(`SELECT COUNT(*) as cnt FROM ot_bookings WHERE tenant_id = ? AND is_active = 1 AND booked_for_date >= ?`)
       .bind(tenantId, today).first<{ cnt: number }>(),
-    c.env.DB.prepare(`SELECT COUNT(*) as cnt FROM ot_bookings WHERE tenant_id = ? AND is_active = 0`)
+    db.$client.prepare(`SELECT COUNT(*) as cnt FROM ot_bookings WHERE tenant_id = ? AND is_active = 0`)
       .bind(tenantId).first<{ cnt: number }>(),
   ]);
 
@@ -186,10 +190,11 @@ ot.get('/stats', async (c) => {
 
 // GET /bookings/:id — single booking with team, checklist, summary
 ot.get('/bookings/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = parseInt(c.req.param('id'));
 
-  const booking = await c.env.DB.prepare(`
+  const booking = await db.$client.prepare(`
     SELECT b.*, p.name as patient_name, p.patient_code, p.gender, p.date_of_birth, p.mobile
     FROM ot_bookings b
     LEFT JOIN patients p ON b.patient_id = p.id AND b.tenant_id = p.tenant_id
@@ -199,7 +204,7 @@ ot.get('/bookings/:id', async (c) => {
   if (!booking) throw new HTTPException(404, { message: 'OT booking not found' });
 
   const [teamResult, checklistResult, summary] = await Promise.all([
-    c.env.DB.prepare(`
+    db.$client.prepare(`
       SELECT t.*, s.name as staff_name, s.position as designation
       FROM ot_team_members t
       LEFT JOIN staff s ON t.staff_id = s.id AND t.tenant_id = s.tenant_id
@@ -209,9 +214,9 @@ ot.get('/bookings/:id', async (c) => {
         WHEN 'anesthetist_assistant' THEN 3 WHEN 'scrub_nurse' THEN 4
         WHEN 'ot_assistant' THEN 5 END
     `).bind(id, tenantId).all(),
-    c.env.DB.prepare('SELECT * FROM ot_checklist_items WHERE booking_id = ? AND tenant_id = ? ORDER BY id')
+    db.$client.prepare('SELECT * FROM ot_checklist_items WHERE booking_id = ? AND tenant_id = ? ORDER BY id')
       .bind(id, tenantId).all(),
-    c.env.DB.prepare('SELECT * FROM ot_summaries WHERE booking_id = ? AND tenant_id = ?')
+    db.$client.prepare('SELECT * FROM ot_summaries WHERE booking_id = ? AND tenant_id = ?')
       .bind(id, tenantId).first(),
   ]);
 
@@ -227,18 +232,19 @@ ot.get('/bookings/:id', async (c) => {
 
 // POST /bookings — create OT booking with team (atomic with compensation)
 ot.post('/bookings', zValidator('json', createBookingSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
 
   // Verify patient exists
-  const patient = await c.env.DB.prepare(
+  const patient = await db.$client.prepare(
     'SELECT id FROM patients WHERE id = ? AND tenant_id = ?'
   ).bind(data.patient_id, tenantId).first();
   if (!patient) throw new HTTPException(400, { message: 'Patient not found' });
 
   // Create booking
-  const bookingResult = await c.env.DB.prepare(`
+  const bookingResult = await db.$client.prepare(`
     INSERT INTO ot_bookings (
       tenant_id, patient_id, visit_id, booked_for_date,
       surgery_type, diagnosis, procedure_type, anesthesia_type,
@@ -259,15 +265,15 @@ ot.post('/bookings', zValidator('json', createBookingSchema), async (c) => {
   if (data.team && data.team.length > 0) {
     try {
       const stmts = data.team.map(m =>
-        c.env.DB.prepare(`
+        db.$client.prepare(`
           INSERT INTO ot_team_members (tenant_id, booking_id, patient_id, visit_id, staff_id, role_type, created_by)
           VALUES (?, ?, ?, ?, ?, ?, ?)
         `).bind(tenantId, bookingId, data.patient_id, data.visit_id || null, m.staff_id, m.role_type, userId)
       );
-      await c.env.DB.batch(stmts);
+      await db.$client.batch(stmts);
     } catch {
       // Compensate: delete the booking
-      await c.env.DB.prepare('DELETE FROM ot_bookings WHERE id = ? AND tenant_id = ?').bind(bookingId, tenantId).run();
+      await db.$client.prepare('DELETE FROM ot_bookings WHERE id = ? AND tenant_id = ?').bind(bookingId, tenantId).run();
       throw new HTTPException(500, { message: 'Failed to add team members' });
     }
   }
@@ -277,12 +283,13 @@ ot.post('/bookings', zValidator('json', createBookingSchema), async (c) => {
 
 // PUT /bookings/:id — update booking + team
 ot.put('/bookings/:id', zValidator('json', updateBookingSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const id = parseInt(c.req.param('id'));
   const data = c.req.valid('json');
 
-  const existing = await c.env.DB.prepare(
+  const existing = await db.$client.prepare(
     'SELECT id, patient_id, visit_id FROM ot_bookings WHERE id = ? AND tenant_id = ?'
   ).bind(id, tenantId).first<{ id: number; patient_id: number; visit_id: number | null }>();
   if (!existing) throw new HTTPException(404, { message: 'OT booking not found' });
@@ -310,18 +317,18 @@ ot.put('/bookings/:id', zValidator('json', updateBookingSchema), async (c) => {
     sets.push("updated_at = datetime('now')");
     vals.push(id, tenantId);
     batchOps.push(
-      c.env.DB.prepare(`UPDATE ot_bookings SET ${sets.join(', ')} WHERE id = ? AND tenant_id = ?`).bind(...vals)
+      db.$client.prepare(`UPDATE ot_bookings SET ${sets.join(', ')} WHERE id = ? AND tenant_id = ?`).bind(...vals)
     );
   }
 
   // Update team if provided (delete + re-insert)
   if (data.team && data.team.length > 0) {
     batchOps.push(
-      c.env.DB.prepare('DELETE FROM ot_team_members WHERE booking_id = ? AND tenant_id = ?').bind(id, tenantId)
+      db.$client.prepare('DELETE FROM ot_team_members WHERE booking_id = ? AND tenant_id = ?').bind(id, tenantId)
     );
     data.team.forEach(m => {
       batchOps.push(
-        c.env.DB.prepare(`
+        db.$client.prepare(`
           INSERT INTO ot_team_members (tenant_id, booking_id, patient_id, visit_id, staff_id, role_type, created_by)
           VALUES (?, ?, ?, ?, ?, ?, ?)
         `).bind(tenantId, id, existing.patient_id, existing.visit_id || null, m.staff_id, m.role_type, userId)
@@ -331,25 +338,26 @@ ot.put('/bookings/:id', zValidator('json', updateBookingSchema), async (c) => {
 
   if (batchOps.length === 0) throw new HTTPException(400, { message: 'No fields to update' });
 
-  await c.env.DB.batch(batchOps);
+  await db.$client.batch(batchOps);
   return c.json({ success: true, message: 'OT booking updated' });
 });
 
 // PUT /bookings/:id/cancel — cancel booking
 ot.put('/bookings/:id/cancel', zValidator('json', cancelBookingSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const id = parseInt(c.req.param('id'));
   const { cancellation_remarks } = c.req.valid('json');
 
-  const existing = await c.env.DB.prepare(
+  const existing = await db.$client.prepare(
     'SELECT id, is_active FROM ot_bookings WHERE id = ? AND tenant_id = ?'
   ).bind(id, tenantId).first<{ id: number; is_active: number }>();
 
   if (!existing) throw new HTTPException(404, { message: 'OT booking not found' });
   if (existing.is_active === 0) throw new HTTPException(400, { message: 'Booking already cancelled' });
 
-  await c.env.DB.prepare(`
+  await db.$client.prepare(`
     UPDATE ot_bookings SET
       is_active = 0, cancelled_by = ?, cancelled_on = datetime('now'),
       cancellation_remarks = ?, updated_at = datetime('now')
@@ -363,10 +371,11 @@ ot.put('/bookings/:id/cancel', zValidator('json', cancelBookingSchema), async (c
 
 // GET /bookings/:bookingId/team
 ot.get('/bookings/:bookingId/team', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const bookingId = parseInt(c.req.param('bookingId'));
 
-  const { results } = await c.env.DB.prepare(`
+  const { results } = await db.$client.prepare(`
     SELECT t.*, s.name as staff_name, s.position as designation
     FROM ot_team_members t
     LEFT JOIN staff s ON t.staff_id = s.id AND t.tenant_id = s.tenant_id
@@ -382,21 +391,22 @@ ot.get('/bookings/:bookingId/team', async (c) => {
 
 // POST /team — add team member
 ot.post('/team', zValidator('json', createTeamMemberSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
 
-  const booking = await c.env.DB.prepare(
+  const booking = await db.$client.prepare(
     'SELECT id FROM ot_bookings WHERE id = ? AND tenant_id = ? AND is_active = 1'
   ).bind(data.booking_id, tenantId).first();
   if (!booking) throw new HTTPException(400, { message: 'OT booking not found' });
 
-  const staff = await c.env.DB.prepare(
+  const staff = await db.$client.prepare(
     'SELECT id FROM staff WHERE id = ? AND tenant_id = ?'
   ).bind(data.staff_id, tenantId).first();
   if (!staff) throw new HTTPException(400, { message: 'Staff member not found' });
 
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO ot_team_members (tenant_id, booking_id, patient_id, visit_id, staff_id, role_type, created_by)
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `).bind(tenantId, data.booking_id, data.patient_id, data.visit_id || null, data.staff_id, data.role_type, userId).run();
@@ -406,15 +416,16 @@ ot.post('/team', zValidator('json', createTeamMemberSchema), async (c) => {
 
 // DELETE /team/:id — remove team member
 ot.delete('/team/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = parseInt(c.req.param('id'));
 
-  const existing = await c.env.DB.prepare(
+  const existing = await db.$client.prepare(
     'SELECT id FROM ot_team_members WHERE id = ? AND tenant_id = ?'
   ).bind(id, tenantId).first();
   if (!existing) throw new HTTPException(404, { message: 'Team member not found' });
 
-  await c.env.DB.prepare('DELETE FROM ot_team_members WHERE id = ? AND tenant_id = ?').bind(id, tenantId).run();
+  await db.$client.prepare('DELETE FROM ot_team_members WHERE id = ? AND tenant_id = ?').bind(id, tenantId).run();
   return c.json({ success: true, message: 'Team member removed' });
 });
 
@@ -422,10 +433,11 @@ ot.delete('/team/:id', async (c) => {
 
 // GET /bookings/:bookingId/checklist
 ot.get('/bookings/:bookingId/checklist', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const bookingId = parseInt(c.req.param('bookingId'));
 
-  const { results } = await c.env.DB.prepare(
+  const { results } = await db.$client.prepare(
     'SELECT * FROM ot_checklist_items WHERE booking_id = ? AND tenant_id = ? ORDER BY id'
   ).bind(bookingId, tenantId).all();
 
@@ -434,16 +446,17 @@ ot.get('/bookings/:bookingId/checklist', async (c) => {
 
 // POST /checklist — add checklist item
 ot.post('/checklist', zValidator('json', createChecklistSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
 
-  const booking = await c.env.DB.prepare(
+  const booking = await db.$client.prepare(
     'SELECT id FROM ot_bookings WHERE id = ? AND tenant_id = ? AND is_active = 1'
   ).bind(data.booking_id, tenantId).first();
   if (!booking) throw new HTTPException(400, { message: 'OT booking not found' });
 
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO ot_checklist_items (tenant_id, booking_id, item_name, item_value, item_details, created_by)
     VALUES (?, ?, ?, ?, ?, ?)
   `).bind(tenantId, data.booking_id, data.item_name, data.item_value ? 1 : 0, data.item_details || null, userId).run();
@@ -453,11 +466,12 @@ ot.post('/checklist', zValidator('json', createChecklistSchema), async (c) => {
 
 // PUT /checklist/:id — update checklist item
 ot.put('/checklist/:id', zValidator('json', updateChecklistSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = parseInt(c.req.param('id'));
   const data = c.req.valid('json');
 
-  const existing = await c.env.DB.prepare(
+  const existing = await db.$client.prepare(
     'SELECT id FROM ot_checklist_items WHERE id = ? AND tenant_id = ?'
   ).bind(id, tenantId).first();
   if (!existing) throw new HTTPException(404, { message: 'Checklist item not found' });
@@ -474,7 +488,7 @@ ot.put('/checklist/:id', zValidator('json', updateChecklistSchema), async (c) =>
   sets.push("updated_at = datetime('now')");
   vals.push(id, tenantId);
 
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     `UPDATE ot_checklist_items SET ${sets.join(', ')} WHERE id = ? AND tenant_id = ?`
   ).bind(...vals).run();
 
@@ -483,30 +497,31 @@ ot.put('/checklist/:id', zValidator('json', updateChecklistSchema), async (c) =>
 
 // PUT /bookings/:bookingId/checklist/bulk — bulk update
 ot.put('/bookings/:bookingId/checklist/bulk', zValidator('json', bulkChecklistSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const bookingId = parseInt(c.req.param('bookingId'));
   const { items } = c.req.valid('json');
 
-  const booking = await c.env.DB.prepare(
+  const booking = await db.$client.prepare(
     'SELECT id FROM ot_bookings WHERE id = ? AND tenant_id = ? AND is_active = 1'
   ).bind(bookingId, tenantId).first();
   if (!booking) throw new HTTPException(400, { message: 'OT booking not found' });
 
   const stmts: D1PreparedStatement[] = [
-    c.env.DB.prepare('DELETE FROM ot_checklist_items WHERE booking_id = ? AND tenant_id = ?').bind(bookingId, tenantId),
+    db.$client.prepare('DELETE FROM ot_checklist_items WHERE booking_id = ? AND tenant_id = ?').bind(bookingId, tenantId),
   ];
 
   items.forEach(item => {
     stmts.push(
-      c.env.DB.prepare(`
+      db.$client.prepare(`
         INSERT INTO ot_checklist_items (tenant_id, booking_id, item_name, item_value, item_details, created_by)
         VALUES (?, ?, ?, ?, ?, ?)
       `).bind(tenantId, bookingId, item.item_name, item.item_value ? 1 : 0, item.item_details || null, userId)
     );
   });
 
-  await c.env.DB.batch(stmts);
+  await db.$client.batch(stmts);
   return c.json({ success: true, message: 'Checklist updated' });
 });
 
@@ -514,10 +529,11 @@ ot.put('/bookings/:bookingId/checklist/bulk', zValidator('json', bulkChecklistSc
 
 // GET /bookings/:bookingId/summary
 ot.get('/bookings/:bookingId/summary', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const bookingId = parseInt(c.req.param('bookingId'));
 
-  const summary = await c.env.DB.prepare(
+  const summary = await db.$client.prepare(
     'SELECT * FROM ot_summaries WHERE booking_id = ? AND tenant_id = ?'
   ).bind(bookingId, tenantId).first();
 
@@ -527,21 +543,22 @@ ot.get('/bookings/:bookingId/summary', async (c) => {
 
 // POST /summary — create OT summary
 ot.post('/summary', zValidator('json', createSummarySchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
 
-  const booking = await c.env.DB.prepare(
+  const booking = await db.$client.prepare(
     'SELECT id FROM ot_bookings WHERE id = ? AND tenant_id = ? AND is_active = 1'
   ).bind(data.booking_id, tenantId).first();
   if (!booking) throw new HTTPException(400, { message: 'OT booking not found' });
 
-  const existingSummary = await c.env.DB.prepare(
+  const existingSummary = await db.$client.prepare(
     'SELECT id FROM ot_summaries WHERE booking_id = ? AND tenant_id = ?'
   ).bind(data.booking_id, tenantId).first();
   if (existingSummary) throw new HTTPException(400, { message: 'Summary already exists for this booking' });
 
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO ot_summaries (
       tenant_id, booking_id, team_member_id, pre_op_diagnosis, post_op_diagnosis,
       anesthesia, ot_charge, ot_description, category, nurse_signature, created_by
@@ -559,11 +576,12 @@ ot.post('/summary', zValidator('json', createSummarySchema), async (c) => {
 
 // PUT /summary/:id — update OT summary
 ot.put('/summary/:id', zValidator('json', updateSummarySchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = parseInt(c.req.param('id'));
   const data = c.req.valid('json');
 
-  const existing = await c.env.DB.prepare(
+  const existing = await db.$client.prepare(
     'SELECT id FROM ot_summaries WHERE id = ? AND tenant_id = ?'
   ).bind(id, tenantId).first();
   if (!existing) throw new HTTPException(404, { message: 'OT summary not found' });
@@ -590,7 +608,7 @@ ot.put('/summary/:id', zValidator('json', updateSummarySchema), async (c) => {
   sets.push("updated_at = datetime('now')");
   vals.push(id, tenantId);
 
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     `UPDATE ot_summaries SET ${sets.join(', ')} WHERE id = ? AND tenant_id = ?`
   ).bind(...vals).run();
 

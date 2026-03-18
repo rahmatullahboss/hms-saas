@@ -9,6 +9,8 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import type { Env, Variables } from '../../types';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
+import { getDb } from '../../db';
+
 
 const invitationRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -38,6 +40,7 @@ const createInviteSchema = z.object({
 
 // ─── POST /api/invitations — Create invitation (hospital_admin only) ──
 invitationRoutes.post('/', zValidator('json', createInviteSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const callerId = requireUserId(c);
   const callerRole = c.get('role');
@@ -50,7 +53,7 @@ invitationRoutes.post('/', zValidator('json', createInviteSchema), async (c) => 
 
   try {
     // Check if email already has an account in this tenant
-    const existingUser = await c.env.DB.prepare(
+    const existingUser = await db.$client.prepare(
       'SELECT id FROM users WHERE email = ? AND tenant_id = ?'
     ).bind(email, tenantId).first();
 
@@ -59,7 +62,7 @@ invitationRoutes.post('/', zValidator('json', createInviteSchema), async (c) => 
     }
 
     // Check for pending invitation
-    const existingInvite = await c.env.DB.prepare(
+    const existingInvite = await db.$client.prepare(
       'SELECT id FROM invitations WHERE email = ? AND tenant_id = ? AND accepted_at IS NULL AND expires_at > datetime("now")'
     ).bind(email, tenantId).first();
 
@@ -70,12 +73,12 @@ invitationRoutes.post('/', zValidator('json', createInviteSchema), async (c) => 
     const token = generateInviteToken();
     const expiresAt = expiresIn7Days();
 
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       'INSERT INTO invitations (tenant_id, email, role, token, invited_by, expires_at) VALUES (?, ?, ?, ?, ?, ?)'
     ).bind(tenantId, email, role, token, callerId ?? 0, expiresAt).run();
 
     // Get tenant slug for building the link
-    const tenant = await c.env.DB.prepare(
+    const tenant = await db.$client.prepare(
       'SELECT subdomain FROM tenants WHERE id = ?'
     ).bind(tenantId).first<{ subdomain: string }>();
 
@@ -94,6 +97,7 @@ invitationRoutes.post('/', zValidator('json', createInviteSchema), async (c) => 
 
 // ─── GET /api/invitations — List invitations (hospital_admin only) ────
 invitationRoutes.get('/', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const callerRole = c.get('role');
 
@@ -101,7 +105,7 @@ invitationRoutes.get('/', async (c) => {
   if (callerRole !== 'hospital_admin') return c.json({ error: 'Forbidden' }, 403);
 
   try {
-    const { results } = await c.env.DB.prepare(
+    const { results } = await db.$client.prepare(
       `SELECT i.id, i.email, i.role, i.expires_at, i.accepted_at, i.created_at,
               u.name AS invited_by_name
        FROM invitations i

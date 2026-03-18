@@ -1,5 +1,7 @@
 import { Hono } from 'hono';
 import type { Env, Variables } from '../../types';
+import { getDb } from '../../db';
+
 
 /**
  * Public hospital website routes — serves pre-rendered HTML from KV + CF Cache API.
@@ -21,7 +23,8 @@ const VALID_PAGES = new Set(['', 'doctors', 'services', 'about', 'contact']);
  * Root /site — list available hospital websites (directory page)
  */
 hospitalSite.get('/', async (c) => {
-  const { results } = await c.env.DB.prepare(
+  const db = getDb(c.env.DB);
+  const { results } = await db.$client.prepare(
     `SELECT t.name, t.subdomain FROM tenants t
      JOIN website_config wc ON wc.tenant_id = t.id
      WHERE wc.is_enabled = 1
@@ -54,6 +57,7 @@ hospitalSite.get('/', async (c) => {
  * Sitemap.xml generation — MUST be before the catch-all /:slug/:page?
  */
 hospitalSite.get('/:slug/sitemap.xml', async (c) => {
+  const db = getDb(c.env.DB);
   const slug = c.req.param('slug');
   const host = c.req.header('host') || '';
   const protocol = host.includes('localhost') ? 'http' : 'https';
@@ -85,6 +89,7 @@ hospitalSite.get('/:slug/sitemap.xml', async (c) => {
  * Robots.txt — MUST be before the catch-all /:slug/:page?
  */
 hospitalSite.get('/:slug/robots.txt', async (c) => {
+  const db = getDb(c.env.DB);
   const slug = c.req.param('slug');
   const host = c.req.header('host') || '';
   const protocol = host.includes('localhost') ? 'http' : 'https';
@@ -105,6 +110,7 @@ Sitemap: ${protocol}://${host}/site/${slug}/sitemap.xml
  * GET /site/:slug/:page — Hospital subpage (doctors, services, about, contact)
  */
 hospitalSite.get('/:slug/:page?', async (c) => {
+  const db = getDb(c.env.DB);
   const slug = c.req.param('slug');
   const page = c.req.param('page') || '';
 
@@ -130,7 +136,7 @@ hospitalSite.get('/:slug/:page?', async (c) => {
 
   if (!html) {
     // KV miss — check if website is enabled, maybe trigger re-render
-    const config = await c.env.DB.prepare(
+    const config = await db.$client.prepare(
       'SELECT wc.is_enabled, t.id as tenant_id FROM website_config wc JOIN tenants t ON wc.tenant_id = t.id WHERE t.subdomain = ?'
     ).bind(slug).first<{ is_enabled: number; tenant_id: number }>();
 
@@ -172,7 +178,7 @@ hospitalSite.get('/:slug/:page?', async (c) => {
 
   // ── Track pageview (non-blocking) ──
   c.executionCtx.waitUntil(
-    c.env.DB.prepare(
+    db.$client.prepare(
       `INSERT INTO website_pageviews (subdomain, page, referrer, user_agent, viewed_at)
        VALUES (?, ?, ?, ?, datetime('now'))`
     ).bind(

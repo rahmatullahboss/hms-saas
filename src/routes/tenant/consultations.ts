@@ -7,6 +7,8 @@ import { createSmsProvider, SmsTemplates } from '../../lib/sms';
 import { sendEmail, EmailTemplates } from '../../lib/email';
 import type { Env, Variables } from '../../types';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
+import { getDb } from '../../db';
+
 
 const consultationRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -16,6 +18,7 @@ const DOCTOR_ROLES = ['doctor', 'hospital_admin'];
 
 // ─── GET /api/consultations — list consultations with filters ─────────────────
 consultationRoutes.get('/', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const { doctorId, patientId, status, from, to } = c.req.query();
 
@@ -40,7 +43,7 @@ consultationRoutes.get('/', async (c) => {
   query += ' ORDER BY con.scheduled_at ASC LIMIT 100';
 
   try {
-    const consultations = await c.env.DB.prepare(query).bind(...params).all();
+    const consultations = await db.$client.prepare(query).bind(...params).all();
     return c.json({ consultations: consultations.results });
   } catch {
     throw new HTTPException(500, { message: 'Failed to fetch consultations' });
@@ -49,11 +52,12 @@ consultationRoutes.get('/', async (c) => {
 
 // ─── GET /api/consultations/:id — single consultation detail ─────────────────
 consultationRoutes.get('/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = c.req.param('id');
 
   try {
-    const consultation = await c.env.DB.prepare(`
+    const consultation = await db.$client.prepare(`
       SELECT con.*,
              d.name as doctor_name, d.specialty, d.email as doctor_email,
              p.name as patient_name, p.patient_code, p.mobile as patient_mobile, p.email as patient_email
@@ -72,6 +76,7 @@ consultationRoutes.get('/:id', async (c) => {
 
 // ─── POST /api/consultations — book new teleconsultation ─────────────────────
 consultationRoutes.post('/', zValidator('json', createConsultationSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId   = requireUserId(c);
   const role     = c.get('role');
@@ -81,10 +86,10 @@ consultationRoutes.post('/', zValidator('json', createConsultationSchema), async
   const data     = c.req.valid('json');
 
   // Validate doctor and patient exist under this tenant
-  const [doctor, patient, tenant] = await c.env.DB.batch([
-    c.env.DB.prepare('SELECT id, name, email FROM doctors WHERE id = ? AND tenant_id = ?').bind(data.doctorId, tenantId),
-    c.env.DB.prepare('SELECT id, name, mobile, email FROM patients WHERE id = ? AND tenant_id = ?').bind(data.patientId, tenantId),
-    c.env.DB.prepare('SELECT name FROM tenants WHERE id = ?').bind(tenantId),
+  const [doctor, patient, tenant] = await db.$client.batch([
+    db.$client.prepare('SELECT id, name, email FROM doctors WHERE id = ? AND tenant_id = ?').bind(data.doctorId, tenantId),
+    db.$client.prepare('SELECT id, name, mobile, email FROM patients WHERE id = ? AND tenant_id = ?').bind(data.patientId, tenantId),
+    db.$client.prepare('SELECT name FROM tenants WHERE id = ?').bind(tenantId),
   ]);
 
   const doc = doctor.results[0] as { id: number; name: string; email?: string } | undefined;
@@ -111,7 +116,7 @@ consultationRoutes.post('/', zValidator('json', createConsultationSchema), async
   }
 
   // Insert consultation record
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO consultations
       (doctor_id, patient_id, scheduled_at, duration_min, room_url, room_name,
        notes, chief_complaint, tenant_id, created_by)
@@ -156,17 +161,18 @@ consultationRoutes.post('/', zValidator('json', createConsultationSchema), async
 
 // ─── PUT /api/consultations/:id — update scheduled time or notes ──────────────
 consultationRoutes.put('/:id', zValidator('json', updateConsultationSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = c.req.param('id');
   const data = c.req.valid('json');
 
   try {
-    const existing = await c.env.DB.prepare(
+    const existing = await db.$client.prepare(
       'SELECT * FROM consultations WHERE id = ? AND tenant_id = ?',
     ).bind(id, tenantId).first<Record<string, unknown>>();
     if (!existing) throw new HTTPException(404, { message: 'Consultation not found' });
 
-    await c.env.DB.prepare(`
+    await db.$client.prepare(`
       UPDATE consultations
       SET scheduled_at    = ?,
           duration_min    = ?,
@@ -192,6 +198,7 @@ consultationRoutes.put('/:id', zValidator('json', updateConsultationSchema), asy
 
 // ─── PUT /api/consultations/:id/end — mark complete + save prescription ───────
 consultationRoutes.put('/:id/end', zValidator('json', endConsultationSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = c.req.param('id');
   const role = c.get('role');
@@ -201,12 +208,12 @@ consultationRoutes.put('/:id/end', zValidator('json', endConsultationSchema), as
   const data = c.req.valid('json');
 
   try {
-    const existing = await c.env.DB.prepare(
+    const existing = await db.$client.prepare(
       `SELECT * FROM consultations WHERE id = ? AND tenant_id = ? AND status IN ('scheduled','in_progress')`,
     ).bind(id, tenantId).first<Record<string, unknown>>();
     if (!existing) throw new HTTPException(404, { message: 'Active consultation not found' });
 
-    await c.env.DB.prepare(`
+    await db.$client.prepare(`
       UPDATE consultations
       SET status = 'completed', prescription = ?, followup_date = ?,
           notes = COALESCE(?, notes), updated_at = datetime('now')
@@ -227,16 +234,17 @@ consultationRoutes.put('/:id/end', zValidator('json', endConsultationSchema), as
 
 // ─── DELETE /api/consultations/:id — cancel (soft: set status cancelled) ─────
 consultationRoutes.delete('/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = c.req.param('id');
 
   try {
-    const existing = await c.env.DB.prepare(
+    const existing = await db.$client.prepare(
       `SELECT id FROM consultations WHERE id = ? AND tenant_id = ? AND status = 'scheduled'`,
     ).bind(id, tenantId).first();
     if (!existing) throw new HTTPException(404, { message: 'Scheduled consultation not found' });
 
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       `UPDATE consultations SET status = 'cancelled', updated_at = datetime('now') WHERE id = ? AND tenant_id = ?`,
     ).bind(id, tenantId).run();
     return c.json({ message: 'Consultation cancelled' });

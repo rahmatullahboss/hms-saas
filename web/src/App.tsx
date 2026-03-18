@@ -101,6 +101,7 @@ import PaymentsPage from './pages/PaymentsPage';
 import InboxPage from './pages/InboxPage';
 import NursingDashboard from './pages/NursingDashboard';
 import EPrescribingDashboard from './pages/EPrescribingDashboard';
+import HelpCenterPage from './pages/HelpCenterPage';
 
 function Unauthorized() {
   const { t } = useTranslation('common');
@@ -246,6 +247,8 @@ function App() {
             <Route path="reports/lab" element={<ReportLabPage role="hospital_admin" />} />
             <Route path="reports/pharmacy" element={<ReportPharmacyPage role="hospital_admin" />} />
             <Route path="reports/appointments" element={<ReportAppointmentPage role="hospital_admin" />} />
+            {/* ─── Help Center ─────────────────────────────────────── */}
+            <Route path="help" element={<HelpCenterPage />} />
           </Route>
 
           {/* ─── Laboratory ──────────────────────────────────────────── */}
@@ -265,6 +268,7 @@ function App() {
             <Route path="reception/appointments" element={<AppointmentScheduler role="reception" />} />
             <Route path="reception/prescriptions/new" element={<DigitalPrescription />} />
             <Route path="reception/prescriptions/:rxId" element={<DigitalPrescription />} />
+            <Route path="reception/help" element={<HelpCenterPage />} />
           </Route>
 
           {/* ─── Managing Director ───────────────────────────────────── */}
@@ -294,11 +298,13 @@ function App() {
             <Route path="director/shareholders" element={<DirectorDashboard />} />
             <Route path="director/profit" element={<DirectorDashboard />} />
             <Route path="director/settings" element={<SettingsPage />} />
+            <Route path="director/help" element={<HelpCenterPage />} />
           </Route>
 
           {/* ─── Pharmacist ──────────────────────────────────────────── */}
           <Route element={<ProtectedRoute allowedRoles={['pharmacist', 'hospital_admin']} />}>
             <Route path="pharmacy/dashboard" element={<PharmacyDashboard />} />
+            <Route path="pharmacy/help" element={<HelpCenterPage />} />
           </Route>
 
           {/* Default redirect within slug: go to dashboard */}

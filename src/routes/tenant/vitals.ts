@@ -4,6 +4,8 @@ import { zValidator } from '@hono/zod-validator';
 import { HTTPException } from 'hono/http-exception';
 import type { Env, Variables } from '../../types';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
+import { getDb } from '../../db';
+
 
 const vitals = new Hono<{
   Bindings: Env;
@@ -39,6 +41,7 @@ function calcBMI(weight?: number, height?: number): number | null {
 // ─── GET / — list vitals for a patient/visit ─────────────────────────────────
 
 vitals.get('/', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const patientId = c.req.query('patient_id');
   const visitId = c.req.query('visit_id');
@@ -60,16 +63,16 @@ vitals.get('/', async (c) => {
 
   sql += ' ORDER BY v.taken_at DESC LIMIT 50';
 
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await db.$client.prepare(sql).bind(...params).all();
 
   // Cross-visit: if visit filtered and <3 records, get previous visit vitals
   if (visitId && results.length < 3 && patientId) {
-    const prevVisit = await c.env.DB.prepare(`
+    const prevVisit = await db.$client.prepare(`
       SELECT id FROM visits WHERE patient_id = ? AND tenant_id = ? AND id != ? ORDER BY visit_date DESC LIMIT 1
     `).bind(patientId, tenantId, visitId).first<{ id: number }>();
 
     if (prevVisit) {
-      const { results: older } = await c.env.DB.prepare(`
+      const { results: older } = await db.$client.prepare(`
         SELECT v.*, s.name as taken_by_name, 1 as from_previous_visit
         FROM clinical_vitals v
         LEFT JOIN staff s ON v.taken_by = s.id AND s.tenant_id = v.tenant_id
@@ -87,10 +90,11 @@ vitals.get('/', async (c) => {
 // ─── GET /latest/:patientId — latest vitals for a patient ────────────────────
 
 vitals.get('/latest/:patientId', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const patientId = parseInt(c.req.param('patientId'));
 
-  const latest = await c.env.DB.prepare(`
+  const latest = await db.$client.prepare(`
     SELECT v.*, s.name as taken_by_name
     FROM clinical_vitals v
     LEFT JOIN staff s ON v.taken_by = s.id AND s.tenant_id = v.tenant_id
@@ -105,12 +109,13 @@ vitals.get('/latest/:patientId', async (c) => {
 // ─── POST / — record vitals ─────────────────────────────────────────────────
 
 vitals.post('/', zValidator('json', createVitalsSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
 
   // P2#9: Validate patient belongs to tenant
-  const patient = await c.env.DB.prepare(
+  const patient = await db.$client.prepare(
     'SELECT id FROM patients WHERE id = ? AND tenant_id = ?'
   ).bind(data.patient_id, tenantId).first();
   if (!patient) throw new HTTPException(404, { message: 'Patient not found' });
@@ -118,7 +123,7 @@ vitals.post('/', zValidator('json', createVitalsSchema), async (c) => {
   const bmi = calcBMI(data.weight, data.height);
 
   // P1#5: Use ?? (nullish coalescing) instead of || to preserve valid zero values
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO clinical_vitals (
       tenant_id, patient_id, visit_id,
       temperature, pulse, blood_pressure_systolic, blood_pressure_diastolic,
@@ -141,17 +146,18 @@ vitals.post('/', zValidator('json', createVitalsSchema), async (c) => {
 // ─── DELETE /:id — soft-delete vitals record ─────────────────────────────────
 
 vitals.delete('/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const id = parseInt(c.req.param('id'));
 
-  const existing = await c.env.DB.prepare(
+  const existing = await db.$client.prepare(
     'SELECT id FROM clinical_vitals WHERE id = ? AND tenant_id = ?'
   ).bind(id, tenantId).first();
   if (!existing) throw new HTTPException(404, { message: 'Vitals record not found' });
 
   // P3#14: Record who deleted and when for audit trail
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     "UPDATE clinical_vitals SET is_active = 0, updated_at = datetime('now'), notes = COALESCE(notes, '') || ' [Removed by user ' || ? || ' at ' || datetime('now') || ']' WHERE id = ? AND tenant_id = ?"
   ).bind(userId, id, tenantId).run();
 

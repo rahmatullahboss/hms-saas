@@ -13,6 +13,8 @@ import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { generateToken } from '../middleware/auth';
 import type { Env } from '../types';
+import { getDb } from '../db';
+
 
 const loginDirectRoutes = new Hono<{ Bindings: Env }>();
 
@@ -81,11 +83,12 @@ function getPermissions(role: string): string[] {
 
 // ─── POST /api/auth/login-direct ──────────────────────────────────────
 loginDirectRoutes.post('/', zValidator('json', loginSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const { email, password, tenantId: selectedTenantId } = c.req.valid('json');
 
   try {
     // Find all users with this email (could be in multiple hospitals)
-    const { results: users } = await c.env.DB.prepare(
+    const { results: users } = await db.$client.prepare(
       `SELECT u.id, u.email, u.password_hash, u.name, u.role, u.tenant_id,
               t.name AS hospital_name, t.subdomain AS slug, t.status AS tenant_status
        FROM users u

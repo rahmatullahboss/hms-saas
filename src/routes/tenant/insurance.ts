@@ -27,6 +27,7 @@ import {
   updateInsuranceClaimSchema,
   claimsQuerySchema,
 } from '../../schemas/insurance';
+import { getDb } from '../../db';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -62,6 +63,7 @@ async function generateClaimNo(db: D1Database, tenantId: string): Promise<string
 
 // GET /api/insurance/policies?patient_id=&status=active
 app.get('/policies', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   requireInsuranceRole(c.get('role'));
 
@@ -85,19 +87,20 @@ app.get('/policies', async (c) => {
   }
   sql += ' ORDER BY ip.created_at DESC LIMIT 100';
 
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await db.$client.prepare(sql).bind(...params).all();
   return c.json({ policies: results });
 });
 
 // POST /api/insurance/policies
 app.post('/policies', zValidator('json', insurancePolicySchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId   = requireUserId(c);
   requireInsuranceRole(c.get('role'));
 
   const data = c.req.valid('json');
 
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO insurance_policies
       (tenant_id, patient_id, provider_name, policy_no, policy_type,
        coverage_limit, valid_from, valid_to, status, notes, created_by)
@@ -121,6 +124,7 @@ app.post('/policies', zValidator('json', insurancePolicySchema), async (c) => {
 
 // PUT /api/insurance/policies/:id
 app.put('/policies/:id', zValidator('json', updateInsurancePolicySchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId  = requireTenantId(c);
   requireInsuranceRole(c.get('role'));
 
@@ -143,7 +147,7 @@ app.put('/policies/:id', zValidator('json', updateInsurancePolicySchema), async 
   if (fields.length === 1) return c.json({ success: true, message: 'Nothing to update' });
 
   vals.push(id, tenantId);
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     `UPDATE insurance_policies SET ${fields.join(', ')} WHERE id = ? AND tenant_id = ?`
   ).bind(...vals).run();
 
@@ -152,13 +156,14 @@ app.put('/policies/:id', zValidator('json', updateInsurancePolicySchema), async 
 
 // DELETE /api/insurance/policies/:id
 app.delete('/policies/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   requireInsuranceRole(c.get('role'));
 
   const id = Number(c.req.param('id'));
 
   // Check for active claims before delete
-  const activeClaims = await c.env.DB.prepare(
+  const activeClaims = await db.$client.prepare(
     `SELECT COUNT(*) AS cnt FROM insurance_claims
      WHERE policy_id = ? AND tenant_id = ? AND status NOT IN ('rejected', 'settled')`
   ).bind(id, tenantId).first<{ cnt: number }>();
@@ -167,7 +172,7 @@ app.delete('/policies/:id', async (c) => {
     throw new HTTPException(409, { message: 'Cannot delete policy with active claims' });
   }
 
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     `DELETE FROM insurance_policies WHERE id = ? AND tenant_id = ?`
   ).bind(id, tenantId).run();
 
@@ -180,6 +185,7 @@ app.delete('/policies/:id', async (c) => {
 
 // GET /api/insurance/claims
 app.get('/claims', zValidator('query', claimsQuerySchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   requireInsuranceRole(c.get('role'));
 
@@ -206,9 +212,9 @@ app.get('/claims', zValidator('query', claimsQuerySchema), async (c) => {
   sql += ' ORDER BY ic.submitted_at DESC LIMIT ? OFFSET ?';
   params.push(limit, offset);
 
-  const [{ results }, totalRow] = await c.env.DB.batch([
-    c.env.DB.prepare(sql).bind(...params),
-    c.env.DB.prepare(
+  const [{ results }, totalRow] = await db.$client.batch([
+    db.$client.prepare(sql).bind(...params),
+    db.$client.prepare(
       `SELECT COUNT(*) AS cnt FROM insurance_claims WHERE tenant_id = ?`
     ).bind(tenantId),
   ]);
@@ -223,12 +229,13 @@ app.get('/claims', zValidator('query', claimsQuerySchema), async (c) => {
 
 // GET /api/insurance/claims/:id
 app.get('/claims/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   requireInsuranceRole(c.get('role'));
 
   const id = Number(c.req.param('id'));
 
-  const claim = await c.env.DB.prepare(`
+  const claim = await db.$client.prepare(`
     SELECT ic.*,
            p.name         AS patient_name,  p.patient_code,  p.mobile AS patient_phone,
            ip.provider_name, ip.policy_no,  ip.policy_type,  ip.coverage_limit,
@@ -247,6 +254,7 @@ app.get('/claims/:id', async (c) => {
 
 // POST /api/insurance/claims
 app.post('/claims', zValidator('json', insuranceClaimSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId   = requireUserId(c);
   requireInsuranceRole(c.get('role'));
@@ -260,7 +268,7 @@ app.post('/claims', zValidator('json', insuranceClaimSchema), async (c) => {
 
   // Validate policy belongs to this tenant & patient
   if (data.policy_id) {
-    const policy = await c.env.DB.prepare(
+    const policy = await db.$client.prepare(
       `SELECT id FROM insurance_policies WHERE id = ? AND tenant_id = ? AND patient_id = ? AND status = 'active'`
     ).bind(data.policy_id, tenantId, data.patient_id).first();
 
@@ -272,7 +280,7 @@ app.post('/claims', zValidator('json', insuranceClaimSchema), async (c) => {
   try {
     const claimNo = await generateClaimNo(c.env.DB, tenantId);
 
-    const result = await c.env.DB.prepare(`
+    const result = await db.$client.prepare(`
       INSERT INTO insurance_claims
         (tenant_id, claim_no, patient_id, policy_id, bill_id, diagnosis, icd10_code,
          bill_amount, claimed_amount, status, created_by)
@@ -299,6 +307,7 @@ app.post('/claims', zValidator('json', insuranceClaimSchema), async (c) => {
 
 // PUT /api/insurance/claims/:id — update status (reviewer only)
 app.put('/claims/:id', zValidator('json', updateInsuranceClaimSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   requireReviewRole(c.get('role'));
 
@@ -315,7 +324,7 @@ app.put('/claims/:id', zValidator('json', updateInsuranceClaimSchema), async (c)
 
   const now = new Date().toISOString();
 
-  await c.env.DB.prepare(`
+  await db.$client.prepare(`
     UPDATE insurance_claims SET
       status           = ?,
       approved_amount  = ?,

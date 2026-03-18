@@ -1,11 +1,14 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { HTTPException } from 'hono/http-exception';
+import { eq, and, like, or, lt, sql, desc } from 'drizzle-orm';
 import { createPatientSchema, updatePatientSchema } from '../../schemas/patient';
 import { getNextSequence } from '../../lib/sequence';
 import { createAuditLog } from '../../lib/accounting-helpers';
 import type { Env, Variables } from '../../types';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
+import { getDb } from '../../db';
+import { patients, serials } from '../../db/schema';
 
 const patientRoutes = new Hono<{
   Bindings: Env;
@@ -16,46 +19,43 @@ const patientRoutes = new Hono<{
  * GET /api/patients
  * Retrieves a list of patients for the current tenant.
  * Supports searching by name, mobile, patient code, or ID, and uses cursor-based pagination.
- *
- * @param {string} [search] - Optional search query to filter patients.
- * @param {string} [limit=50] - Optional number of patients to return per page (max 200).
- * @param {string} [cursor] - Optional ID of the last patient seen, used for fetching the next page.
- * @returns {Object} JSON response containing:
- *   - patients: Array of patient records.
- *   - nextCursor: The cursor to use for the next page, or null if no more pages.
- *   - hasMore: Boolean indicating if there are more patients to fetch.
- *
- * @example
- * // GET /api/patients?search=john&limit=20
  */
 patientRoutes.get('/', async (c) => {
   const tenantId = requireTenantId(c);
-  const search  = c.req.query('search') || '';
-  const limit   = Math.min(parseInt(c.req.query('limit') || '50', 10), 200);
-  const cursor  = c.req.query('cursor'); // last seen id for cursor pagination
+  const search = c.req.query('search') || '';
+  const limit = Math.min(parseInt(c.req.query('limit') || '50', 10), 200);
+  const cursor = c.req.query('cursor');
 
   try {
-    let query = 'SELECT * FROM patients WHERE tenant_id = ?';
-    const params: (string | number)[] = [tenantId!];
+    const db = getDb(c.env.DB);
+
+    // Build conditions
+    const conditions = [eq(patients.tenantId, Number(tenantId))];
 
     if (search) {
-      query += ' AND (name LIKE ? OR mobile LIKE ? OR patient_code LIKE ? OR CAST(id AS TEXT) = ?)';
       const searchPattern = `%${search}%`;
-      params.push(searchPattern, searchPattern, searchPattern, search);
+      conditions.push(
+        or(
+          like(patients.name, searchPattern),
+          like(patients.mobile, searchPattern),
+          eq(sql`CAST(${patients.id} AS TEXT)`, search),
+        )!,
+      );
     }
 
     if (cursor) {
-      query += ' AND id < ?';
-      params.push(parseInt(cursor, 10));
+      conditions.push(lt(patients.id, parseInt(cursor, 10)));
     }
 
-    query += ' ORDER BY id DESC LIMIT ?';
-    params.push(limit + 1); // fetch one extra to determine hasMore
+    const results = await db
+      .select()
+      .from(patients)
+      .where(and(...conditions))
+      .orderBy(desc(patients.id))
+      .limit(limit + 1);
 
-    const patients = await c.env.DB.prepare(query).bind(...params).all();
-    const results  = patients.results as Array<{ id: number }>;
-    const hasMore  = results.length > limit;
-    const items    = hasMore ? results.slice(0, limit) : results;
+    const hasMore = results.length > limit;
+    const items = hasMore ? results.slice(0, limit) : results;
     const nextCursor = hasMore ? String(items[items.length - 1].id) : null;
 
     return c.json({ patients: items, nextCursor, hasMore });
@@ -68,24 +68,19 @@ patientRoutes.get('/', async (c) => {
 /**
  * GET /api/patients/:id
  * Retrieves a single patient by their ID for the current tenant.
- *
- * @param {string} id - The ID of the patient to fetch.
- * @returns {Object} JSON response containing the patient record.
- * @throws {HTTPException} 404 if the patient is not found.
- *
- * @example
- * // GET /api/patients/123
  */
 patientRoutes.get('/:id', async (c) => {
   const id = c.req.param('id');
   const tenantId = requireTenantId(c);
 
   try {
-    const patient = await c.env.DB.prepare(
-      'SELECT * FROM patients WHERE id = ? AND tenant_id = ?',
-    )
-      .bind(id, tenantId)
-      .first();
+    const db = getDb(c.env.DB);
+
+    const [patient] = await db
+      .select()
+      .from(patients)
+      .where(and(eq(patients.id, Number(id)), eq(patients.tenantId, Number(tenantId))))
+      .limit(1);
 
     if (!patient) {
       throw new HTTPException(404, { message: 'Patient not found' });
@@ -101,72 +96,60 @@ patientRoutes.get('/:id', async (c) => {
 /**
  * POST /api/patients
  * Creates a new patient record for the current tenant.
- * Validates the request body against `createPatientSchema`.
- * Generates a unique patient code, assigns a daily serial number for queue management,
- * and creates an audit log entry.
- *
- * @param {Object} body - The patient data (validated by Zod).
- * @returns {Object} JSON response containing:
- *   - message: Success message.
- *   - patientId: The ID of the newly created patient.
- *   - patientCode: The uniquely generated patient code (e.g., P-000001).
- *   - serial: The daily serial number assigned to the patient.
- * @throws {HTTPException} 500 if the patient creation fails.
- *
- * @example
- * // POST /api/patients
- * // Body: { "name": "John Doe", "mobile": "1234567890", ... }
  */
 patientRoutes.post('/', zValidator('json', createPatientSchema), async (c) => {
   const tenantId = requireTenantId(c);
   const data = c.req.valid('json');
 
   try {
-    // Generate unique patient code: P-000001
+    const db = getDb(c.env.DB);
+
+    // Generate unique patient code: P-000001 (raw D1 for sequence_counters)
     const patientCode = await getNextSequence(c.env.DB, tenantId!, 'patient', 'P');
 
-    const result = await c.env.DB.prepare(
-      `INSERT INTO patients
-         (name, father_husband, address, mobile, guardian_mobile, age, gender, blood_group, patient_code, tenant_id, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
-    )
-      .bind(
-        data.name,
-        data.fatherHusband,
-        data.address,
-        data.mobile,
-        data.guardianMobile ?? null,
-        data.age ?? null,
-        data.gender ?? null,
-        data.bloodGroup ?? null,
-        patientCode,
-        tenantId,
-      )
-      .run();
+    const [inserted] = await db
+      .insert(patients)
+      .values({
+        name: data.name,
+        fatherHusband: data.fatherHusband,
+        address: data.address,
+        mobile: data.mobile,
+        guardianMobile: data.guardianMobile ?? null,
+        age: data.age ?? null,
+        gender: data.gender ?? null,
+        bloodGroup: data.bloodGroup ?? null,
+        tenantId: Number(tenantId),
+        createdAt: sql`datetime('now')`,
+      })
+      .returning({ id: patients.id });
+
+    const patientId = inserted.id;
 
     // Generate daily serial for queue management
     const today = new Date().toISOString().split('T')[0];
-    const serialCount = await c.env.DB.prepare(
-      'SELECT COUNT(*) as count FROM serials WHERE tenant_id = ? AND date = ?',
-    )
-      .bind(tenantId, today)
-      .first<{ count: number }>();
+
+    const [serialCount] = await db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(serials)
+      .where(and(eq(serials.tenantId, Number(tenantId)), eq(serials.date, today)));
 
     const serialNumber = `${today.replace(/-/g, '')}-${String((serialCount?.count ?? 0) + 1).padStart(3, '0')}`;
 
-    await c.env.DB.prepare(
-      'INSERT INTO serials (patient_id, serial_number, date, status, tenant_id) VALUES (?, ?, ?, ?, ?)',
-    )
-      .bind(result.meta.last_row_id, serialNumber, today, 'waiting', tenantId)
-      .run();
+    await db.insert(serials).values({
+      patientId,
+      serialNumber,
+      date: today,
+      status: 'waiting',
+      tenantId: Number(tenantId),
+    });
 
     // Audit log
-    void createAuditLog(c.env, tenantId!, requireUserId(c), 'create', 'patients', result.meta.last_row_id, null, data);
+    void createAuditLog(c.env, tenantId!, requireUserId(c), 'create', 'patients', patientId, null, data);
 
     return c.json(
       {
         message: 'Patient registered',
-        patientId: result.meta.last_row_id,
+        patientId,
         patientCode,
         serial: serialNumber,
       },
@@ -181,19 +164,6 @@ patientRoutes.post('/', zValidator('json', createPatientSchema), async (c) => {
 /**
  * PUT /api/patients/:id
  * Updates an existing patient record for the current tenant.
- * Validates the request body against `updatePatientSchema`.
- * Only fields provided in the request will be updated; missing fields retain their existing values.
- * Creates an audit log entry for the update.
- *
- * @param {string} id - The ID of the patient to update.
- * @param {Object} body - The partial patient data to update (validated by Zod).
- * @returns {Object} JSON response containing a success message.
- * @throws {HTTPException} 404 if the patient is not found.
- * @throws {HTTPException} 500 if the patient update fails.
- *
- * @example
- * // PUT /api/patients/123
- * // Body: { "mobile": "0987654321" }
  */
 patientRoutes.put('/:id', zValidator('json', updatePatientSchema), async (c) => {
   const id = c.req.param('id');
@@ -201,36 +171,32 @@ patientRoutes.put('/:id', zValidator('json', updatePatientSchema), async (c) => 
   const data = c.req.valid('json');
 
   try {
-    const existing = await c.env.DB.prepare(
-      'SELECT * FROM patients WHERE id = ? AND tenant_id = ?',
-    )
-      .bind(id, tenantId)
-      .first<Record<string, unknown>>();
+    const db = getDb(c.env.DB);
+
+    const [existing] = await db
+      .select()
+      .from(patients)
+      .where(and(eq(patients.id, Number(id)), eq(patients.tenantId, Number(tenantId))))
+      .limit(1);
 
     if (!existing) {
       throw new HTTPException(404, { message: 'Patient not found' });
     }
 
-    await c.env.DB.prepare(
-      `UPDATE patients
-       SET name = ?, father_husband = ?, address = ?, mobile = ?,
-           guardian_mobile = ?, age = ?, gender = ?, blood_group = ?,
-           updated_at = datetime('now')
-       WHERE id = ? AND tenant_id = ?`,
-    )
-      .bind(
-        data.name          ?? existing['name'],
-        data.fatherHusband ?? existing['father_husband'],
-        data.address       ?? existing['address'],
-        data.mobile        ?? existing['mobile'],
-        data.guardianMobile !== undefined ? data.guardianMobile : existing['guardian_mobile'],
-        data.age           !== undefined ? data.age : existing['age'],
-        data.gender        ?? existing['gender'],
-        data.bloodGroup    ?? existing['blood_group'],
-        id,
-        tenantId,
-      )
-      .run();
+    await db
+      .update(patients)
+      .set({
+        name: data.name ?? existing.name,
+        fatherHusband: data.fatherHusband ?? existing.fatherHusband,
+        address: data.address ?? existing.address,
+        mobile: data.mobile ?? existing.mobile,
+        guardianMobile: data.guardianMobile !== undefined ? data.guardianMobile : existing.guardianMobile,
+        age: data.age !== undefined ? data.age : existing.age,
+        gender: data.gender ?? existing.gender,
+        bloodGroup: data.bloodGroup ?? existing.bloodGroup,
+        updatedAt: sql`datetime('now')`,
+      })
+      .where(and(eq(patients.id, Number(id)), eq(patients.tenantId, Number(tenantId))));
 
     // Audit log
     void createAuditLog(c.env, tenantId!, requireUserId(c), 'update', 'patients', Number(id), existing, data);

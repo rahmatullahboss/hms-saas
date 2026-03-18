@@ -3,6 +3,8 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { requireTenantId } from '../../lib/context-helpers';
 import type { Env, Variables } from '../../types';
+import { getDb } from '../../db';
+
 
 const dateRangeSchema = z.object({
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format, use YYYY-MM-DD').optional(),
@@ -22,6 +24,7 @@ const reportLab = new Hono<{ Bindings: Env; Variables: Variables }>();
 // ─── Tests by Category ───────────────────────────────────────────────────────
 
 reportLab.get('/by-category', zValidator('query', dateRangeSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const { startDate, endDate } = c.req.valid('query');
 
@@ -43,7 +46,7 @@ reportLab.get('/by-category', zValidator('query', dateRangeSchema), async (c) =>
   if (endDate) { sql += ' AND lo.order_date <= ?'; params.push(endDate); }
 
   sql += ' GROUP BY category ORDER BY test_count DESC';
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await db.$client.prepare(sql).bind(...params).all();
 
   const totalTests = results.reduce((s: number, r: any) => s + r.test_count, 0);
   const totalRevenue = results.reduce((s: number, r: any) => s + (r.revenue || 0), 0);
@@ -65,6 +68,7 @@ reportLab.get('/by-category', zValidator('query', dateRangeSchema), async (c) =>
 // ─── Turn-Around Time (TAT) ──────────────────────────────────────────────────
 
 reportLab.get('/tat', zValidator('query', dateRangeSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const { startDate, endDate } = c.req.valid('query');
 
@@ -89,7 +93,7 @@ reportLab.get('/tat', zValidator('query', dateRangeSchema), async (c) => {
   if (endDate) { sql += ' AND lo.order_date <= ?'; params.push(endDate); }
   sql += ' GROUP BY ltc.id ORDER BY avg_hours DESC';
 
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await db.$client.prepare(sql).bind(...params).all();
 
   return c.json({
     tests: results.map((r: any) => ({
@@ -104,6 +108,7 @@ reportLab.get('/tat', zValidator('query', dateRangeSchema), async (c) => {
 // ─── Top Ordered Tests ───────────────────────────────────────────────────────
 
 reportLab.get('/top-tests', zValidator('query', dateRangeWithLimitSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const { startDate, endDate, limit } = c.req.valid('query');
 
@@ -125,7 +130,7 @@ reportLab.get('/top-tests', zValidator('query', dateRangeWithLimitSchema), async
   sql += ` GROUP BY ltc.id ORDER BY order_count DESC LIMIT ?`;
   params.push(limit);
 
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await db.$client.prepare(sql).bind(...params).all();
 
   return c.json({
     tests: results.map((r: any) => ({
@@ -141,6 +146,7 @@ reportLab.get('/top-tests', zValidator('query', dateRangeWithLimitSchema), async
 // ─── Pending vs Completed Trend ──────────────────────────────────────────────
 
 reportLab.get('/trend', zValidator('query', trendSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const { days } = c.req.valid('query');
 
@@ -156,7 +162,7 @@ reportLab.get('/trend', zValidator('query', trendSchema), async (c) => {
     GROUP BY lo.order_date ORDER BY lo.order_date ASC
   `;
 
-  const { results } = await c.env.DB.prepare(sql).bind(tenantId, days).all();
+  const { results } = await db.$client.prepare(sql).bind(tenantId, days).all();
 
   return c.json({
     trend: results.map((r: any) => ({

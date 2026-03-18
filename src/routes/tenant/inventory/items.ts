@@ -2,11 +2,14 @@ import { Hono } from "hono";
 import type { Env } from '../../../types';
 import { zValidator } from "@hono/zod-validator";
 import * as schemas from "../../../schemas/inventory";
+import { getDb } from '../../../db';
+
 
 const items = new Hono<{ Bindings: Env; Variables: { tenantId?: string; userId?: string; role?: string } }>();
 
 // GET /items
 items.get("/", zValidator("query", schemas.listItemsSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const { page, limit, search, ItemCategoryId, SubCategoryId, IsActive } = c.req.valid("query");
   const offset = (page - 1) * limit;
 
@@ -36,13 +39,13 @@ items.get("/", zValidator("query", schemas.listItemsSchema), async (c) => {
 
   const whereClause = conditions.join(" AND ");
 
-  const count = await c.env.DB.prepare(`
+  const count = await db.$client.prepare(`
     SELECT COUNT(*) as total
     FROM InventoryItem I
     WHERE ${whereClause}
   `).bind(...params).first<{ total: number }>();
 
-  const results = await c.env.DB.prepare(`
+  const results = await db.$client.prepare(`
     SELECT I.*, C.CategoryName, U.UOMName
     FROM InventoryItem I
     LEFT JOIN InventoryItemCategory C ON I.ItemCategoryId = C.ItemCategoryId
@@ -60,12 +63,13 @@ items.get("/", zValidator("query", schemas.listItemsSchema), async (c) => {
 
 // POST /items
 items.post("/", zValidator("json", schemas.createItemSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const body = c.req.valid("json");
   const tenantId = c.get('tenantId');
   const userId = c.get('userId');
   const today = new Date().toISOString();
 
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO InventoryItem (tenant_id, ItemName, ItemCode, ItemCategoryId, SubCategoryId, UOMId, StandardRate, ReOrderLevel, MinStockQuantity, BudgetedQuantity, Description, IsVATApplicable, VATPercentage, IsFixedAsset, IsActive, CreatedBy, CreatedOn)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
@@ -87,6 +91,7 @@ const ITEM_UPDATABLE_COLUMNS = [
 ] as const;
 
 items.put("/:id", zValidator("json", schemas.updateItemSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const id = c.req.param("id");
   const body = c.req.valid("json");
   const tenantId = c.get('tenantId');
@@ -105,7 +110,7 @@ items.put("/:id", zValidator("json", schemas.updateItemSchema), async (c) => {
 
   if (updates.length > 0) {
     params.push(id, tenantId);
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       `UPDATE InventoryItem SET ${updates.join(", ")} WHERE ItemId = ? AND tenant_id = ?`
     ).bind(...params).run();
   }

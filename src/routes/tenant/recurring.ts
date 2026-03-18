@@ -3,6 +3,8 @@ import { zValidator } from '@hono/zod-validator';
 import { createAuditLog } from '../../lib/accounting-helpers';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 import { createRecurringExpenseSchema, updateRecurringExpenseSchema } from '../../schemas/accounting';
+import { getDb } from '../../db';
+
 
 const recurringRoutes = new Hono<{
   Bindings: {
@@ -19,6 +21,7 @@ const recurringRoutes = new Hono<{
 }>();
 
 recurringRoutes.get('/', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const { isActive } = c.req.query();
 
@@ -39,7 +42,7 @@ recurringRoutes.get('/', async (c) => {
   query += ' ORDER BY r.next_run_date';
 
   try {
-    const result = await c.env.DB.prepare(query).bind(...params).all();
+    const result = await db.$client.prepare(query).bind(...params).all();
     return c.json({ recurringExpenses: result.results });
   } catch (error) {
     console.error('Error fetching recurring expenses:', error);
@@ -48,12 +51,13 @@ recurringRoutes.get('/', async (c) => {
 });
 
 recurringRoutes.post('/', zValidator('json', createRecurringExpenseSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const { category_id, amount, description, frequency, next_run_date, end_date } = c.req.valid('json');
 
   try {
-    const category = await c.env.DB.prepare(`
+    const category = await db.$client.prepare(`
       SELECT id, is_recurring_eligible FROM expense_categories WHERE id = ? AND tenant_id = ?
     `).bind(category_id, tenantId).first();
 
@@ -65,7 +69,7 @@ recurringRoutes.post('/', zValidator('json', createRecurringExpenseSchema), asyn
       return c.json({ error: 'This category is not eligible for recurring expenses' }, 400);
     }
 
-    const result = await c.env.DB.prepare(`
+    const result = await db.$client.prepare(`
       INSERT INTO recurring_expenses (category_id, amount, description, frequency, next_run_date, end_date, tenant_id, created_by)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(category_id, amount, description || null, frequency, next_run_date, end_date || null, tenantId, userId).run();
@@ -91,11 +95,12 @@ recurringRoutes.post('/', zValidator('json', createRecurringExpenseSchema), asyn
 });
 
 recurringRoutes.get('/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = c.req.param('id');
 
   try {
-    const result = await c.env.DB.prepare(`
+    const result = await db.$client.prepare(`
       SELECT r.*, ec.name as category_name, ec.code as category_code, u.name as created_by_name
       FROM recurring_expenses r
       LEFT JOIN expense_categories ec ON r.category_id = ec.id
@@ -115,13 +120,14 @@ recurringRoutes.get('/:id', async (c) => {
 });
 
 recurringRoutes.put('/:id', zValidator('json', updateRecurringExpenseSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const id = c.req.param('id');
   const { category_id, amount, description, frequency, next_run_date, end_date, is_active } = c.req.valid('json');
 
   try {
-    const existing = await c.env.DB.prepare(`
+    const existing = await db.$client.prepare(`
       SELECT * FROM recurring_expenses WHERE id = ? AND tenant_id = ?
     `).bind(id, tenantId).first();
 
@@ -129,7 +135,7 @@ recurringRoutes.put('/:id', zValidator('json', updateRecurringExpenseSchema), as
       return c.json({ error: 'Recurring expense not found' }, 404);
     }
 
-    await c.env.DB.prepare(`
+    await db.$client.prepare(`
       UPDATE recurring_expenses 
       SET category_id = ?, amount = ?, description = ?, frequency = ?, next_run_date = ?, end_date = ?, is_active = ?
       WHERE id = ? AND tenant_id = ?
@@ -164,12 +170,13 @@ recurringRoutes.put('/:id', zValidator('json', updateRecurringExpenseSchema), as
 });
 
 recurringRoutes.delete('/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const id = c.req.param('id');
 
   try {
-    const existing = await c.env.DB.prepare(`
+    const existing = await db.$client.prepare(`
       SELECT * FROM recurring_expenses WHERE id = ? AND tenant_id = ?
     `).bind(id, tenantId).first();
 
@@ -177,7 +184,7 @@ recurringRoutes.delete('/:id', async (c) => {
       return c.json({ error: 'Recurring expense not found' }, 404);
     }
 
-    await c.env.DB.prepare(`
+    await db.$client.prepare(`
       UPDATE recurring_expenses SET is_active = 0 WHERE id = ? AND tenant_id = ?
     `).bind(id, tenantId).run();
 
@@ -200,12 +207,13 @@ recurringRoutes.delete('/:id', async (c) => {
 });
 
 recurringRoutes.post('/:id/run', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const id = c.req.param('id');
 
   try {
-    const recurring = await c.env.DB.prepare(`
+    const recurring = await db.$client.prepare(`
       SELECT * FROM recurring_expenses WHERE id = ? AND tenant_id = ? AND is_active = 1
     `).bind(id, tenantId).first();
 
@@ -215,7 +223,7 @@ recurringRoutes.post('/:id/run', async (c) => {
 
     const today = new Date().toISOString().split('T')[0];
 
-    const expenseResult = await c.env.DB.prepare(`
+    const expenseResult = await db.$client.prepare(`
       INSERT INTO expenses (date, category, amount, description, status, tenant_id, created_by, approved_by, approved_at)
       SELECT ?, ec.name, ?, ?, 'approved', ?, ?, ?, ?
       FROM expense_categories ec
@@ -242,7 +250,7 @@ recurringRoutes.post('/:id/run', async (c) => {
       nextRunDate.setMonth(nextRunDate.getMonth() + 1);
     }
 
-    await c.env.DB.prepare(`
+    await db.$client.prepare(`
       UPDATE recurring_expenses SET next_run_date = ? WHERE id = ? AND tenant_id = ?
     `).bind(nextRunDate.toISOString().split('T')[0], id, tenantId).run();
 

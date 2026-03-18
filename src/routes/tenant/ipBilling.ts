@@ -5,11 +5,14 @@ import { HTTPException } from 'hono/http-exception';
 import { getNextSequence } from '../../lib/sequence';
 import type { Env, Variables } from '../../types';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
+import { getDb } from '../../db';
+
 
 const ipBilling = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // ─── GET /patients — list IP patients with billing summary (used by frontend) ─
 ipBilling.get('/patients', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const search = c.req.query('search');
   const billingStatus = c.req.query('billing_status');
@@ -52,7 +55,7 @@ ipBilling.get('/patients', async (c) => {
   sql += ' ORDER BY a.admitted_at DESC';
 
   try {
-    const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+    const { results } = await db.$client.prepare(sql).bind(...params).all();
 
     // Apply billing_status filter in JS (derived column)
     const filtered = billingStatus ? results.filter((r: any) => r.billing_status === billingStatus) : results;
@@ -64,24 +67,25 @@ ipBilling.get('/patients', async (c) => {
 
 // ─── GET /stats — IP billing summary stats (used by frontend KPI cards) ──────
 ipBilling.get('/stats', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const today = new Date().toISOString().split('T')[0];
 
   try {
-    const batchResults = await c.env.DB.batch([
-      c.env.DB.prepare(
+    const batchResults = await db.$client.batch([
+      db.$client.prepare(
         "SELECT COUNT(*) as count FROM admissions WHERE tenant_id = ? AND status = 'admitted'"
       ).bind(tenantId),
-      c.env.DB.prepare(
+      db.$client.prepare(
         `SELECT COUNT(DISTINCT a.id) as count FROM admissions a
          LEFT JOIN billing_provisional_items bp ON bp.admission_id = a.id AND bp.tenant_id = a.tenant_id
          WHERE a.tenant_id = ? AND a.status = 'admitted' AND bp.bill_status = 'provisional'`
       ).bind(tenantId),
-      c.env.DB.prepare(
+      db.$client.prepare(
         `SELECT COALESCE(SUM(total_amount), 0) as total FROM billing_provisional_items
          WHERE tenant_id = ? AND date(created_at) = ? AND is_active = 1`
       ).bind(tenantId, today),
-      c.env.DB.prepare(
+      db.$client.prepare(
         `SELECT COALESCE(SUM(bi.total), 0) as total FROM bills bi
          JOIN admissions a ON bi.patient_id = a.patient_id AND bi.tenant_id = a.tenant_id
          WHERE bi.tenant_id = ? AND date(bi.created_at) = ? AND bi.status = 'paid'`
@@ -102,6 +106,7 @@ ipBilling.get('/stats', async (c) => {
 // ─── GET /admitted — list admitted patients for IP billing ────────────────────
 
 ipBilling.get('/admitted', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const search = c.req.query('search');
 
@@ -118,25 +123,26 @@ ipBilling.get('/admitted', async (c) => {
   if (search) { sql += ' AND (p.name LIKE ? OR p.patient_code LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
   sql += ' ORDER BY a.admitted_at DESC';
 
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await db.$client.prepare(sql).bind(...params).all();
   return c.json({ patients: results });
 });
 
 // ─── GET /pending/:admissionId — pending charges for an admission ────────────
 
 ipBilling.get('/pending/:admissionId', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const admissionId = parseInt(c.req.param('admissionId'));
 
   // Get provisional items
-  const { results: items } = await c.env.DB.prepare(`
+  const { results: items } = await db.$client.prepare(`
     SELECT * FROM billing_provisional_items
     WHERE tenant_id = ? AND admission_id = ? AND bill_status = 'provisional' AND is_active = 1
     ORDER BY created_at ASC
   `).bind(tenantId, admissionId).all();
 
   // Calculate bed charges
-  const admission = await c.env.DB.prepare(`
+  const admission = await db.$client.prepare(`
     SELECT a.admitted_at, a.bed_id, b.rate as bed_rate
     FROM admissions a LEFT JOIN beds b ON a.bed_id = b.id
     WHERE a.id = ? AND a.tenant_id = ? AND a.status = 'admitted'
@@ -154,7 +160,7 @@ ipBilling.get('/pending/:admissionId', async (c) => {
   const bedTotal = bedCharges?.total || 0;
 
   // Get deposit balance
-  const deposit = await c.env.DB.prepare(`
+  const deposit = await db.$client.prepare(`
     SELECT
       COALESCE(SUM(CASE WHEN transaction_type = 'deposit' THEN amount ELSE 0 END), 0) -
       COALESCE(SUM(CASE WHEN transaction_type IN ('refund', 'adjustment') THEN amount ELSE 0 END), 0) as balance
@@ -190,6 +196,7 @@ ipBilling.post('/provisional', zValidator('json', z.object({
   doctor_name: z.string().optional(),
   reference_id: z.number().int().positive().optional(),
 })), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
@@ -197,7 +204,7 @@ ipBilling.post('/provisional', zValidator('json', z.object({
   const discountAmt = data.unit_price * data.quantity * (data.discount_percent / 100);
   const totalAmt = data.unit_price * data.quantity - discountAmt;
 
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO billing_provisional_items (tenant_id, patient_id, admission_id, visit_id, item_category, item_name, department,
       unit_price, quantity, discount_percent, discount_amount, total_amount, doctor_id, doctor_name, reference_id, created_by)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -218,17 +225,18 @@ ipBilling.post('/discharge-bill', zValidator('json', z.object({
   paid_amount: z.number().min(0).default(0),
   remarks: z.string().optional(),
 })), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
 
-  const admission = await c.env.DB.prepare(
+  const admission = await db.$client.prepare(
     "SELECT * FROM admissions WHERE id = ? AND tenant_id = ? AND status = 'admitted'"
   ).bind(data.admission_id, tenantId).first<any>();
   if (!admission) throw new HTTPException(404, { message: 'Active admission not found' });
 
   // Get provisional items
-  const { results: provItems } = await c.env.DB.prepare(
+  const { results: provItems } = await db.$client.prepare(
     "SELECT * FROM billing_provisional_items WHERE tenant_id = ? AND admission_id = ? AND bill_status = 'provisional' AND is_active = 1"
   ).bind(tenantId, data.admission_id).all<any>();
 
@@ -241,7 +249,7 @@ ipBilling.post('/discharge-bill', zValidator('json', z.object({
   const invoiceNo = await getNextSequence(c.env.DB, String(tenantId), 'invoice', 'INV');
 
   // Create bill
-  const billResult = await c.env.DB.prepare(`
+  const billResult = await db.$client.prepare(`
     INSERT INTO bills (patient_id, visit_id, invoice_no, subtotal, discount, total, paid, status, tenant_id, created_by, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
   `).bind(admission.patient_id, admission.visit_id || null, invoiceNo, subtotal, discountAmt, totalAmt, data.paid_amount, billStatus, tenantId, userId).run();
@@ -254,13 +262,13 @@ ipBilling.post('/discharge-bill', zValidator('json', z.object({
   // Convert provisional items to invoice items
   for (const item of provItems) {
     batchStmts.push(
-      c.env.DB.prepare(`
+      db.$client.prepare(`
         INSERT INTO invoice_items (bill_id, item_category, description, quantity, unit_price, line_total, reference_id, tenant_id)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(billId, item.item_category, item.item_name, item.quantity, item.unit_price, item.total_amount, item.reference_id, tenantId)
     );
     batchStmts.push(
-      c.env.DB.prepare("UPDATE billing_provisional_items SET bill_status = 'billed', billed_bill_id = ? WHERE id = ?").bind(billId, item.id)
+      db.$client.prepare("UPDATE billing_provisional_items SET bill_status = 'billed', billed_bill_id = ? WHERE id = ?").bind(billId, item.id)
     );
   }
 
@@ -268,7 +276,7 @@ ipBilling.post('/discharge-bill', zValidator('json', z.object({
   if (data.deposit_deducted > 0) {
     const receiptNo = await getNextSequence(c.env.DB, String(tenantId), 'deposit_adj', 'DAD');
     batchStmts.push(
-      c.env.DB.prepare(`
+      db.$client.prepare(`
         INSERT INTO billing_deposits (tenant_id, patient_id, deposit_receipt_no, amount, transaction_type, reference_bill_id, remarks, created_by)
         VALUES (?, ?, ?, ?, 'adjustment', ?, 'Discharge bill deduction', ?)
       `).bind(tenantId, admission.patient_id, receiptNo, data.deposit_deducted, billId, userId)
@@ -277,7 +285,7 @@ ipBilling.post('/discharge-bill', zValidator('json', z.object({
 
   // Update admission status
   batchStmts.push(
-    c.env.DB.prepare(`
+    db.$client.prepare(`
       UPDATE admissions SET status = 'discharged', discharged_at = datetime('now') WHERE id = ? AND tenant_id = ?
     `).bind(data.admission_id, tenantId)
   );
@@ -285,11 +293,11 @@ ipBilling.post('/discharge-bill', zValidator('json', z.object({
   // Free bed
   if (admission.bed_id) {
     batchStmts.push(
-      c.env.DB.prepare("UPDATE beds SET is_occupied = 0 WHERE id = ? AND tenant_id = ?").bind(admission.bed_id, tenantId)
+      db.$client.prepare("UPDATE beds SET is_occupied = 0 WHERE id = ? AND tenant_id = ?").bind(admission.bed_id, tenantId)
     );
   }
 
-  if (batchStmts.length > 0) await c.env.DB.batch(batchStmts);
+  if (batchStmts.length > 0) await db.$client.batch(batchStmts);
 
   return c.json({ bill_id: billId, invoice_no: invoiceNo, total_amount: totalAmt, paid_amount: data.paid_amount, status: billStatus, message: 'Discharge bill created' }, 201);
 });

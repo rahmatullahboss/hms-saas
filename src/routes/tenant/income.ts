@@ -3,6 +3,8 @@ import { zValidator } from '@hono/zod-validator';
 import { createAuditLog } from '../../lib/accounting-helpers';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 import { createIncomeSchema, updateIncomeSchema } from '../../schemas/accounting';
+import { getDb } from '../../db';
+
 
 const incomeRoutes = new Hono<{
   Bindings: {
@@ -19,6 +21,7 @@ const incomeRoutes = new Hono<{
 }>();
 
 incomeRoutes.get('/', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const { startDate, endDate, source } = c.req.query();
 
@@ -41,7 +44,7 @@ incomeRoutes.get('/', async (c) => {
   query += ' ORDER BY date DESC, id DESC';
 
   try {
-    const result = await c.env.DB.prepare(query).bind(...params).all();
+    const result = await db.$client.prepare(query).bind(...params).all();
     return c.json({ income: result.results });
   } catch (error) {
     console.error('Error fetching income:', error);
@@ -50,12 +53,13 @@ incomeRoutes.get('/', async (c) => {
 });
 
 incomeRoutes.post('/', zValidator('json', createIncomeSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const { date, source, amount, description, bill_id } = c.req.valid('json');
 
   try {
-    const result = await c.env.DB.prepare(`
+    const result = await db.$client.prepare(`
       INSERT INTO income (date, source, amount, description, bill_id, tenant_id, created_by)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `).bind(date, source, amount, description || null, bill_id || null, tenantId, userId).run();
@@ -85,11 +89,12 @@ incomeRoutes.post('/', zValidator('json', createIncomeSchema), async (c) => {
 });
 
 incomeRoutes.get('/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = c.req.param('id');
 
   try {
-    const result = await c.env.DB.prepare(`
+    const result = await db.$client.prepare(`
       SELECT * FROM income WHERE id = ? AND tenant_id = ?
     `).bind(id, tenantId).first();
 
@@ -105,13 +110,14 @@ incomeRoutes.get('/:id', async (c) => {
 });
 
 incomeRoutes.put('/:id', zValidator('json', updateIncomeSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const id = c.req.param('id');
   const { date, source, amount, description } = c.req.valid('json');
 
   try {
-    const existing = await c.env.DB.prepare(`
+    const existing = await db.$client.prepare(`
       SELECT * FROM income WHERE id = ? AND tenant_id = ?
     `).bind(id, tenantId).first();
 
@@ -122,7 +128,7 @@ incomeRoutes.put('/:id', zValidator('json', updateIncomeSchema), async (c) => {
     const oldAmount = (existing as any).amount;
     const amountDiff = amount ? amount - oldAmount : 0;
 
-    await c.env.DB.prepare(`
+    await db.$client.prepare(`
       UPDATE income SET date = ?, source = ?, amount = ?, description = ?
       WHERE id = ? AND tenant_id = ?
     `).bind(
@@ -154,12 +160,13 @@ incomeRoutes.put('/:id', zValidator('json', updateIncomeSchema), async (c) => {
 });
 
 incomeRoutes.delete('/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const id = c.req.param('id');
 
   try {
-    const existing = await c.env.DB.prepare(`
+    const existing = await db.$client.prepare(`
       SELECT * FROM income WHERE id = ? AND tenant_id = ?
     `).bind(id, tenantId).first();
 
@@ -167,7 +174,7 @@ incomeRoutes.delete('/:id', async (c) => {
       return c.json({ error: 'Income not found' }, 404);
     }
 
-    await c.env.DB.prepare(`
+    await db.$client.prepare(`
       DELETE FROM income WHERE id = ? AND tenant_id = ?
     `).bind(id, tenantId).run();
 

@@ -5,6 +5,8 @@ import { HTTPException } from 'hono/http-exception';
 import { getNextSequence } from '../../lib/sequence';
 import type { Env, Variables } from '../../types';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
+import { getDb } from '../../db';
+
 
 const creditNotes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -26,6 +28,7 @@ const createCreditNoteSchema = z.object({
 // ─── GET / — list credit notes ───────────────────────────────────────────────
 
 creditNotes.get('/', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const patientId = c.req.query('patient_id');
   const page = Math.max(1, parseInt(c.req.query('page') || '1'));
@@ -43,23 +46,24 @@ creditNotes.get('/', async (c) => {
   if (patientId) { sql += ' AND cn.patient_id = ?'; params.push(patientId); }
   sql += ` ORDER BY cn.created_at DESC LIMIT ${perPage} OFFSET ${offset}`;
 
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await db.$client.prepare(sql).bind(...params).all();
   return c.json({ credit_notes: results, page, per_page: perPage });
 });
 
 // ─── GET /invoice/:billId — get invoice items for credit note ────────────────
 
 creditNotes.get('/invoice/:billId', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const billId = parseInt(c.req.param('billId'));
 
-  const bill = await c.env.DB.prepare(
+  const bill = await db.$client.prepare(
     'SELECT b.*, p.name as patient_name FROM bills b JOIN patients p ON b.patient_id = p.id WHERE b.id = ? AND b.tenant_id = ?'
   ).bind(billId, tenantId).first();
   if (!bill) throw new HTTPException(404, { message: 'Bill not found' });
 
   // Get items with already-returned quantities
-  const { results: items } = await c.env.DB.prepare(`
+  const { results: items } = await db.$client.prepare(`
     SELECT ii.*,
       COALESCE((SELECT SUM(cni.return_quantity) FROM billing_credit_note_items cni
         JOIN billing_credit_notes cn ON cni.credit_note_id = cn.id
@@ -79,18 +83,19 @@ creditNotes.get('/invoice/:billId', async (c) => {
 // ─── POST / — create credit note ────────────────────────────────────────────
 
 creditNotes.post('/', zValidator('json', createCreditNoteSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
 
   // Validate invoice belongs to patient
-  const bill = await c.env.DB.prepare(
+  const bill = await db.$client.prepare(
     'SELECT * FROM bills WHERE id = ? AND tenant_id = ? AND patient_id = ?'
   ).bind(data.bill_id, tenantId, data.patient_id).first<any>();
   if (!bill) throw new HTTPException(404, { message: 'Bill not found for this patient' });
 
   // Validate items and calculate refund
-  const { results: invoiceItems } = await c.env.DB.prepare(`
+  const { results: invoiceItems } = await db.$client.prepare(`
     SELECT ii.*,
       COALESCE((SELECT SUM(cni.return_quantity) FROM billing_credit_note_items cni
         JOIN billing_credit_notes cn ON cni.credit_note_id = cn.id
@@ -115,7 +120,7 @@ creditNotes.post('/', zValidator('json', createCreditNoteSchema), async (c) => {
 
   // P0#2: Two-phase atomic approach — insert CN first to get ID, then batch items + bill update
   // Phase 1: Insert credit note
-  const cnResult = await c.env.DB.prepare(`
+  const cnResult = await db.$client.prepare(`
     INSERT INTO billing_credit_notes (tenant_id, credit_note_no, bill_id, patient_id, reason, total_amount, refund_amount, payment_mode, remarks, created_by)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(tenantId, cnNo, data.bill_id, data.patient_id, data.reason, totalRefund, totalRefund, data.payment_mode || 'cash', data.remarks || null, userId).run();
@@ -128,7 +133,7 @@ creditNotes.post('/', zValidator('json', createCreditNoteSchema), async (c) => {
     const original = itemMap.get(returnItem.invoice_item_id)!;
     const itemTotal = (original.unit_price || 0) * returnItem.return_quantity;
     itemStmts.push(
-      c.env.DB.prepare(`
+      db.$client.prepare(`
         INSERT INTO billing_credit_note_items (tenant_id, credit_note_id, invoice_item_id, item_name, unit_price, return_quantity, total_amount, remarks)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(tenantId, cnId, returnItem.invoice_item_id, original.description, original.unit_price, returnItem.return_quantity, itemTotal, returnItem.remarks || null)
@@ -137,7 +142,7 @@ creditNotes.post('/', zValidator('json', createCreditNoteSchema), async (c) => {
 
   // P1#7: Fix bill status logic — compare against total
   itemStmts.push(
-    c.env.DB.prepare(`
+    db.$client.prepare(`
       UPDATE bills SET paid = MAX(0, paid - ?),
         status = CASE
           WHEN MAX(0, paid - ?) >= total THEN 'paid'
@@ -148,7 +153,7 @@ creditNotes.post('/', zValidator('json', createCreditNoteSchema), async (c) => {
     `).bind(totalRefund, totalRefund, totalRefund, data.bill_id, tenantId)
   );
 
-  await c.env.DB.batch(itemStmts);
+  await db.$client.batch(itemStmts);
 
   return c.json({ id: cnId, credit_note_no: cnNo, refund_amount: totalRefund, message: 'Credit note created' }, 201);
 });

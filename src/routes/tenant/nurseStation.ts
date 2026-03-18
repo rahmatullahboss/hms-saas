@@ -4,6 +4,8 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import type { Env, Variables } from '../../types';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
+import { getDb } from '../../db';
+
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -82,9 +84,10 @@ async function checkVitalsAgainstRules(
 
 // GET /api/nurse-station/dashboard — active inpatients with latest vitals
 app.get('/dashboard', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
 
-  const { results: admissions } = await c.env.DB.prepare(`
+  const { results: admissions } = await db.$client.prepare(`
     SELECT a.id AS admission_id, a.admission_no, a.patient_id, a.status AS admission_status,
            a.provisional_diagnosis,
            p.name AS patient_name, p.patient_code,
@@ -104,19 +107,19 @@ app.get('/dashboard', async (c) => {
     const batchStatements = [];
     for (const adm of admissions as Record<string, unknown>[]) {
       batchStatements.push(
-        c.env.DB.prepare(`
+        db.$client.prepare(`
           SELECT systolic, diastolic, temperature, heart_rate, spo2, respiratory_rate, recorded_at
           FROM patient_vitals
           WHERE tenant_id = ? AND patient_id = ?
           ORDER BY recorded_at DESC LIMIT 1
         `).bind(tenantId, adm.patient_id),
-        c.env.DB.prepare(`
+        db.$client.prepare(`
           SELECT COUNT(*) AS cnt FROM vital_alerts
           WHERE tenant_id = ? AND patient_id = ? AND status = 'active'
         `).bind(tenantId, adm.patient_id)
       );
     }
-    const batchResults = await c.env.DB.batch(batchStatements);
+    const batchResults = await db.$client.batch(batchStatements);
     for (let i = 0; i < admissions.length; i++) {
       const adm = admissions[i];
       const vitalRow = batchResults[i * 2].results[0];
@@ -132,7 +135,7 @@ app.get('/dashboard', async (c) => {
   const pendingVitals = patients.filter(p => !p.latestVitals).length;
 
   // Total active alerts
-  const totalAlerts = await c.env.DB.prepare(`
+  const totalAlerts = await db.$client.prepare(`
     SELECT COUNT(*) AS cnt FROM vital_alerts WHERE tenant_id = ? AND status = 'active'
   `).bind(tenantId).first<{ cnt: number }>();
 
@@ -150,10 +153,11 @@ app.get('/dashboard', async (c) => {
 
 // GET /api/nurse-station/vitals?limit=10
 app.get('/vitals', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const limit = Math.min(Number(c.req.query('limit')) || 10, 100);
 
-  const { results } = await c.env.DB.prepare(`
+  const { results } = await db.$client.prepare(`
     SELECT v.*, p.name AS patient_name
     FROM patient_vitals v
     LEFT JOIN patients p ON v.patient_id = p.id AND p.tenant_id = v.tenant_id
@@ -166,6 +170,7 @@ app.get('/vitals', async (c) => {
 
 // POST /api/nurse-station/vitals — Record vitals + auto-check alerts
 app.post('/vitals', zValidator('json', vitalsSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId   = requireUserId(c);
   const role     = c.get('role');
@@ -177,7 +182,7 @@ app.post('/vitals', zValidator('json', vitalsSchema), async (c) => {
 
   const body     = c.req.valid('json');
 
-  const result = await c.env.DB.prepare(`
+  const result = await db.$client.prepare(`
     INSERT INTO patient_vitals
       (tenant_id, patient_id, admission_id, systolic, diastolic, temperature,
        heart_rate, spo2, respiratory_rate, weight, notes, recorded_by)
@@ -211,6 +216,7 @@ app.post('/vitals', zValidator('json', vitalsSchema), async (c) => {
 
 // GET /api/nurse-station/vitals-trends/:patientId — time-series for charting
 app.get('/vitals-trends/:patientId', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId  = requireTenantId(c);
   const patientId = Number(c.req.param('patientId'));
   const days      = Math.min(Number(c.req.query('days')) || 7, 90);
@@ -219,7 +225,7 @@ app.get('/vitals-trends/:patientId', async (c) => {
     throw new HTTPException(400, { message: 'Valid patientId required' });
   }
 
-  const { results } = await c.env.DB.prepare(`
+  const { results } = await db.$client.prepare(`
     SELECT systolic, diastolic, temperature, heart_rate, spo2,
            respiratory_rate, weight, recorded_at
     FROM patient_vitals
@@ -231,7 +237,7 @@ app.get('/vitals-trends/:patientId', async (c) => {
   // Also fetch alert thresholds for this tenant (graceful fallback if table doesn't exist)
   let rules: Record<string, unknown>[] = [];
   try {
-    const rulesResult = await c.env.DB.prepare(`
+    const rulesResult = await db.$client.prepare(`
       SELECT vital_type, min_value, max_value, severity
       FROM vital_alert_rules
       WHERE (tenant_id = ? OR tenant_id = 0) AND is_active = 1
@@ -247,10 +253,11 @@ app.get('/vitals-trends/:patientId', async (c) => {
 
 // GET /api/nurse-station/active-alerts — unresolved alerts
 app.get('/active-alerts', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const limit    = Math.min(Number(c.req.query('limit')) || 50, 200);
 
-  const { results } = await c.env.DB.prepare(`
+  const { results } = await db.$client.prepare(`
     SELECT va.*, p.name AS patient_name, p.patient_code,
            b.ward_name, b.bed_number
     FROM vital_alerts va
@@ -269,6 +276,7 @@ app.get('/active-alerts', async (c) => {
 
 // PUT /api/nurse-station/alerts/:id/acknowledge
 app.put('/alerts/:id/acknowledge', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId   = requireUserId(c);
   const role     = c.get('role');
@@ -280,7 +288,7 @@ app.put('/alerts/:id/acknowledge', async (c) => {
 
   const id       = Number(c.req.param('id'));
 
-  await c.env.DB.prepare(`
+  await db.$client.prepare(`
     UPDATE vital_alerts SET status = 'acknowledged', acknowledged_by = ?, acknowledged_at = datetime('now')
     WHERE id = ? AND tenant_id = ? AND status = 'active'
   `).bind(userId, id, tenantId).run();
@@ -290,6 +298,7 @@ app.put('/alerts/:id/acknowledge', async (c) => {
 
 // PUT /api/nurse-station/alerts/:id/resolve
 app.put('/alerts/:id/resolve', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const role     = c.get('role');
 
@@ -300,7 +309,7 @@ app.put('/alerts/:id/resolve', async (c) => {
 
   const id       = Number(c.req.param('id'));
 
-  await c.env.DB.prepare(`
+  await db.$client.prepare(`
     UPDATE vital_alerts SET status = 'resolved', resolved_at = datetime('now')
     WHERE id = ? AND tenant_id = ? AND status IN ('active', 'acknowledged')
   `).bind(id, tenantId).run();

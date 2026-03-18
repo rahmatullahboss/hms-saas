@@ -4,6 +4,8 @@ import { zValidator } from '@hono/zod-validator';
 import { HTTPException } from 'hono/http-exception';
 import type { Env, Variables } from '../../types';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
+import { getDb } from '../../db';
+
 
 const ipdChargeRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -21,6 +23,7 @@ const postChargeSchema = z.object({
 // ─── GET /api/ipd-charges?admission_id=X ──────────────────────────────────────
 
 ipdChargeRoutes.get('/', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const admissionId = c.req.query('admission_id');
 
@@ -28,7 +31,7 @@ ipdChargeRoutes.get('/', async (c) => {
     throw new HTTPException(400, { message: 'admission_id query param required' });
   }
 
-  const { results } = await c.env.DB.prepare(`
+  const { results } = await db.$client.prepare(`
     SELECT * FROM ipd_charges
     WHERE admission_id = ? AND tenant_id = ?
     ORDER BY charge_date DESC
@@ -42,12 +45,13 @@ ipdChargeRoutes.get('/', async (c) => {
 // ─── POST /api/ipd-charges ────────────────────────────────────────────────────
 
 ipdChargeRoutes.post('/', zValidator('json', postChargeSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
   const data = c.req.valid('json');
 
   // Verify admission belongs to tenant
-  const admission = await c.env.DB.prepare(
+  const admission = await db.$client.prepare(
     `SELECT id FROM admissions WHERE id = ? AND tenant_id = ?`
   ).bind(data.admission_id, tenantId).first();
 
@@ -56,7 +60,7 @@ ipdChargeRoutes.post('/', zValidator('json', postChargeSchema), async (c) => {
   }
 
   // Check for duplicate charge on same date+type
-  const existing = await c.env.DB.prepare(`
+  const existing = await db.$client.prepare(`
     SELECT id FROM ipd_charges
     WHERE admission_id = ? AND tenant_id = ? AND charge_date = ? AND charge_type = ?
   `).bind(data.admission_id, tenantId, data.charge_date, data.charge_type).first();
@@ -67,7 +71,7 @@ ipdChargeRoutes.post('/', zValidator('json', postChargeSchema), async (c) => {
 
   const safeUserId = Number(userId);
 
-  await c.env.DB.prepare(`
+  await db.$client.prepare(`
     INSERT INTO ipd_charges (tenant_id, admission_id, patient_id, charge_date, charge_type, description, amount, posted_by)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(tenantId, data.admission_id, data.patient_id, data.charge_date, data.charge_type,
@@ -79,10 +83,11 @@ ipdChargeRoutes.post('/', zValidator('json', postChargeSchema), async (c) => {
 // ─── DELETE /api/ipd-charges/:id ──────────────────────────────────────────────
 
 ipdChargeRoutes.delete('/:id', async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const id = c.req.param('id');
 
-  const result = await c.env.DB.prepare(
+  const result = await db.$client.prepare(
     `DELETE FROM ipd_charges WHERE id = ? AND tenant_id = ?`
   ).bind(id, tenantId).run();
 

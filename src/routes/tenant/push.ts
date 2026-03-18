@@ -16,6 +16,8 @@ import { sendPushToTenant } from '../../utils/web-push';
 import type { Env, Variables } from '../../types';
 import { requireTenantId, requireUserId } from '../../lib/context-helpers';
 import { unsubscribePushSchema } from '../../schemas/clinical';
+import { getDb } from '../../db';
+
 
 const push = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -49,13 +51,14 @@ push.get('/vapid-key', (c) => {
 // ─── POST /subscribe — Save push subscription ──────────────────────
 
 push.post('/subscribe', zValidator('json', subscribeSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const userId = requireUserId(c);
 
   const { endpoint, keys } = c.req.valid('json');
 
   // Upsert — if the endpoint already exists for this tenant, update keys
-  await c.env.DB.prepare(`
+  await db.$client.prepare(`
     INSERT INTO push_subscriptions (tenant_id, user_id, endpoint, p256dh_key, auth_key)
     VALUES (?, ?, ?, ?, ?)
     ON CONFLICT (tenant_id, endpoint) DO UPDATE SET
@@ -71,10 +74,11 @@ push.post('/subscribe', zValidator('json', subscribeSchema), async (c) => {
 // ─── DELETE /unsubscribe — Remove push subscription ─────────────────
 
 push.delete('/unsubscribe', zValidator('json', unsubscribePushSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const { endpoint } = c.req.valid('json');
 
-  await c.env.DB.prepare(
+  await db.$client.prepare(
     'DELETE FROM push_subscriptions WHERE tenant_id = ? AND endpoint = ?'
   ).bind(tenantId, endpoint).run();
 

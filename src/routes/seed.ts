@@ -1,4 +1,6 @@
 import { Hono } from 'hono';
+import { getDb } from '../db';
+
 
 const seedRoutes = new Hono<{
   Bindings: {
@@ -17,18 +19,19 @@ const ALLOW_SEED = true; // <── flip to `false` before ANY production build
 
 
 seedRoutes.post('/dev', async (c) => {
+  const db = getDb(c.env.DB);
   if (!ALLOW_SEED || c.env.ENVIRONMENT !== 'development') {
     return c.json({ error: 'Seed only works in development' }, 403);
   }
 
   try {
     // Create super admin
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       'INSERT OR IGNORE INTO users (email, password_hash, name, role, tenant_id) VALUES (?, ?, ?, ?, ?)'
     ).bind('admin@hms.com', 'hashed_admin123', 'Super Admin', 'super_admin', null).run();
 
     // Create sample hospital
-    await c.env.DB.prepare(
+    await db.$client.prepare(
       'INSERT OR IGNORE INTO tenants (id, name, subdomain, status, plan) VALUES (?, ?, ?, ?, ?)'
     ).bind(1, 'General Hospital', 'general', 'active', 'basic').run();
 
@@ -42,7 +45,7 @@ seedRoutes.post('/dev', async (c) => {
     ];
 
     for (const user of users) {
-      await c.env.DB.prepare(
+      await db.$client.prepare(
         'INSERT OR IGNORE INTO users (email, password_hash, name, role, tenant_id) VALUES (?, ?, ?, ?, ?)'
       ).bind(user.email, 'hashed_hospital123', user.name, user.role, 1).run();
     }
@@ -55,7 +58,7 @@ seedRoutes.post('/dev', async (c) => {
     ];
 
     for (const patient of patients) {
-      await c.env.DB.prepare(
+      await db.$client.prepare(
         'INSERT INTO patients (name, father_husband, address, mobile, tenant_id) VALUES (?, ?, ?, ?, ?)'
       ).bind(patient.name, patient.father, patient.address, patient.mobile, 1).run();
     }
@@ -68,7 +71,7 @@ seedRoutes.post('/dev', async (c) => {
     ];
 
     for (const med of medicines) {
-      await c.env.DB.prepare(
+      await db.$client.prepare(
         'INSERT INTO medicines (name, company, unit_price, quantity, tenant_id) VALUES (?, ?, ?, ?, ?)'
       ).bind(med.name, med.company, med.price, med.qty, 1).run();
     }
@@ -81,7 +84,7 @@ seedRoutes.post('/dev', async (c) => {
     ];
 
     for (const s of staff) {
-      await c.env.DB.prepare(
+      await db.$client.prepare(
         'INSERT INTO staff (name, position, salary, address, bank_account, mobile, tenant_id) VALUES (?, ?, ?, ?, ?, ?, ?)'
       ).bind(s.name, s.position, s.salary, s.address, s.bank, s.mobile, 1).run();
     }
@@ -96,7 +99,7 @@ seedRoutes.post('/dev', async (c) => {
     ];
 
     for (const sh of shareholders) {
-      await c.env.DB.prepare(
+      await db.$client.prepare(
         'INSERT INTO shareholders (name, type, share_count, investment, phone, address, tenant_id) VALUES (?, ?, ?, ?, ?, ?, ?)'
       ).bind(sh.name, sh.type, sh.shares, sh.investment, sh.phone, sh.address, 1).run();
     }
@@ -114,7 +117,7 @@ seedRoutes.post('/dev', async (c) => {
     ];
 
     for (const setting of settings) {
-      await c.env.DB.prepare(
+      await db.$client.prepare(
         'INSERT OR IGNORE INTO settings (key, value, tenant_id) VALUES (?, ?, ?)'
       ).bind(setting.key, setting.value, 1).run();
     }
@@ -131,13 +134,14 @@ seedRoutes.post('/dev', async (c) => {
 });
 
 seedRoutes.post('/accounting', async (c) => {
+  const db = getDb(c.env.DB);
   if (!ALLOW_SEED || c.env.ENVIRONMENT !== 'development') {
     return c.json({ error: 'Seed only works in development' }, 403);
   }
 
   try {
     // Create tables using prepare instead of exec to avoid issues
-    await c.env.DB.prepare(`
+    await db.$client.prepare(`
       CREATE TABLE IF NOT EXISTS expense_categories (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
@@ -147,7 +151,7 @@ seedRoutes.post('/accounting', async (c) => {
       )
     `).run();
 
-    await c.env.DB.prepare(`
+    await db.$client.prepare(`
       CREATE TABLE IF NOT EXISTS chart_of_accounts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         code TEXT NOT NULL,
@@ -160,7 +164,7 @@ seedRoutes.post('/accounting', async (c) => {
       )
     `).run();
 
-    await c.env.DB.prepare(`
+    await db.$client.prepare(`
       CREATE TABLE IF NOT EXISTS journal_entries (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         date DATE NOT NULL,
@@ -174,7 +178,7 @@ seedRoutes.post('/accounting', async (c) => {
       )
     `).run();
 
-    await c.env.DB.prepare(`
+    await db.$client.prepare(`
       CREATE TABLE IF NOT EXISTS audit_logs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         tenant_id INTEGER NOT NULL,
@@ -189,7 +193,7 @@ seedRoutes.post('/accounting', async (c) => {
       )
     `).run();
 
-    await c.env.DB.prepare(`
+    await db.$client.prepare(`
       CREATE TABLE IF NOT EXISTS recurring_expenses (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         category_id INTEGER NOT NULL,
@@ -207,10 +211,10 @@ seedRoutes.post('/accounting', async (c) => {
 
     // Recreate income table with correct schema
     try {
-      await c.env.DB.prepare('DROP TABLE IF EXISTS income').run();
+      await db.$client.prepare('DROP TABLE IF EXISTS income').run();
     } catch (e) {}
     
-    await c.env.DB.prepare(`
+    await db.$client.prepare(`
       CREATE TABLE income (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         date DATE NOT NULL,
@@ -226,10 +230,10 @@ seedRoutes.post('/accounting', async (c) => {
 
     // Recreate expenses table
     try {
-      await c.env.DB.prepare('DROP TABLE IF EXISTS expenses').run();
+      await db.$client.prepare('DROP TABLE IF EXISTS expenses').run();
     } catch (e) {}
     
-    await c.env.DB.prepare(`
+    await db.$client.prepare(`
       CREATE TABLE expenses (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         date DATE NOT NULL,
@@ -260,7 +264,7 @@ seedRoutes.post('/accounting', async (c) => {
     ];
 
     for (const cat of categories) {
-      await c.env.DB.prepare(
+      await db.$client.prepare(
         'INSERT OR IGNORE INTO expense_categories (name, code, tenant_id) VALUES (?, ?, ?)'
       ).bind(cat.name, cat.code, 1).run();
     }
@@ -280,7 +284,7 @@ seedRoutes.post('/accounting', async (c) => {
     ];
 
     for (const acc of accounts) {
-      await c.env.DB.prepare(
+      await db.$client.prepare(
         'INSERT OR IGNORE INTO chart_of_accounts (code, name, type, tenant_id) VALUES (?, ?, ?, ?)'
       ).bind(acc.code, acc.name, acc.type, 1).run();
     }
@@ -295,7 +299,7 @@ seedRoutes.post('/accounting', async (c) => {
     ];
 
     for (const inc of incomes) {
-      await c.env.DB.prepare(
+      await db.$client.prepare(
         'INSERT INTO income (date, source, amount, description, tenant_id, created_by) VALUES (?, ?, ?, ?, ?, ?)'
       ).bind(inc.date, inc.source, inc.amount, inc.description, 1, 7).run();
     }
@@ -310,7 +314,7 @@ seedRoutes.post('/accounting', async (c) => {
     ];
 
     for (const exp of expenses) {
-      await c.env.DB.prepare(
+      await db.$client.prepare(
         'INSERT INTO expenses (date, category, amount, description, status, tenant_id, created_by, approved_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
       ).bind(exp.date, exp.category, exp.amount, exp.description, exp.status, 1, 7, 7).run();
     }

@@ -3,6 +3,8 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { requireTenantId } from '../../lib/context-helpers';
 import type { Env, Variables } from '../../types';
+import { getDb } from '../../db';
+
 
 const dateRangeSchema = z.object({
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format, use YYYY-MM-DD').optional(),
@@ -18,6 +20,7 @@ const reportAppointment = new Hono<{ Bindings: Env; Variables: Variables }>();
 // ─── No-Show Rate ────────────────────────────────────────────────────────────
 
 reportAppointment.get('/no-show-rate', zValidator('query', dateRangeSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const { startDate, endDate } = c.req.valid('query');
 
@@ -34,7 +37,7 @@ reportAppointment.get('/no-show-rate', zValidator('query', dateRangeSchema), asy
   if (startDate) { sql += ' AND appointment_date >= ?'; params.push(startDate); }
   if (endDate) { sql += ' AND appointment_date <= ?'; params.push(endDate); }
 
-  const result = await c.env.DB.prepare(sql).bind(...params).first<any>();
+  const result = await db.$client.prepare(sql).bind(...params).first<any>();
 
   const total = result?.total_appointments || 0;
   const noShows = result?.no_shows || 0;
@@ -52,6 +55,7 @@ reportAppointment.get('/no-show-rate', zValidator('query', dateRangeSchema), asy
 // ─── Slot Utilization by Doctor ──────────────────────────────────────────────
 
 reportAppointment.get('/slot-utilization', zValidator('query', dateRangeSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const { startDate, endDate } = c.req.valid('query');
 
@@ -76,7 +80,7 @@ reportAppointment.get('/slot-utilization', zValidator('query', dateRangeSchema),
   sql += ' WHERE ' + conditions.join(' AND ');
   sql += ' GROUP BY d.id ORDER BY total_appointments DESC';
 
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await db.$client.prepare(sql).bind(...params).all();
 
   return c.json({
     doctors: results.map((r: any) => ({
@@ -96,6 +100,7 @@ reportAppointment.get('/slot-utilization', zValidator('query', dateRangeSchema),
 // ─── Peak Hours Analysis ─────────────────────────────────────────────────────
 
 reportAppointment.get('/peak-hours', zValidator('query', dateRangeSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const { startDate, endDate } = c.req.valid('query');
 
@@ -119,7 +124,7 @@ reportAppointment.get('/peak-hours', zValidator('query', dateRangeSchema), async
   if (endDate) { sql += ' AND appointment_date <= ?'; params.push(endDate); }
   sql += ' GROUP BY time_slot ORDER BY count DESC';
 
-  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
+  const { results } = await db.$client.prepare(sql).bind(...params).all();
 
   return c.json({
     slots: results.map((r: any) => ({
@@ -133,10 +138,11 @@ reportAppointment.get('/peak-hours', zValidator('query', dateRangeSchema), async
 // ─── Daily Appointment Volume ────────────────────────────────────────────────
 
 reportAppointment.get('/daily-volume', zValidator('query', trendSchema), async (c) => {
+  const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   const { days } = c.req.valid('query');
 
-  const { results } = await c.env.DB.prepare(`
+  const { results } = await db.$client.prepare(`
     SELECT
       appointment_date as date,
       COUNT(*) as total,
