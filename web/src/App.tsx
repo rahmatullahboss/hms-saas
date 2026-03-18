@@ -104,6 +104,7 @@ import InboxPage from './pages/InboxPage';
 import NursingDashboard from './pages/NursingDashboard';
 import EPrescribingDashboard from './pages/EPrescribingDashboard';
 import MedicalRecordsDashboard from './pages/MedicalRecordsDashboard';
+import RadiologyDashboard from './pages/RadiologyDashboard';
 import HelpCenterPage from './pages/HelpCenterPage';
 
 function Unauthorized() {
@@ -231,6 +232,7 @@ function App() {
             <Route path="vitals" element={<VitalsPage role="hospital_admin" />} />
             <Route path="allergies" element={<AllergiesPage role="hospital_admin" />} />
             <Route path="clinical" element={<ClinicalAssessments role="hospital_admin" />} />
+            <Route path="radiology" element={<RadiologyDashboard />} />
             {/* ─── Inventory ─────────────────────────────── */}
             <Route path="inventory" element={<InventoryDashboard role="hospital_admin" />} />
             <Route path="inventory/stock" element={<StockList role="hospital_admin" />} />

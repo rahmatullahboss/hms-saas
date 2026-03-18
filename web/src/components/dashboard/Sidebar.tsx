@@ -6,7 +6,7 @@ import {
   BookOpen, FileText, Video, ChevronRight,
   BedDouble, Stethoscope, Calendar, Shield, ClipboardList,
   Globe, Siren, Scissors, Heart, ShieldAlert, ArrowRightLeft, HeartPulse,
-  XCircle, Handshake, CreditCard, Layers, Beaker, BarChart3, MessageSquare, HelpCircle, Briefcase, Brain,
+  XCircle, Handshake, CreditCard, Layers, Beaker, BarChart3, MessageSquare, HelpCircle, Briefcase, Brain, Scan,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -99,6 +99,7 @@ export default function Sidebar({ role, onLogout }: SidebarProps) {
           { labelKey: 'clinicalAssessments', path: 'clinical', icon: <Brain className="w-4.5 h-4.5" /> },
           { labelKey: 'ePrescribing',    path: 'e-prescribing',    icon: <Shield       className="w-4.5 h-4.5" /> },
           { labelKey: 'medicalRecords',   path: 'medical-records',  icon: <FileText     className="w-4.5 h-4.5" /> },
+          { labelKey: 'radiology',        path: 'radiology',        icon: <Scan         className="w-4.5 h-4.5" /> },
           { labelKey: 'labSettings',   path: 'lab-settings',      icon: <Beaker          className="w-4.5 h-4.5" /> },
         ],
       },

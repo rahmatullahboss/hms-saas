@@ -82,6 +82,7 @@ import nursingRoutes from './routes/tenant/nursing';
 import ePrescribingRoutes from './routes/tenant/ePrescribing';
 import medicalRecordsRoutes from './routes/tenant/medicalRecords';
 import clinicalRoutes from './routes/tenant/clinical';
+import radiologyRoutes from './routes/tenant/radiology';
 import hospitalSiteRoutes from './routes/public/hospitalSite';
 
 import type { Env } from './types';
@@ -316,6 +317,7 @@ app.route('/api/nursing', nursingRoutes);
 app.route('/api/e-prescribing', ePrescribingRoutes);
 app.route('/api/medical-records', medicalRecordsRoutes);
 app.route('/api/clinical', clinicalRoutes);
+app.route('/api/radiology', radiologyRoutes);
 
 
 // ─── Not Found handler ──────────────────────────────────────────────
