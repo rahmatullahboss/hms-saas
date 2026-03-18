@@ -3,6 +3,7 @@ import { Plus, Search, Pencil, ToggleLeft, ToggleRight, X } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../../components/DashboardLayout';
+import DrugSearchInput from '../../components/DrugSearchInput';
 import { useTranslation } from 'react-i18next';
 
 interface Category { id: number; name: string; }
@@ -204,6 +205,16 @@ export default function ItemList({ role = 'hospital_admin' }: { role?: string })
                 <button onClick={() => setShowModal(false)} className="btn-ghost p-1.5"><X className="w-5 h-5" /></button>
               </div>
               <form onSubmit={handleSubmit} className="p-5 space-y-4">
+                {!editing && (
+                  <div className="bg-[var(--color-bg-soft)] rounded-xl p-3 border border-dashed border-[var(--color-border)]">
+                    <label className="label text-xs mb-1.5">🔍 {t('searchMasterDB', { defaultValue: 'Search BD Master Drug Database (17,500+ medicines)' })}</label>
+                    <DrugSearchInput onSelect={(drug) => {
+                      const name = `${drug.brand_name}${drug.strength ? ' ' + drug.strength : ''}${drug.form ? ' (' + drug.form + ')' : ''}`;
+                      setForm(prev => ({ ...prev, name }));
+                      toast.success(`Selected: ${drug.brand_name}`);
+                    }} />
+                  </div>
+                )}
                 <div><label className="label">{t('name', { defaultValue: 'Item Name' })} *</label><input className="input" required value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="e.g. Paracetamol 500mg" /></div>
                 <div className="grid grid-cols-2 gap-4">
                   <div><label className="label">{t('code', { defaultValue: 'Item Code' })}</label><input className="input" value={form.itemCode} onChange={e => setForm({...form, itemCode: e.target.value})} /></div>

@@ -1972,5 +1972,74 @@ for (const [resource, table] of Object.entries(DEACTIVATABLE_TABLES)) {
     } catch (e) { if (e instanceof HTTPException) throw e; throw new HTTPException(500, { message: `Failed to activate ${resource}` }); }
   });
 }
+// ═══════════════════════════════════════════════════════════════════
+// BD Master Drug Database — Search endpoints (shared, no tenant_id)
+// ═══════════════════════════════════════════════════════════════════
+
+pharmacyRoutes.get('/master-drugs/search', requireRole(...PHARM_READ), async (c) => {
+  const db = getDb(c.env.DB);
+  const q = (c.req.query('q') || '').trim();
+  if (q.length < 2) return c.json({ results: [] });
+  try {
+    const { results } = await db.$client.prepare(`
+      SELECT d.id, d.brand_name, d.form, d.strength, d.price, d.pack_size,
+             g.name as generic_name, co.name as company_name
+      FROM master_drugs d
+      LEFT JOIN master_generics g ON d.generic_id = g.id
+      LEFT JOIN master_companies co ON d.company_id = co.id
+      WHERE d.brand_name LIKE ? || '%'
+      ORDER BY d.brand_name ASC
+      LIMIT 15
+    `).bind(q).all();
+    return c.json({ results });
+  } catch { throw new HTTPException(500, { message: 'Failed to search master drugs' }); }
+});
+
+pharmacyRoutes.get('/master-generics/search', requireRole(...PHARM_READ), async (c) => {
+  const db = getDb(c.env.DB);
+  const q = (c.req.query('q') || '').trim();
+  if (q.length < 2) return c.json({ results: [] });
+  try {
+    const { results } = await db.$client.prepare(`
+      SELECT id, name, indication, dose, pregnancy_category
+      FROM master_generics
+      WHERE name LIKE ? || '%'
+      ORDER BY name ASC
+      LIMIT 15
+    `).bind(q).all();
+    return c.json({ results });
+  } catch { throw new HTTPException(500, { message: 'Failed to search master generics' }); }
+});
+
+pharmacyRoutes.get('/master-companies/search', requireRole(...PHARM_READ), async (c) => {
+  const db = getDb(c.env.DB);
+  const q = (c.req.query('q') || '').trim();
+  if (q.length < 2) return c.json({ results: [] });
+  try {
+    const { results } = await db.$client.prepare(`
+      SELECT id, name
+      FROM master_companies
+      WHERE name LIKE ? || '%'
+      ORDER BY name ASC
+      LIMIT 15
+    `).bind(q).all();
+    return c.json({ results });
+  } catch { throw new HTTPException(500, { message: 'Failed to search master companies' }); }
+});
+
+// Get master drug database stats
+pharmacyRoutes.get('/master-drugs/stats', requireRole(...PHARM_READ), async (c) => {
+  const db = getDb(c.env.DB);
+  try {
+    const brands = await db.$client.prepare('SELECT COUNT(*) as count FROM master_drugs').first();
+    const generics = await db.$client.prepare('SELECT COUNT(*) as count FROM master_generics').first();
+    const companies = await db.$client.prepare('SELECT COUNT(*) as count FROM master_companies').first();
+    return c.json({
+      brands: brands?.count ?? 0,
+      generics: generics?.count ?? 0,
+      companies: companies?.count ?? 0,
+    });
+  } catch { throw new HTTPException(500, { message: 'Failed to fetch master drug stats' }); }
+});
 
 export default pharmacyRoutes;
