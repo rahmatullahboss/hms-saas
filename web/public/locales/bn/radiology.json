@@ -25,6 +25,8 @@
     "statusScanned": "স্ক্যান করা হয়েছে",
     "statusReported": "রিপোর্ট করা হয়েছে",
     "statusCancelled": "বাতিল",
+    "fromDate": "শুরুর তারিখ",
+    "toDate": "শেষের তারিখ",
     "table": {
       "hash": "#",
       "patient": "রোগী",
@@ -36,8 +38,12 @@
     },
     "loading": "লোড হচ্ছে…",
     "noOrders": "কোনো অর্ডার পাওয়া যায়নি",
+    "errorLoading": "অর্ডার লোড করতে ব্যর্থ",
+    "retryLoad": "পুনরায় চেষ্টা করুন",
     "scan": "স্ক্যান করুন",
+    "unscan": "স্ক্যান বাতিল করুন",
     "report": "রিপোর্ট করুন",
+    "cancel": "বাতিল",
     "reportedLabel": "রিপোর্ট করা হয়েছে",
     "showingPage": "পেজ {{page}} দেখাচ্ছে — মোট {{total}}",
     "prev": "পূর্ববর্তী",
@@ -54,6 +60,9 @@
       "actions": "অ্যাকশন"
     },
     "noReports": "এখনো কোনো রিপোর্ট নেই",
+    "errorLoading": "রিপোর্ট লোড করতে ব্যর্থ",
+    "retryLoad": "পুনরায় চেষ্টা করুন",
+    "view": "দেখুন",
     "finalize": "চূড়ান্ত করুন"
   },
   "catalog": {
@@ -62,11 +71,24 @@
     "noTypes": "কোনো ইমেজিং প্রকার কনফিগার করা নেই",
     "imagingTests": "ইমেজিং টেস্ট",
     "testsCount": "{{count}} টেস্ট",
-    "noTests": "কোনো আইটেম নেই — প্রথম রিকোয়েস্টে সিড ডেটা লোড হবে"
+    "noTests": "কোনো আইটেম নেই — প্রথম রিকোয়েস্টে সিড ডেটা লোড হবে"
   },
   "pacs": {
     "title": "প্যাকস (PACS) / ডাইকম (DICOM) স্টাডিজ",
-    "description": "ইমেজিং মোডালিটি থেকে ছবি আসার পর DICOM স্টাডিজ নিবন্ধিত হয়। REST API (<code className=\"text-xs bg-zinc-100 px-1 rounded\">/api/radiology/pacs</code>) অথবা OrthanC DICOM-to-REST ব্রিজের মাধ্যমে আপনার X-Ray / CT / MRI মেশিন কানেক্ট করুন।"
+    "description": "ইমেজিং মোডালিটি থেকে ছবি আসার পর DICOM স্টাডিজ নিবন্ধিত হয়।",
+    "noStudies": "কোনো DICOM স্টাডি পাওয়া যায়নি",
+    "errorLoading": "প্যাকস স্টাডি লোড করতে ব্যর্থ",
+    "retryLoad": "পুনরায় চেষ্টা করুন",
+    "allModalities": "সব মোডালিটি",
+    "table": {
+      "studyUid": "স্টাডি UID",
+      "patient": "রোগী",
+      "modality": "মোডালিটি",
+      "date": "তারিখ",
+      "series": "সিরিজ",
+      "images": "ছবি",
+      "mapped": "ম্যাপ করা"
+    }
   },
   "modals": {
     "newOrder": {
@@ -103,6 +125,13 @@
       "statusPreliminary": "প্রাথমিক",
       "cancel": "বাতিল",
       "submit": "রিপোর্ট সংরক্ষণ করুন"
+    },
+    "cancelOrder": {
+      "title": "অর্ডার বাতিল করুন",
+      "remarksLabel": "বাতিলের কারণ",
+      "remarksPlaceholder": "বাতিলের কারণ লিখুন…",
+      "cancel": "ফিরে যান",
+      "submit": "বাতিল নিশ্চিত করুন"
     }
   },
   "messages": {
@@ -110,6 +139,10 @@
     "orderFailed": "অর্ডার তৈরি করতে ব্যর্থ",
     "markedScanned": "স্ক্যান করা হয়েছে হিসেবে মার্ক করা হয়েছে ✓",
     "scannedFailed": "স্ক্যান করা হিসেবে মার্ক করতে ব্যর্থ",
+    "unscanned": "স্ক্যান মার্কিং বাতিল হয়েছে ✓",
+    "unscanFailed": "স্ক্যান বাতিল করতে ব্যর্থ",
+    "orderCancelled": "অর্ডার বাতিল হয়েছে ✓",
+    "cancelFailed": "অর্ডার বাতিল করতে ব্যর্থ",
     "reportCreated": "রিপোর্ট তৈরি হয়েছে ✓",
     "reportFailed": "রিপোর্ট তৈরি করতে ব্যর্থ",
     "reportFinalized": "রিপোর্ট চূড়ান্ত করা হয়েছে ✓",
