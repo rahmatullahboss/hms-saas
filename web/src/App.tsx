@@ -99,6 +99,8 @@ import ReportAppointmentPage from './pages/ReportAppointmentPage';
 import IPBillingPage from './pages/IPBillingPage';
 import PaymentsPage from './pages/PaymentsPage';
 import InboxPage from './pages/InboxPage';
+import NursingDashboard from './pages/NursingDashboard';
+import EPrescribingDashboard from './pages/EPrescribingDashboard';
 
 function Unauthorized() {
   const { t } = useTranslation('common');
@@ -195,6 +197,8 @@ function App() {
             <Route path="beds" element={<BedManagement role="hospital_admin" />} />
             <Route path="notifications" element={<NotificationsCenter role="hospital_admin" />} />
             <Route path="nurse-station" element={<NurseStation role="hospital_admin" />} />
+            <Route path="nursing" element={<NursingDashboard role="hospital_admin" />} />
+            <Route path="e-prescribing" element={<EPrescribingDashboard role="hospital_admin" />} />
             <Route path="admissions/:admissionId/discharge" element={<DischargeSummary role="hospital_admin" />} />
             <Route path="prescriptions/:prescriptionId/print" element={<PrescriptionPrint role="hospital_admin" />} />
             <Route path="doctor-schedule" element={<DoctorSchedule role="hospital_admin" />} />

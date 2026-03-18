@@ -5,7 +5,7 @@ import {
   Building2, Wallet, TrendingUp, TrendingDown, Repeat,
   BookOpen, FileText, Video, ChevronRight,
   BedDouble, Stethoscope, Calendar, Shield, ClipboardList,
-  Globe, Siren, Scissors, Heart, ShieldAlert, ArrowRightLeft,
+  Globe, Siren, Scissors, Heart, ShieldAlert, ArrowRightLeft, HeartPulse,
   XCircle, Handshake, CreditCard, Layers, Beaker, BarChart3, MessageSquare,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -83,6 +83,7 @@ export default function Sidebar({ role, onLogout }: SidebarProps) {
           { labelKey: 'ipdAdmissions', path: 'admissions',        icon: <BedDouble       className="w-4.5 h-4.5" /> },
           { labelKey: 'beds',          path: 'beds',              icon: <ClipboardList   className="w-4.5 h-4.5" /> },
           { labelKey: 'nurseStation',  path: 'nurse-station',     icon: <Stethoscope     className="w-4.5 h-4.5" /> },
+          { labelKey: 'nursing',       path: 'nursing',           icon: <HeartPulse     className="w-4.5 h-4.5" /> },
           { labelKey: 'doctorSchedule', path: 'doctor-schedule',  icon: <BookOpen        className="w-4.5 h-4.5" /> },
           { labelKey: 'telemedicine',  path: 'telemedicine',      icon: <Video           className="w-4.5 h-4.5" /> },
         ],
@@ -95,6 +96,7 @@ export default function Sidebar({ role, onLogout }: SidebarProps) {
           { labelKey: 'inventory',     path: 'inventory',         icon: <Package         className="w-4.5 h-4.5" /> },
           { labelKey: 'vitals',        path: 'vitals',            icon: <Heart           className="w-4.5 h-4.5" /> },
           { labelKey: 'allergies',     path: 'allergies',         icon: <ShieldAlert     className="w-4.5 h-4.5" /> },
+          { labelKey: 'ePrescribing', path: 'e-prescribing',     icon: <Shield          className="w-4.5 h-4.5" /> },
           { labelKey: 'labSettings',   path: 'lab-settings',      icon: <Beaker          className="w-4.5 h-4.5" /> },
         ],
       },

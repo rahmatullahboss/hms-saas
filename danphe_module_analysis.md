@@ -2,7 +2,7 @@
 
 ## Summary
 
-Danphe-next-cloudflare is a **massive** project with **122 migrations**, **52+ backend route files**, and **35 frontend page modules**. Ozzyl HMS has grown significantly — now with **74+ tenant backend routes**, **71+ frontend pages**, **29 Zod schemas**, and **51 migrations** — all built on the **same stack** (Hono + D1 + React).
+Danphe-next-cloudflare is a **massive** project with **122 migrations**, **52+ backend route files**, and **35 frontend page modules**. Ozzyl HMS has grown significantly — now with **75+ tenant backend routes**, **72+ frontend pages**, **30 Zod schemas**, and **52 migrations** — all built on the **same stack** (Hono + D1 + React).
 
 ---
 
@@ -15,7 +15,8 @@ Danphe-next-cloudflare is a **massive** project with **122 migrations**, **52+ b
 | **Emergency Department** | `0032_emergency.sql` | `emergency.ts` (22KB) | `EmergencyDashboard.tsx` (30KB) | ✅ Done |
 | **Operation Theatre** | `0033_operation_theatre.sql` | `ot.ts` (24KB) | `OTDashboard.tsx` (19KB) | ✅ Done |
 | **Inventory & Supply Chain** | `0037_inventory.sql` (30KB) | 13 route files (dispatch, gr, po, req, rfq, stock, items, vendors, stores, settings, writeoff, return) | 12 pages (Dashboard, PO, GR, Dispatch, Requisition, Stock, Ledger, Adjustment) | ✅ Done |
-| **Enhanced Nursing** | `0047_nursing.sql` (10 tables) | 11 route files (care-plan, notes, MAR, I/O, monitoring, IV drugs, wound care, handover, OPD, wards) | Pending frontend | ✅ Backend Done |
+| **Enhanced Nursing** | `0047_nursing.sql` (10 tables) | 11 route files (care-plan, notes, MAR, I/O, monitoring, IV drugs, wound care, handover, OPD, wards) | `NursingDashboard.tsx` | ✅ Done |
+| **E-Prescribing** | `0048_e_prescribing.sql` (5 tables, ~40 seed interactions) | `ePrescribing.ts` (20 endpoints: formulary, interactions, safety checker, medications) | `EPrescribingDashboard.tsx` (3 tabs) | ✅ Done |
 
 ### ✅ Already in Ozzyl HMS (Pre-existing — Quality Updated)
 
@@ -64,7 +65,6 @@ Danphe-next-cloudflare is a **massive** project with **122 migrations**, **52+ b
 #### Tier 2: High Value
 | Module | Effort | Key Benefit |
 |--------|--------|-------------|
-| **E-Prescribing** | ⭐⭐⭐ Medium | Drug interaction checking |
 | **Dental Module** | ⭐⭐ Low | Dental clinics market |
 | **Eye Exam Module** | ⭐⭐ Low | Ophthalmology market |
 
@@ -114,14 +114,15 @@ Danphe-next-cloudflare is a **massive** project with **122 migrations**, **52+ b
 ### ✅ Priority 1: Enhanced Nursing — COMPLETED (2026-03-18)
 - ✅ 10 database tables (care plans, notes, MAR, I/O charts, monitoring, IV drugs, wound care, handover, clinical info, preferences)
 - ✅ 11 backend route files with full CRUD + OPD triage/check-in/check-out
+- ✅ `NursingDashboard.tsx` — 10-tab dashboard with CRUD modals, patient selector, pagination
 - ✅ Adversarial code review passed — all HIGH/MEDIUM issues fixed
-- ⬜ Frontend NursingDashboard — pending
 
-### Priority 2: E-Prescribing Enhancement (2-3 days)
-- Drug-drug interaction checking
-- Allergy-drug contraindication alerts
-- Formulary management
-- e-Rx signature/verification
+### ✅ Priority 2: E-Prescribing — COMPLETED (2026-03-18)
+- ✅ 5 database tables (formulary categories, formulary items, drug interactions, patient medications, safety checks)
+- ✅ ~40 seed drug interaction pairs (Bangladesh clinical context)
+- ✅ `ePrescribing.ts` — 20 endpoints (formulary CRUD, interactions CRUD, safety checker, patient medications, override, stats)
+- ✅ `EPrescribingDashboard.tsx` — 3 tabs (Safety Checker, Drug Catalog, Interactions)
+- ✅ Adversarial code review passed — `parseId()` helper, `requireClinicalRole()` guard, `db.batch()` atomicity
 
 ### Priority 3: Specialty Modules (optional, market-dependent)
 - **Dental Module**: Tooth chart, dental procedures catalog, treatment planning
@@ -149,4 +150,4 @@ Danphe-next-cloudflare is a **massive** project with **122 migrations**, **52+ b
 > Danphe-next uses **TailwindCSS** in frontend. Ozzyl HMS uses **vanilla CSS**. Frontend components will need styling conversion.
 
 > [!NOTE]
-> Ozzyl HMS migrations are now at **0047** (Enhanced Nursing). Any new ported modules should continue from `0048_xxx.sql`.
+> Ozzyl HMS migrations are now at **0048** (E-Prescribing). Any new ported modules should continue from `0049_xxx.sql`.
