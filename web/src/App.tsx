@@ -45,6 +45,17 @@ import PharmPrescriptionList from './pages/pharmacy/PrescriptionList';
 import PharmNarcoticRegister from './pages/pharmacy/NarcoticRegister';
 import PharmWriteOffList from './pages/pharmacy/WriteOffList';
 import PharmDispatchList from './pages/pharmacy/DispatchList';
+import PatientBillingPage from './pages/pharmacy/PatientBillingPage';
+import InvoiceReceipt from './pages/pharmacy/InvoiceReceipt';
+import StockReport from './pages/pharmacy/StockReport';
+import SalesReport from './pages/pharmacy/SalesReport';
+import ExpiryReport from './pages/pharmacy/ExpiryReport';
+import SupplierLedger from './pages/pharmacy/SupplierLedger';
+import DispensaryStock from './pages/pharmacy/DispensaryStock';
+import TaxConfigPage from './pages/pharmacy/TaxConfigPage';
+import DosageTemplatesPage from './pages/pharmacy/DosageTemplatesPage';
+import ApprovalQueuePage from './pages/pharmacy/ApprovalQueuePage';
+import ItemPriceHistory from './pages/pharmacy/ItemPriceHistory';
 import BillingDashboard from './pages/BillingDashboard';
 import ShareholderManagement from './pages/accounting/ShareholderManagement';
 import JournalEntries from './pages/accounting/JournalEntries';
@@ -209,6 +220,17 @@ function App() {
             <Route path="pharmacy/narcotics" element={<PharmNarcoticRegister role="hospital_admin" />} />
             <Route path="pharmacy/write-offs" element={<PharmWriteOffList role="hospital_admin" />} />
             <Route path="pharmacy/dispatches" element={<PharmDispatchList role="hospital_admin" />} />
+            <Route path="pharmacy/patient-billing" element={<PatientBillingPage role="hospital_admin" />} />
+            <Route path="pharmacy/invoices/:id/receipt" element={<InvoiceReceipt role="hospital_admin" />} />
+            <Route path="pharmacy/reports/stock" element={<StockReport role="hospital_admin" />} />
+            <Route path="pharmacy/reports/sales" element={<SalesReport role="hospital_admin" />} />
+            <Route path="pharmacy/reports/expiry" element={<ExpiryReport role="hospital_admin" />} />
+            <Route path="pharmacy/supplier-ledger" element={<SupplierLedger role="hospital_admin" />} />
+            <Route path="pharmacy/dispensary-stock" element={<DispensaryStock role="hospital_admin" />} />
+            <Route path="pharmacy/tax-config" element={<TaxConfigPage role="hospital_admin" />} />
+            <Route path="pharmacy/dosage-templates" element={<DosageTemplatesPage role="hospital_admin" />} />
+            <Route path="pharmacy/approval-queue" element={<ApprovalQueuePage role="hospital_admin" />} />
+            <Route path="pharmacy/price-history" element={<ItemPriceHistory role="hospital_admin" />} />
             <Route path="accounting" element={<AccountingDashboard role="hospital_admin" />} />
             <Route path="income" element={<IncomeList role="hospital_admin" />} />
             <Route path="expenses" element={<ExpenseList role="hospital_admin" />} />

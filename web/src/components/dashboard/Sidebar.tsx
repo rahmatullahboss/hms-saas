@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 
 interface SidebarProps {
   role: string;
+  permissions: string[];
   onLogout: () => void;
 }
 
@@ -21,6 +22,8 @@ interface NavItem {
   labelKey: string;
   path: string;
   icon: React.ReactNode;
+  /** Permission string required to see this item (e.g. 'patients:read'). If omitted, always visible. */
+  requiredPermission?: string;
 }
 
 /** Group of nav items with an optional section label */
@@ -33,7 +36,7 @@ interface NavGroup {
  * Sidebar nav items use paths RELATIVE to `/h/:slug/`.
  * The component reads `slug` from route params and prefixes every link.
  */
-export default function Sidebar({ role, onLogout }: SidebarProps) {
+export default function Sidebar({ role, permissions, onLogout }: SidebarProps) {
   const location = useLocation();
   const { slug } = useParams<{ slug: string }>();
   const [isOpen, setIsOpen] = useState(false);
@@ -45,6 +48,13 @@ export default function Sidebar({ role, onLogout }: SidebarProps) {
 
   const lang = i18n.language;
   const base = `/h/${slug}`;
+
+  /** Check if user has required permission */
+  const hasPermission = (perm?: string): boolean => {
+    if (!perm) return true; // no permission required → always visible
+    if (permissions.includes('*')) return true; // wildcard → full access
+    return permissions.includes(perm);
+  };
 
   // ── Role-based grouped nav ────────────────────────────────────────────────
   const roleNavGroups: Record<string, NavGroup[]> = {
@@ -59,15 +69,15 @@ export default function Sidebar({ role, onLogout }: SidebarProps) {
       {
         groupKey: 'groupHospitals',
         items: [
-          { labelKey: 'hospitals',       path: '/super-admin/hospitals',  icon: <Building2 className="w-4.5 h-4.5" /> },
-          { labelKey: 'onboardingQueue', path: '/super-admin/onboarding', icon: <ClipboardList className="w-4.5 h-4.5" /> },
+          { labelKey: 'hospitals',       path: '/super-admin/hospitals',  icon: <Building2 className="w-4.5 h-4.5" />, requiredPermission: 'hospitals:read' },
+          { labelKey: 'onboardingQueue', path: '/super-admin/onboarding', icon: <ClipboardList className="w-4.5 h-4.5" />, requiredPermission: 'hospitals:read' },
         ],
       },
       {
         groupKey: 'groupSystem',
         items: [
-          { labelKey: 'auditLog',  path: '/super-admin/audit-log', icon: <Shield className="w-4.5 h-4.5" /> },
-          { labelKey: 'settings',  path: '/super-admin/settings',  icon: <Settings className="w-4.5 h-4.5" /> },
+          { labelKey: 'auditLog',  path: '/super-admin/audit-log', icon: <Shield className="w-4.5 h-4.5" />, requiredPermission: 'audit:read' },
+          { labelKey: 'settings',  path: '/super-admin/settings',  icon: <Settings className="w-4.5 h-4.5" />, requiredPermission: 'settings:read' },
         ],
       },
     ],
@@ -76,70 +86,70 @@ export default function Sidebar({ role, onLogout }: SidebarProps) {
         groupKey: 'groupOperations',
         items: [
           { labelKey: 'dashboard',     path: 'dashboard',         icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
-          { labelKey: 'appointments',  path: 'appointments',      icon: <Calendar        className="w-4.5 h-4.5" /> },
-          { labelKey: 'patients',      path: 'patients',          icon: <Users           className="w-4.5 h-4.5" /> },
-          { labelKey: 'emergency',     path: 'emergency',         icon: <Siren           className="w-4.5 h-4.5" /> },
-          { labelKey: 'ot',            path: 'ot',                icon: <Scissors        className="w-4.5 h-4.5" /> },
-          { labelKey: 'ipdAdmissions', path: 'admissions',        icon: <BedDouble       className="w-4.5 h-4.5" /> },
-          { labelKey: 'beds',          path: 'beds',              icon: <ClipboardList   className="w-4.5 h-4.5" /> },
-          { labelKey: 'nurseStation',  path: 'nurse-station',     icon: <Stethoscope     className="w-4.5 h-4.5" /> },
-          { labelKey: 'nursing',       path: 'nursing',           icon: <HeartPulse     className="w-4.5 h-4.5" /> },
-          { labelKey: 'doctorSchedule', path: 'doctor-schedule',  icon: <BookOpen        className="w-4.5 h-4.5" /> },
-          { labelKey: 'telemedicine',  path: 'telemedicine',      icon: <Video           className="w-4.5 h-4.5" /> },
+          { labelKey: 'appointments',  path: 'appointments',      icon: <Calendar        className="w-4.5 h-4.5" />, requiredPermission: 'appointments:read' },
+          { labelKey: 'patients',      path: 'patients',          icon: <Users           className="w-4.5 h-4.5" />, requiredPermission: 'patients:read' },
+          { labelKey: 'emergency',     path: 'emergency',         icon: <Siren           className="w-4.5 h-4.5" />, requiredPermission: 'emergency:read' },
+          { labelKey: 'ot',            path: 'ot',                icon: <Scissors        className="w-4.5 h-4.5" />, requiredPermission: 'ot:read' },
+          { labelKey: 'ipdAdmissions', path: 'admissions',        icon: <BedDouble       className="w-4.5 h-4.5" />, requiredPermission: 'admissions:read' },
+          { labelKey: 'beds',          path: 'beds',              icon: <ClipboardList   className="w-4.5 h-4.5" />, requiredPermission: 'beds:read' },
+          { labelKey: 'nurseStation',  path: 'nurse-station',     icon: <Stethoscope     className="w-4.5 h-4.5" />, requiredPermission: 'nursing:read' },
+          { labelKey: 'nursing',       path: 'nursing',           icon: <HeartPulse     className="w-4.5 h-4.5" />, requiredPermission: 'nursing:read' },
+          { labelKey: 'doctorSchedule', path: 'doctor-schedule',  icon: <BookOpen        className="w-4.5 h-4.5" />, requiredPermission: 'schedule:read' },
+          { labelKey: 'telemedicine',  path: 'telemedicine',      icon: <Video           className="w-4.5 h-4.5" />, requiredPermission: 'telemedicine:read' },
         ],
       },
       {
         groupKey: 'groupClinical',
         items: [
-          { labelKey: 'labTests',      path: 'tests',             icon: <FlaskConical    className="w-4.5 h-4.5" /> },
-          { labelKey: 'pharmacy',      path: 'pharmacy',          icon: <Pill            className="w-4.5 h-4.5" /> },
-          { labelKey: 'inventory',     path: 'inventory',         icon: <Package         className="w-4.5 h-4.5" /> },
-          { labelKey: 'vitals',        path: 'vitals',            icon: <Heart           className="w-4.5 h-4.5" /> },
-          { labelKey: 'allergies',     path: 'allergies',         icon: <ShieldAlert     className="w-4.5 h-4.5" /> },
-          { labelKey: 'clinicalAssessments', path: 'clinical', icon: <Brain className="w-4.5 h-4.5" /> },
-          { labelKey: 'ePrescribing',    path: 'e-prescribing',    icon: <Shield       className="w-4.5 h-4.5" /> },
-          { labelKey: 'medicalRecords',   path: 'medical-records',  icon: <FileText     className="w-4.5 h-4.5" /> },
-          { labelKey: 'radiology',        path: 'radiology',        icon: <Scan         className="w-4.5 h-4.5" /> },
-          { labelKey: 'labSettings',   path: 'lab-settings',      icon: <Beaker          className="w-4.5 h-4.5" /> },
+          { labelKey: 'labTests',      path: 'tests',             icon: <FlaskConical    className="w-4.5 h-4.5" />, requiredPermission: 'tests:read' },
+          { labelKey: 'pharmacy',      path: 'pharmacy',          icon: <Pill            className="w-4.5 h-4.5" />, requiredPermission: 'pharmacy:read' },
+          { labelKey: 'inventory',     path: 'inventory',         icon: <Package         className="w-4.5 h-4.5" />, requiredPermission: 'inventory:read' },
+          { labelKey: 'vitals',        path: 'vitals',            icon: <Heart           className="w-4.5 h-4.5" />, requiredPermission: 'vitals:read' },
+          { labelKey: 'allergies',     path: 'allergies',         icon: <ShieldAlert     className="w-4.5 h-4.5" />, requiredPermission: 'allergies:read' },
+          { labelKey: 'clinicalAssessments', path: 'clinical', icon: <Brain className="w-4.5 h-4.5" />, requiredPermission: 'clinical:read' },
+          { labelKey: 'ePrescribing',    path: 'e-prescribing',    icon: <Shield       className="w-4.5 h-4.5" />, requiredPermission: 'eprescribing:read' },
+          { labelKey: 'medicalRecords',   path: 'medical-records',  icon: <FileText     className="w-4.5 h-4.5" />, requiredPermission: 'medicalrecords:read' },
+          { labelKey: 'radiology',        path: 'radiology',        icon: <Scan         className="w-4.5 h-4.5" />, requiredPermission: 'radiology:read' },
+          { labelKey: 'labSettings',   path: 'lab-settings',      icon: <Beaker          className="w-4.5 h-4.5" />, requiredPermission: 'lab-settings:read' },
         ],
       },
       {
         groupKey: 'groupFinance',
         items: [
-          { labelKey: 'billing',            path: 'billing',             icon: <Receipt         className="w-4.5 h-4.5" /> },
-          { labelKey: 'billingMaster',      path: 'billing-master',      icon: <Layers          className="w-4.5 h-4.5" /> },
-          { labelKey: 'provisionalBilling', path: 'provisional-billing', icon: <FileText        className="w-4.5 h-4.5" /> },
-          { labelKey: 'deposits',           path: 'deposits',            icon: <CreditCard      className="w-4.5 h-4.5" /> },
-          { labelKey: 'creditNotes',        path: 'credit-notes',        icon: <FileText        className="w-4.5 h-4.5" /> },
-          { labelKey: 'billHandover',       path: 'billing-handover',    icon: <ArrowRightLeft  className="w-4.5 h-4.5" /> },
-          { labelKey: 'billCancellation',   path: 'billing-cancellation', icon: <XCircle        className="w-4.5 h-4.5" /> },
-          { labelKey: 'settlements',        path: 'settlements',         icon: <Handshake       className="w-4.5 h-4.5" /> },
-          { labelKey: 'accounting',         path: 'accounting',          icon: <Wallet          className="w-4.5 h-4.5" /> },
-          { labelKey: 'income',             path: 'income',              icon: <TrendingUp      className="w-4.5 h-4.5" /> },
-          { labelKey: 'expenses',           path: 'expenses',            icon: <TrendingDown    className="w-4.5 h-4.5" /> },
-          { labelKey: 'recurring',          path: 'recurring',           icon: <Repeat          className="w-4.5 h-4.5" /> },
-          { labelKey: 'accounts',           path: 'accounts',            icon: <BookOpen        className="w-4.5 h-4.5" /> },
-          { labelKey: 'insurance',          path: 'insurance-claims',    icon: <FileText        className="w-4.5 h-4.5" /> },
-          { labelKey: 'insuranceBilling',   path: 'insurance-billing',   icon: <Shield          className="w-4.5 h-4.5" /> },
-          { labelKey: 'ipBilling',          path: 'ip-billing',          icon: <BedDouble       className="w-4.5 h-4.5" /> },
-          { labelKey: 'payments',           path: 'payments',            icon: <CreditCard      className="w-4.5 h-4.5" /> },
+          { labelKey: 'billing',            path: 'billing',             icon: <Receipt         className="w-4.5 h-4.5" />, requiredPermission: 'billing:read' },
+          { labelKey: 'billingMaster',      path: 'billing-master',      icon: <Layers          className="w-4.5 h-4.5" />, requiredPermission: 'billing-master:read' },
+          { labelKey: 'provisionalBilling', path: 'provisional-billing', icon: <FileText        className="w-4.5 h-4.5" />, requiredPermission: 'provisional-billing:read' },
+          { labelKey: 'deposits',           path: 'deposits',            icon: <CreditCard      className="w-4.5 h-4.5" />, requiredPermission: 'deposits:read' },
+          { labelKey: 'creditNotes',        path: 'credit-notes',        icon: <FileText        className="w-4.5 h-4.5" />, requiredPermission: 'credit-notes:read' },
+          { labelKey: 'billHandover',       path: 'billing-handover',    icon: <ArrowRightLeft  className="w-4.5 h-4.5" />, requiredPermission: 'handover:read' },
+          { labelKey: 'billCancellation',   path: 'billing-cancellation', icon: <XCircle        className="w-4.5 h-4.5" />, requiredPermission: 'cancellation:read' },
+          { labelKey: 'settlements',        path: 'settlements',         icon: <Handshake       className="w-4.5 h-4.5" />, requiredPermission: 'settlements:read' },
+          { labelKey: 'accounting',         path: 'accounting',          icon: <Wallet          className="w-4.5 h-4.5" />, requiredPermission: 'accounting:read' },
+          { labelKey: 'income',             path: 'income',              icon: <TrendingUp      className="w-4.5 h-4.5" />, requiredPermission: 'income:read' },
+          { labelKey: 'expenses',           path: 'expenses',            icon: <TrendingDown    className="w-4.5 h-4.5" />, requiredPermission: 'expenses:read' },
+          { labelKey: 'recurring',          path: 'recurring',           icon: <Repeat          className="w-4.5 h-4.5" />, requiredPermission: 'expenses:read' },
+          { labelKey: 'accounts',           path: 'accounts',            icon: <BookOpen        className="w-4.5 h-4.5" />, requiredPermission: 'accounting:read' },
+          { labelKey: 'insurance',          path: 'insurance-claims',    icon: <FileText        className="w-4.5 h-4.5" />, requiredPermission: 'insurance:read' },
+          { labelKey: 'insuranceBilling',   path: 'insurance-billing',   icon: <Shield          className="w-4.5 h-4.5" />, requiredPermission: 'insurance:read' },
+          { labelKey: 'ipBilling',          path: 'ip-billing',          icon: <BedDouble       className="w-4.5 h-4.5" />, requiredPermission: 'ip-billing:read' },
+          { labelKey: 'payments',           path: 'payments',            icon: <CreditCard      className="w-4.5 h-4.5" />, requiredPermission: 'payments:read' },
         ],
       },
       {
         groupKey: 'groupAdmin',
         items: [
-          { labelKey: 'inbox',              path: 'inbox',               icon: <MessageSquare   className="w-4.5 h-4.5" /> },
-          { labelKey: 'staff',              path: 'staff',               icon: <UserCog         className="w-4.5 h-4.5" /> },
-          { labelKey: 'hrPayroll',           path: 'hr',                  icon: <Briefcase        className="w-4.5 h-4.5" /> },
-          { labelKey: 'shareholders',       path: 'shareholders',        icon: <Users           className="w-4.5 h-4.5" /> },
-          { labelKey: 'multiBranch',        path: 'multi-branch',        icon: <Building2       className="w-4.5 h-4.5" /> },
-          { labelKey: 'reports',            path: 'reports',             icon: <PieChart        className="w-4.5 h-4.5" /> },
-          { labelKey: 'labReports',         path: 'reports/lab',         icon: <BarChart3       className="w-4.5 h-4.5" /> },
-          { labelKey: 'pharmacyReports',    path: 'reports/pharmacy',    icon: <BarChart3       className="w-4.5 h-4.5" /> },
-          { labelKey: 'appointmentReports', path: 'reports/appointments', icon: <BarChart3      className="w-4.5 h-4.5" /> },
-          { labelKey: 'systemAudit',        path: 'system-audit',        icon: <Shield          className="w-4.5 h-4.5" /> },
-          { labelKey: 'website',            path: 'website',             icon: <Globe           className="w-4.5 h-4.5" /> },
-          { labelKey: 'settings',           path: 'settings',            icon: <Settings        className="w-4.5 h-4.5" /> },
+          { labelKey: 'inbox',              path: 'inbox',               icon: <MessageSquare   className="w-4.5 h-4.5" />, requiredPermission: 'inbox:read' },
+          { labelKey: 'staff',              path: 'staff',               icon: <UserCog         className="w-4.5 h-4.5" />, requiredPermission: 'staff:read' },
+          { labelKey: 'hrPayroll',           path: 'hr',                  icon: <Briefcase        className="w-4.5 h-4.5" />, requiredPermission: 'hr:read' },
+          { labelKey: 'shareholders',       path: 'shareholders',        icon: <Users           className="w-4.5 h-4.5" />, requiredPermission: 'shareholders:read' },
+          { labelKey: 'multiBranch',        path: 'multi-branch',        icon: <Building2       className="w-4.5 h-4.5" />, requiredPermission: 'multi-branch:read' },
+          { labelKey: 'reports',            path: 'reports',             icon: <PieChart        className="w-4.5 h-4.5" />, requiredPermission: 'reports:read' },
+          { labelKey: 'labReports',         path: 'reports/lab',         icon: <BarChart3       className="w-4.5 h-4.5" />, requiredPermission: 'reports:read' },
+          { labelKey: 'pharmacyReports',    path: 'reports/pharmacy',    icon: <BarChart3       className="w-4.5 h-4.5" />, requiredPermission: 'reports:read' },
+          { labelKey: 'appointmentReports', path: 'reports/appointments', icon: <BarChart3      className="w-4.5 h-4.5" />, requiredPermission: 'reports:read' },
+          { labelKey: 'systemAudit',        path: 'system-audit',        icon: <Shield          className="w-4.5 h-4.5" />, requiredPermission: 'audit:read' },
+          { labelKey: 'website',            path: 'website',             icon: <Globe           className="w-4.5 h-4.5" />, requiredPermission: 'website:read' },
+          { labelKey: 'settings',           path: 'settings',            icon: <Settings        className="w-4.5 h-4.5" />, requiredPermission: 'settings:read' },
           { labelKey: 'helpCenter',         path: 'help',                icon: <HelpCircle      className="w-4.5 h-4.5" /> },
         ],
       },
@@ -148,7 +158,7 @@ export default function Sidebar({ role, onLogout }: SidebarProps) {
       {
         items: [
           { labelKey: 'dashboard', path: 'lab/dashboard', icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
-          { labelKey: 'tests',     path: 'lab/tests',     icon: <FlaskConical    className="w-4.5 h-4.5" /> },
+          { labelKey: 'tests',     path: 'lab/tests',     icon: <FlaskConical    className="w-4.5 h-4.5" />, requiredPermission: 'tests:read' },
         ],
       },
     ],
@@ -156,9 +166,9 @@ export default function Sidebar({ role, onLogout }: SidebarProps) {
       {
         items: [
           { labelKey: 'dashboard',    path: 'reception/dashboard',    icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
-          { labelKey: 'appointments', path: 'reception/appointments', icon: <Calendar        className="w-4.5 h-4.5" /> },
-          { labelKey: 'patients',     path: 'reception/patients',     icon: <Users           className="w-4.5 h-4.5" /> },
-          { labelKey: 'billing',      path: 'reception/billing',      icon: <Receipt         className="w-4.5 h-4.5" /> },
+          { labelKey: 'appointments', path: 'reception/appointments', icon: <Calendar        className="w-4.5 h-4.5" />, requiredPermission: 'appointments:read' },
+          { labelKey: 'patients',     path: 'reception/patients',     icon: <Users           className="w-4.5 h-4.5" />, requiredPermission: 'patients:read' },
+          { labelKey: 'billing',      path: 'reception/billing',      icon: <Receipt         className="w-4.5 h-4.5" />, requiredPermission: 'billing:read' },
           { labelKey: 'helpCenter',   path: 'reception/help',         icon: <HelpCircle      className="w-4.5 h-4.5" /> },
         ],
       },
@@ -167,16 +177,16 @@ export default function Sidebar({ role, onLogout }: SidebarProps) {
       {
         items: [
           { labelKey: 'dashboard',  path: 'md/dashboard',  icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
-          { labelKey: 'accounting', path: 'md/accounting', icon: <Wallet          className="w-4.5 h-4.5" /> },
-          { labelKey: 'income',     path: 'md/income',     icon: <TrendingUp      className="w-4.5 h-4.5" /> },
-          { labelKey: 'expenses',   path: 'md/expenses',   icon: <TrendingDown    className="w-4.5 h-4.5" /> },
-          { labelKey: 'recurring',  path: 'md/recurring',  icon: <Repeat          className="w-4.5 h-4.5" /> },
-          { labelKey: 'accounts',   path: 'md/accounts',   icon: <BookOpen        className="w-4.5 h-4.5" /> },
-          { labelKey: 'reports',    path: 'md/reports',     icon: <PieChart        className="w-4.5 h-4.5" /> },
-          { labelKey: 'audit',      path: 'md/audit',       icon: <FileText        className="w-4.5 h-4.5" /> },
-          { labelKey: 'staff',      path: 'md/staff',       icon: <UserCog         className="w-4.5 h-4.5" /> },
-          { labelKey: 'hrPayroll',  path: 'md/hr',          icon: <Briefcase        className="w-4.5 h-4.5" /> },
-          { labelKey: 'profit',     path: 'md/profit',      icon: <TrendingUp      className="w-4.5 h-4.5" /> },
+          { labelKey: 'accounting', path: 'md/accounting', icon: <Wallet          className="w-4.5 h-4.5" />, requiredPermission: 'accounting:read' },
+          { labelKey: 'income',     path: 'md/income',     icon: <TrendingUp      className="w-4.5 h-4.5" />, requiredPermission: 'income:read' },
+          { labelKey: 'expenses',   path: 'md/expenses',   icon: <TrendingDown    className="w-4.5 h-4.5" />, requiredPermission: 'expenses:read' },
+          { labelKey: 'recurring',  path: 'md/recurring',  icon: <Repeat          className="w-4.5 h-4.5" />, requiredPermission: 'expenses:read' },
+          { labelKey: 'accounts',   path: 'md/accounts',   icon: <BookOpen        className="w-4.5 h-4.5" />, requiredPermission: 'accounting:read' },
+          { labelKey: 'reports',    path: 'md/reports',     icon: <PieChart        className="w-4.5 h-4.5" />, requiredPermission: 'reports:read' },
+          { labelKey: 'audit',      path: 'md/audit',       icon: <FileText        className="w-4.5 h-4.5" />, requiredPermission: 'audit:read' },
+          { labelKey: 'staff',      path: 'md/staff',       icon: <UserCog         className="w-4.5 h-4.5" />, requiredPermission: 'staff:read' },
+          { labelKey: 'hrPayroll',  path: 'md/hr',          icon: <Briefcase        className="w-4.5 h-4.5" />, requiredPermission: 'hr:read' },
+          { labelKey: 'profit',     path: 'md/profit',      icon: <TrendingUp      className="w-4.5 h-4.5" />, requiredPermission: 'profit:calculate' },
           { labelKey: 'helpCenter', path: 'md/help',        icon: <HelpCircle      className="w-4.5 h-4.5" /> },
         ],
       },
@@ -185,14 +195,14 @@ export default function Sidebar({ role, onLogout }: SidebarProps) {
       {
         items: [
           { labelKey: 'dashboard',    path: 'director/dashboard',    icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
-          { labelKey: 'accounting',   path: 'director/accounting',   icon: <Wallet          className="w-4.5 h-4.5" /> },
-          { labelKey: 'income',       path: 'director/income',       icon: <TrendingUp      className="w-4.5 h-4.5" /> },
-          { labelKey: 'expenses',     path: 'director/expenses',     icon: <TrendingDown    className="w-4.5 h-4.5" /> },
-          { labelKey: 'reports',      path: 'director/reports',      icon: <PieChart        className="w-4.5 h-4.5" /> },
-          { labelKey: 'audit',        path: 'director/audit',        icon: <FileText        className="w-4.5 h-4.5" /> },
-          { labelKey: 'shareholders', path: 'director/shareholders', icon: <Users           className="w-4.5 h-4.5" /> },
-          { labelKey: 'profit',       path: 'director/profit',       icon: <TrendingUp      className="w-4.5 h-4.5" /> },
-          { labelKey: 'settings',     path: 'director/settings',     icon: <Settings        className="w-4.5 h-4.5" /> },
+          { labelKey: 'accounting',   path: 'director/accounting',   icon: <Wallet          className="w-4.5 h-4.5" />, requiredPermission: 'accounting:read' },
+          { labelKey: 'income',       path: 'director/income',       icon: <TrendingUp      className="w-4.5 h-4.5" />, requiredPermission: 'income:read' },
+          { labelKey: 'expenses',     path: 'director/expenses',     icon: <TrendingDown    className="w-4.5 h-4.5" />, requiredPermission: 'expenses:read' },
+          { labelKey: 'reports',      path: 'director/reports',      icon: <PieChart        className="w-4.5 h-4.5" />, requiredPermission: 'reports:read' },
+          { labelKey: 'audit',        path: 'director/audit',        icon: <FileText        className="w-4.5 h-4.5" />, requiredPermission: 'audit:read' },
+          { labelKey: 'shareholders', path: 'director/shareholders', icon: <Users           className="w-4.5 h-4.5" />, requiredPermission: 'shareholders:read' },
+          { labelKey: 'profit',       path: 'director/profit',       icon: <TrendingUp      className="w-4.5 h-4.5" />, requiredPermission: 'profit:calculate' },
+          { labelKey: 'settings',     path: 'director/settings',     icon: <Settings        className="w-4.5 h-4.5" />, requiredPermission: 'settings:read' },
           { labelKey: 'helpCenter',   path: 'director/help',         icon: <HelpCircle      className="w-4.5 h-4.5" /> },
         ],
       },
@@ -202,40 +212,48 @@ export default function Sidebar({ role, onLogout }: SidebarProps) {
         groupKey: 'Pharmacy',
         items: [
           { labelKey: 'dashboard',       path: 'pharmacy/dashboard',   icon: <LayoutDashboard className="w-4.5 h-4.5" /> },
-          { labelKey: 'invoices',        path: 'pharmacy/invoices',    icon: <Receipt          className="w-4.5 h-4.5" /> },
-          { labelKey: 'prescriptions',   path: 'pharmacy/prescriptions', icon: <ClipboardList  className="w-4.5 h-4.5" /> },
+          { labelKey: 'invoices',        path: 'pharmacy/invoices',    icon: <Receipt          className="w-4.5 h-4.5" />, requiredPermission: 'pharmacy:read' },
+          { labelKey: 'prescriptions',   path: 'pharmacy/prescriptions', icon: <ClipboardList  className="w-4.5 h-4.5" />, requiredPermission: 'pharmacy:read' },
         ],
       },
       {
         groupKey: 'Procurement',
         items: [
-          { labelKey: 'purchaseOrders',  path: 'pharmacy/po',          icon: <ShoppingCart     className="w-4.5 h-4.5" /> },
-          { labelKey: 'goodsReceipts',   path: 'pharmacy/grn',         icon: <Package          className="w-4.5 h-4.5" /> },
-          { labelKey: 'suppliers',       path: 'pharmacy/suppliers',   icon: <Handshake        className="w-4.5 h-4.5" /> },
+          { labelKey: 'purchaseOrders',  path: 'pharmacy/po',          icon: <ShoppingCart     className="w-4.5 h-4.5" />, requiredPermission: 'pharmacy:write' },
+          { labelKey: 'goodsReceipts',   path: 'pharmacy/grn',         icon: <Package          className="w-4.5 h-4.5" />, requiredPermission: 'pharmacy:write' },
+          { labelKey: 'suppliers',       path: 'pharmacy/suppliers',   icon: <Handshake        className="w-4.5 h-4.5" />, requiredPermission: 'pharmacy:read' },
         ],
       },
       {
         groupKey: 'Inventory',
         items: [
-          { labelKey: 'stock',           path: 'pharmacy/stock',       icon: <Layers           className="w-4.5 h-4.5" /> },
-          { labelKey: 'items',           path: 'pharmacy/items',       icon: <Pill             className="w-4.5 h-4.5" /> },
-          { labelKey: 'writeOffs',       path: 'pharmacy/write-offs',  icon: <XCircle          className="w-4.5 h-4.5" /> },
-          { labelKey: 'dispatches',      path: 'pharmacy/dispatches',  icon: <ArrowRightLeft   className="w-4.5 h-4.5" /> },
-          { labelKey: 'narcoticRegister', path: 'pharmacy/narcotics',  icon: <ShieldAlert      className="w-4.5 h-4.5" /> },
+          { labelKey: 'stock',           path: 'pharmacy/stock',       icon: <Layers           className="w-4.5 h-4.5" />, requiredPermission: 'pharmacy:read' },
+          { labelKey: 'items',           path: 'pharmacy/items',       icon: <Pill             className="w-4.5 h-4.5" />, requiredPermission: 'pharmacy:read' },
+          { labelKey: 'writeOffs',       path: 'pharmacy/write-offs',  icon: <XCircle          className="w-4.5 h-4.5" />, requiredPermission: 'pharmacy:write' },
+          { labelKey: 'dispatches',      path: 'pharmacy/dispatches',  icon: <ArrowRightLeft   className="w-4.5 h-4.5" />, requiredPermission: 'pharmacy:write' },
+          { labelKey: 'narcoticRegister', path: 'pharmacy/narcotics',  icon: <ShieldAlert      className="w-4.5 h-4.5" />, requiredPermission: 'pharmacy:read' },
         ],
       },
       {
         groupKey: 'Finance',
         items: [
-          { labelKey: 'deposits',        path: 'pharmacy/deposits',    icon: <Wallet           className="w-4.5 h-4.5" /> },
-          { labelKey: 'settlements',     path: 'pharmacy/settlements', icon: <CreditCard       className="w-4.5 h-4.5" /> },
+          { labelKey: 'deposits',        path: 'pharmacy/deposits',    icon: <Wallet           className="w-4.5 h-4.5" />, requiredPermission: 'pharmacy:read' },
+          { labelKey: 'settlements',     path: 'pharmacy/settlements', icon: <CreditCard       className="w-4.5 h-4.5" />, requiredPermission: 'pharmacy:read' },
           { labelKey: 'helpCenter',      path: 'pharmacy/help',        icon: <HelpCircle       className="w-4.5 h-4.5" /> },
         ],
       },
     ],
   };
 
-  const navGroups: NavGroup[] = roleNavGroups[role] ?? roleNavGroups.hospital_admin;
+  const allNavGroups: NavGroup[] = roleNavGroups[role] ?? roleNavGroups.hospital_admin;
+
+  // Filter nav items by permission, and filter out empty groups
+  const navGroups: NavGroup[] = allNavGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => hasPermission(item.requiredPermission)),
+    }))
+    .filter((group) => group.items.length > 0);
   const roleLabel = t(`roleLabels.${role}`, { defaultValue: role });
 
   // Resolve full path: for super_admin keep absolute, for others prefix with /h/:slug/

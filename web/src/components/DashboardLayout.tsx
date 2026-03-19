@@ -39,7 +39,7 @@ export default function DashboardLayout({ children, role }: DashboardLayoutProps
   return (
     <div className="min-h-screen bg-[var(--color-bg-primary)]">
       <div className="flex h-screen overflow-hidden">
-        <Sidebar role={role} onLogout={handleLogout} />
+        <Sidebar role={role} permissions={user?.permissions ?? []} onLogout={handleLogout} />
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           <Header
             userName={user?.userId ?? 'User'}

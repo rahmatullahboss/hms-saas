@@ -444,3 +444,54 @@ export type CreateNarcoticRecordInput     = z.infer<typeof createNarcoticRecordS
 export type CreateWriteOffInput           = z.infer<typeof createWriteOffSchema>;
 export type CreateRequisitionInput        = z.infer<typeof createRequisitionSchema>;
 export type CreateDispatchInput           = z.infer<typeof createDispatchSchema>;
+
+// ─── PHASE 2/3 SCHEMAS ─────────────────────────────────────────────────
+
+export const createTaxConfigSchema = z.object({
+  tax_name:  z.string().min(1, 'Tax name is required'),
+  tax_rate:  z.number().min(0),
+  tax_type:  z.enum(['percentage', 'flat']).default('percentage'),
+  is_active: z.number().int().min(0).max(1).default(1),
+});
+
+export const updateTaxConfigSchema = createTaxConfigSchema.partial();
+
+export const createPriceHistorySchema = z.object({
+  new_mrp:        z.number().int().min(0, 'MRP must be ≥0 (paisa)'),
+  new_cost_price: z.number().int().min(0, 'Cost must be ≥0 (paisa)'),
+  batch_no:       z.string().optional(),
+  old_mrp:        z.number().int().optional(),
+  old_cost_price: z.number().int().optional(),
+  change_reason:  z.string().optional(),
+});
+
+export const barcodeSchema = z.object({
+  barcode: z.string().min(1, 'Barcode is required').max(128),
+});
+
+export const createDosageTemplateSchema = z.object({
+  generic_id:    z.number().int().positive().optional(),
+  dosage_label:  z.string().min(1, 'Dosage label is required'),
+  frequency:     z.string().min(1, 'Frequency is required'),
+  route:         z.string().default('Oral'),
+  duration_days: z.number().int().positive().optional(),
+  notes:         z.string().optional(),
+});
+
+export const updateDosageTemplateSchema = createDosageTemplateSchema.partial().extend({
+  is_active: z.boolean().optional(),
+});
+
+export const approvalActionSchema = z.object({
+  action: z.enum(['approve', 'reject']),
+  notes:  z.string().optional(),
+}).refine(
+  (d) => d.action !== 'reject' || (d.notes && d.notes.trim().length > 0),
+  { message: 'Rejection notes are required', path: ['notes'] }
+);
+
+export const itemTypeSchema = z.object({
+  item_type:   z.string().optional(),
+  is_narcotic: z.boolean().optional(),
+});
+
