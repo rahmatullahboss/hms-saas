@@ -485,29 +485,61 @@ pharmacyRoutes.get('/summary', requireRole(...PHARM_READ), async (c) => {
   const db = getDb(c.env.DB);
   const tenantId = requireTenantId(c);
   try {
-    const totalInvestment = await db.$client.prepare(`
-      SELECT SUM(total_amount) as total FROM medicine_purchases WHERE tenant_id = ?
+    // Current stock value (investment) = sum of (available_qty × cost_price) from pharmacy_stock
+    const stockValue = await db.$client.prepare(`
+      SELECT COALESCE(SUM(available_qty * cost_price), 0) as total
+      FROM pharmacy_stock WHERE tenant_id = ? AND is_active = 1
     `).bind(tenantId).first<{ total: number }>();
 
-    const totalIncome = await db.$client.prepare(`
-      SELECT SUM(unit_price * quantity) as total FROM medicine_stock_movements
-      WHERE tenant_id = ? AND movement_type = 'sale_out'
+    // Total income from invoices (paid invoices, not returns)
+    const invoiceIncome = await db.$client.prepare(`
+      SELECT COALESCE(SUM(total_amount), 0) as total
+      FROM pharmacy_invoices WHERE tenant_id = ? AND is_return = 0 AND is_active = 1
     `).bind(tenantId).first<{ total: number }>();
 
-    const totalCost = await db.$client.prepare(`
-      SELECT SUM(unit_cost * quantity) as total FROM medicine_stock_movements
-      WHERE tenant_id = ? AND movement_type = 'sale_out'
-    `).bind(tenantId).first<{ total: number }>();
+    // Cost of goods sold = sum of (quantity × cost_price) from invoice items joined with stock
+    const cogs = await db.$client.prepare(`
+      SELECT COALESCE(SUM(ii.quantity * COALESCE(s.cost_price, 0)), 0) as total
+      FROM pharmacy_invoice_items ii
+      LEFT JOIN pharmacy_stock s ON s.id = ii.stock_id AND s.tenant_id = ?
+      WHERE ii.tenant_id = ? AND ii.item_status != 'returned'
+    `).bind(tenantId, tenantId).first<{ total: number }>();
 
-    const investment = totalInvestment?.total ?? 0;
-    const income = totalIncome?.total ?? 0;
-    const cost = totalCost?.total ?? 0;
+    // Count of distinct active medicines/items
+    const totalItems = await db.$client.prepare(`
+      SELECT COUNT(*) as count FROM pharmacy_items WHERE tenant_id = ? AND is_active = 1
+    `).bind(tenantId).first<{ count: number }>();
+
+    // Low stock count (items below reorder level)
+    const lowStock = await db.$client.prepare(`
+      SELECT COUNT(DISTINCT i.id) as count
+      FROM pharmacy_items i
+      LEFT JOIN pharmacy_stock s ON s.item_id = i.id AND s.tenant_id = i.tenant_id AND s.is_active = 1
+      WHERE i.tenant_id = ? AND i.is_active = 1
+      GROUP BY i.id
+      HAVING COALESCE(SUM(s.available_qty), 0) <= COALESCE(i.reorder_level, 10)
+    `).bind(tenantId).all<{ count: number }>();
+
+    // Expiring within 90 days
+    const expiring = await db.$client.prepare(`
+      SELECT COUNT(*) as count FROM pharmacy_stock
+      WHERE tenant_id = ? AND is_active = 1 AND available_qty > 0
+        AND expiry_date IS NOT NULL
+        AND expiry_date <= date('now', '+90 days')
+    `).bind(tenantId).first<{ count: number }>();
+
+    const investment = stockValue?.total ?? 0;
+    const income = invoiceIncome?.total ?? 0;
+    const costOfGoods = cogs?.total ?? 0;
 
     return c.json({
       totalInvestment: investment,
       totalIncome: income,
-      totalCostOfGoodsSold: cost,
-      grossProfit: income - cost,
+      totalCostOfGoodsSold: costOfGoods,
+      grossProfit: income - costOfGoods,
+      totalMedicines: totalItems?.count ?? 0,
+      lowStockCount: lowStock?.results?.length ?? 0,
+      expiringCount: expiring?.count ?? 0,
     });
   } catch {
     throw new HTTPException(500, { message: 'Failed to fetch pharmacy summary' });
