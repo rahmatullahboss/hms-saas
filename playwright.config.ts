@@ -55,6 +55,12 @@ export default defineConfig({
       testMatch: '**/smoke/api-smoke.spec.ts',
       use: { ...devices['Desktop Chrome'] },
     },
+    // ─── Pharmacy API Smoke — all pharmacy endpoints ─
+    {
+      name: 'pharmacy-smoke',
+      testMatch: '**/smoke/pharmacy-smoke.spec.ts',
+      use: { ...devices['Desktop Chrome'] },
+    },
     // ─── Full API E2E — tests every endpoint ──────────
     {
       name: 'api',
