@@ -64,6 +64,12 @@ test.describe('💊 Pharmacy Smoke — Phase 2/3 Endpoints', () => {
     '/api/pharmacy/returns/supplier',
     '/api/pharmacy/invoice-returns',
     '/api/pharmacy/provisional-invoices',
+    '/api/pharmacy/prescriptions',
+    '/api/pharmacy/narcotics',
+    '/api/pharmacy/write-offs',
+    '/api/pharmacy/requisitions',
+    '/api/pharmacy/dispatches',
+    '/api/pharmacy/master-drugs/stats',
   ];
 
   for (const endpoint of PHASE23_ENDPOINTS) {
@@ -119,6 +125,11 @@ test.describe('📝 Pharmacy Smoke — POST Validation', () => {
     ['/api/pharmacy/generics', {}],
     ['/api/pharmacy/tax-config', {}],
     ['/api/pharmacy/dosage-templates', {}],
+    ['/api/pharmacy/narcotics', {}],
+    ['/api/pharmacy/write-offs', {}],
+    ['/api/pharmacy/requisitions', {}],
+    ['/api/pharmacy/dispatches', {}],
+    ['/api/pharmacy/prescriptions', {}],
   ];
 
   for (const [endpoint, body] of POST_ENDPOINTS) {
