@@ -4,7 +4,7 @@ import {
   Scan, FileText, Search, Plus, X, Activity, RefreshCw,
   ClipboardList, ImageIcon, Filter, AlertTriangle, CheckCircle2,
   Clock, ChevronRight, FlaskConical, Zap, RotateCcw, Ban, Eye,
-  AlertCircle, Database,
+  AlertCircle, Database, Edit2, Trash2,
 } from 'lucide-react';
 import axios, { AxiosError } from 'axios';
 import toast from 'react-hot-toast';
@@ -23,7 +23,7 @@ interface Stats {
   stat_pending: number;
 }
 
-interface ImagingType { id: number; name: string; code?: string; }
+interface ImagingType { id: number; name: string; code?: string; description?: string; }
 interface ImagingItem { id: number; imaging_type_id: number; name: string; procedure_code?: string; price_paisa: number; }
 
 interface Requisition {
@@ -199,6 +199,11 @@ export default function RadiologyDashboard() {
 
   // Double-submit prevention
   const [submitting, setSubmitting] = useState<string | null>(null);
+
+  // Catalog CRUD state
+  const [editType, setEditType] = useState<{ mode: 'add' | 'edit'; id?: number; name: string; code: string; description: string } | null>(null);
+  const [editItem, setEditItem] = useState<{ mode: 'add' | 'edit'; id?: number; name: string; imaging_type_id: string; procedure_code: string; price_bdt: string } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ kind: 'type' | 'item'; id: number; name: string } | null>(null);
 
   // ── Loaders ────────────────────────────────────────────────────────────────
 
@@ -402,6 +407,67 @@ export default function RadiologyDashboard() {
     r.imaging_item_name?.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
+  // ── Catalog CRUD Handlers ─────────────────────────────────────────────────
+
+  const handleSaveType = async () => {
+    if (!editType || submitting) return;
+    if (!editType.name.trim()) { toast.error(t('messages.missingFields')); return; }
+    setSubmitting('saveType');
+    try {
+      if (editType.mode === 'add') {
+        await axios.post('/api/radiology/imaging-types', {
+          name: editType.name, code: editType.code || undefined, description: editType.description || undefined,
+        }, { headers: authHeader() });
+        toast.success(t('catalog.typeCreated'));
+      } else {
+        await axios.put(`/api/radiology/imaging-types/${editType.id}`, {
+          name: editType.name, code: editType.code || undefined, description: editType.description || undefined,
+        }, { headers: authHeader() });
+        toast.success(t('catalog.typeUpdated'));
+      }
+      setEditType(null);
+      loadCatalog();
+    } catch { toast.error(t('catalog.saveFailed')); }
+    finally { setSubmitting(null); }
+  };
+
+  const handleSaveItem = async () => {
+    if (!editItem || submitting) return;
+    if (!editItem.name.trim() || !editItem.imaging_type_id) { toast.error(t('messages.missingFields')); return; }
+    setSubmitting('saveItem');
+    try {
+      const pricePaisa = Math.round(parseFloat(editItem.price_bdt || '0') * 100);
+      if (editItem.mode === 'add') {
+        await axios.post('/api/radiology/imaging-items', {
+          name: editItem.name, imaging_type_id: Number(editItem.imaging_type_id),
+          procedure_code: editItem.procedure_code || undefined, price_paisa: pricePaisa,
+        }, { headers: authHeader() });
+        toast.success(t('catalog.itemCreated'));
+      } else {
+        await axios.put(`/api/radiology/imaging-items/${editItem.id}`, {
+          name: editItem.name, procedure_code: editItem.procedure_code || undefined, price_paisa: pricePaisa,
+        }, { headers: authHeader() });
+        toast.success(t('catalog.itemUpdated'));
+      }
+      setEditItem(null);
+      loadCatalog();
+    } catch { toast.error(t('catalog.saveFailed')); }
+    finally { setSubmitting(null); }
+  };
+
+  const handleDeleteCatalog = async () => {
+    if (!deleteConfirm || submitting) return;
+    setSubmitting('deleteCatalog');
+    try {
+      const endpoint = deleteConfirm.kind === 'type' ? 'imaging-types' : 'imaging-items';
+      await axios.delete(`/api/radiology/${endpoint}/${deleteConfirm.id}`, { headers: authHeader() });
+      toast.success(deleteConfirm.kind === 'type' ? t('catalog.typeDeleted') : t('catalog.itemDeleted'));
+      setDeleteConfirm(null);
+      loadCatalog();
+    } catch { toast.error(t('catalog.deleteFailed')); }
+    finally { setSubmitting(null); }
+  };
+
   const tabs = [
     { id: 'orders',  label: t('tabs.orders'),  icon: ClipboardList },
     { id: 'reports', label: t('tabs.reports'), icon: FileText },
@@ -415,14 +481,17 @@ export default function RadiologyDashboard() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      if (showNewOrder) setShowNewOrder(false);
+      if (editType) setEditType(null);
+      else if (editItem) setEditItem(null);
+      else if (deleteConfirm) setDeleteConfirm(null);
+      else if (showNewOrder) setShowNewOrder(false);
       else if (showNewReport !== null) setShowNewReport(null);
       else if (showCancel !== null) setShowCancel(null);
       else if (viewReportId !== null) setViewReportId(null);
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [showNewOrder, showNewReport, showCancel, viewReportId]);
+  }, [showNewOrder, showNewReport, showCancel, viewReportId, editType, editItem, deleteConfirm]);
 
   return (
     <DashboardLayout role="hospital_admin">
@@ -661,19 +730,35 @@ export default function RadiologyDashboard() {
         {/* ── CATALOG TAB ── */}
         {tab === 'catalog' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Imaging Types panel */}
             <div className="rounded-xl border border-[var(--color-border)] overflow-hidden">
               <div className="px-4 py-3 border-b border-[var(--color-border)] bg-[var(--color-bg-secondary)] flex items-center justify-between">
-                <h3 className="font-medium text-[var(--color-text)]">{t('catalog.imagingTypes')}</h3>
-                <span className="text-sm text-[var(--color-text-muted)]">{t('catalog.typesCount', { count: imagingTypes.length })}</span>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-medium text-[var(--color-text)]">{t('catalog.imagingTypes')}</h3>
+                  <span className="text-xs text-[var(--color-text-muted)]">{t('catalog.typesCount', { count: imagingTypes.length })}</span>
+                </div>
+                <button onClick={() => setEditType({ mode: 'add', name: '', code: '', description: '' })}
+                  className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg bg-sky-600 text-white hover:bg-sky-700 transition-colors">
+                  <Plus className="w-3 h-3" /> {t('catalog.addType')}
+                </button>
               </div>
-              <div className="divide-y divide-[var(--color-border)]">
+              <div className="divide-y divide-[var(--color-border)] max-h-80 overflow-y-auto">
                 {imagingTypes.map(type => (
-                  <div key={type.id} className="px-4 py-3 flex items-center justify-between hover:bg-[var(--color-bg-secondary)]">
+                  <div key={type.id} className="px-4 py-3 flex items-center justify-between hover:bg-[var(--color-bg-secondary)] group">
                     <div className="flex items-center gap-2">
                       {type.code && <span className="font-mono text-xs bg-sky-50 text-sky-700 px-1.5 py-0.5 rounded">{type.code}</span>}
                       <span className="text-sm text-[var(--color-text)]">{type.name}</span>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-[var(--color-text-muted)]" />
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => setEditType({ mode: 'edit', id: type.id, name: type.name, code: type.code ?? '', description: type.description ?? '' })}
+                        className="p-1 rounded hover:bg-sky-50 text-[var(--color-text-muted)] hover:text-sky-600 transition-colors" title={t('catalog.editType')}>
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => setDeleteConfirm({ kind: 'type', id: type.id, name: type.name })}
+                        className="p-1 rounded hover:bg-red-50 text-[var(--color-text-muted)] hover:text-red-600 transition-colors" title={t('catalog.deleteType')}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 ))}
                 {imagingTypes.length === 0 && (
@@ -682,21 +767,40 @@ export default function RadiologyDashboard() {
               </div>
             </div>
 
+            {/* Imaging Items panel */}
             <div className="rounded-xl border border-[var(--color-border)] overflow-hidden">
               <div className="px-4 py-3 border-b border-[var(--color-border)] bg-[var(--color-bg-secondary)] flex items-center justify-between">
-                <h3 className="font-medium text-[var(--color-text)]">{t('catalog.imagingTests')}</h3>
-                <span className="text-sm text-[var(--color-text-muted)]">{t('catalog.testsCount', { count: imagingItems.length })}</span>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-medium text-[var(--color-text)]">{t('catalog.imagingTests')}</h3>
+                  <span className="text-xs text-[var(--color-text-muted)]">{t('catalog.testsCount', { count: imagingItems.length })}</span>
+                </div>
+                <button onClick={() => setEditItem({ mode: 'add', name: '', imaging_type_id: '', procedure_code: '', price_bdt: '' })}
+                  className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg bg-sky-600 text-white hover:bg-sky-700 transition-colors">
+                  <Plus className="w-3 h-3" /> {t('catalog.addItem')}
+                </button>
               </div>
               <div className="divide-y divide-[var(--color-border)] max-h-96 overflow-y-auto">
                 {imagingItems.map(item => {
-                  const typeName = imagingTypes.find(t => t.id === item.imaging_type_id)?.name;
+                  const typeName = imagingTypes.find(ty => ty.id === item.imaging_type_id)?.name;
                   return (
-                    <div key={item.id} className="px-4 py-3 hover:bg-[var(--color-bg-secondary)]">
+                    <div key={item.id} className="px-4 py-3 hover:bg-[var(--color-bg-secondary)] group">
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium text-[var(--color-text)]">{item.name}</span>
-                        {item.price_paisa > 0 && (
-                          <span className="text-xs text-[var(--color-text-muted)]">৳{(item.price_paisa / 100).toFixed(0)}</span>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {item.price_paisa > 0 && (
+                            <span className="text-xs text-[var(--color-text-muted)]">৳{(item.price_paisa / 100).toFixed(0)}</span>
+                          )}
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => setEditItem({ mode: 'edit', id: item.id, name: item.name, imaging_type_id: String(item.imaging_type_id), procedure_code: item.procedure_code ?? '', price_bdt: String(item.price_paisa / 100) })}
+                              className="p-1 rounded hover:bg-sky-50 text-[var(--color-text-muted)] hover:text-sky-600 transition-colors" title={t('catalog.editItem')}>
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button onClick={() => setDeleteConfirm({ kind: 'item', id: item.id, name: item.name })}
+                              className="p-1 rounded hover:bg-red-50 text-[var(--color-text-muted)] hover:text-red-600 transition-colors" title={t('catalog.deleteItem')}>
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
                       </div>
                       <div className="flex items-center gap-2 mt-0.5">
                         {typeName && <span className="text-xs text-[var(--color-text-muted)]">{typeName}</span>}
@@ -931,6 +1035,109 @@ export default function RadiologyDashboard() {
               <div className="flex gap-3 px-6 pb-6">
                 <button onClick={() => setShowCancel(null)} className="flex-1 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-muted)] hover:bg-[var(--color-bg-secondary)] transition-colors">{t('modals.cancelOrder.cancel')}</button>
                 <button onClick={handleConfirmCancel} disabled={submitting === 'cancel'} className="flex-1 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 disabled:opacity-60 transition-colors">{submitting === 'cancel' ? t('modals.cancelOrder.submitting') : t('modals.cancelOrder.submit')}</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── MODAL: Edit/Add Imaging Type ── */}
+        {editType && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-labelledby="modal-edit-type-title" onClick={e => { if (e.target === e.currentTarget) setEditType(null); }}>
+            <div className="bg-[var(--color-bg)] rounded-2xl shadow-2xl w-full max-w-md">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-border)]">
+                <h2 id="modal-edit-type-title" className="text-lg font-semibold text-[var(--color-text)]">{editType.mode === 'add' ? t('catalog.addType') : t('catalog.editType')}</h2>
+                <button onClick={() => setEditType(null)} className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]" aria-label="Close"><X className="w-5 h-5" /></button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">{t('catalog.nameLabel')}</label>
+                  <input type="text" placeholder={t('catalog.namePlaceholder')} value={editType.name}
+                    onChange={e => setEditType(et => et ? { ...et, name: e.target.value } : et)} className={inputCls} autoFocus />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">{t('catalog.codeLabel')}</label>
+                  <input type="text" placeholder={t('catalog.codePlaceholder')} value={editType.code}
+                    onChange={e => setEditType(et => et ? { ...et, code: e.target.value } : et)} className={inputCls} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">{t('catalog.descriptionLabel')}</label>
+                  <input type="text" placeholder={t('catalog.descriptionPlaceholder')} value={editType.description}
+                    onChange={e => setEditType(et => et ? { ...et, description: e.target.value } : et)} className={inputCls} />
+                </div>
+              </div>
+              <div className="flex gap-3 px-6 pb-6">
+                <button onClick={() => setEditType(null)} className="flex-1 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-muted)] hover:bg-[var(--color-bg-secondary)] transition-colors">{t('catalog.cancelBtn')}</button>
+                <button onClick={handleSaveType} disabled={submitting === 'saveType'} className="flex-1 py-2 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-700 disabled:opacity-60 transition-colors">{submitting === 'saveType' ? t('catalog.saving') : t('catalog.save')}</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── MODAL: Edit/Add Imaging Item ── */}
+        {editItem && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-labelledby="modal-edit-item-title" onClick={e => { if (e.target === e.currentTarget) setEditItem(null); }}>
+            <div className="bg-[var(--color-bg)] rounded-2xl shadow-2xl w-full max-w-md">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-border)]">
+                <h2 id="modal-edit-item-title" className="text-lg font-semibold text-[var(--color-text)]">{editItem.mode === 'add' ? t('catalog.addItem') : t('catalog.editItem')}</h2>
+                <button onClick={() => setEditItem(null)} className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]" aria-label="Close"><X className="w-5 h-5" /></button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">{t('catalog.nameLabel')}</label>
+                  <input type="text" placeholder={t('catalog.namePlaceholder')} value={editItem.name}
+                    onChange={e => setEditItem(ei => ei ? { ...ei, name: e.target.value } : ei)} className={inputCls} autoFocus />
+                </div>
+                {editItem.mode === 'add' && (
+                  <div>
+                    <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">{t('catalog.typeSelectLabel')}</label>
+                    <select value={editItem.imaging_type_id}
+                      onChange={e => setEditItem(ei => ei ? { ...ei, imaging_type_id: e.target.value } : ei)} className={inputCls}>
+                      <option value="">{t('catalog.typeSelectPlaceholder')}</option>
+                      {imagingTypes.map(ty => <option key={ty.id} value={ty.id}>{ty.name}</option>)}
+                    </select>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">{t('catalog.procedureCodeLabel')}</label>
+                    <input type="text" placeholder={t('catalog.procedureCodePlaceholder')} value={editItem.procedure_code}
+                      onChange={e => setEditItem(ei => ei ? { ...ei, procedure_code: e.target.value } : ei)} className={inputCls} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">{t('catalog.priceLabel')}</label>
+                    <input type="number" placeholder={t('catalog.pricePlaceholder')} value={editItem.price_bdt}
+                      onChange={e => setEditItem(ei => ei ? { ...ei, price_bdt: e.target.value } : ei)} className={inputCls} min="0" step="1" />
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-3 px-6 pb-6">
+                <button onClick={() => setEditItem(null)} className="flex-1 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-muted)] hover:bg-[var(--color-bg-secondary)] transition-colors">{t('catalog.cancelBtn')}</button>
+                <button onClick={handleSaveItem} disabled={submitting === 'saveItem'} className="flex-1 py-2 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-700 disabled:opacity-60 transition-colors">{submitting === 'saveItem' ? t('catalog.saving') : t('catalog.save')}</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── MODAL: Delete Confirmation ── */}
+        {deleteConfirm && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-labelledby="modal-delete-confirm-title" onClick={e => { if (e.target === e.currentTarget) setDeleteConfirm(null); }}>
+            <div className="bg-[var(--color-bg)] rounded-2xl shadow-2xl w-full max-w-sm">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-border)]">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-red-500" />
+                  <h2 id="modal-delete-confirm-title" className="text-lg font-semibold text-[var(--color-text)]">{deleteConfirm.kind === 'type' ? t('catalog.deleteType') : t('catalog.deleteItem')}</h2>
+                </div>
+                <button onClick={() => setDeleteConfirm(null)} className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]" aria-label="Close"><X className="w-5 h-5" /></button>
+              </div>
+              <div className="p-6">
+                <p className="text-sm text-[var(--color-text)]">
+                  {deleteConfirm.kind === 'type' ? t('catalog.deleteConfirmType') : t('catalog.deleteConfirmItem')}
+                </p>
+                <p className="mt-2 text-sm font-medium text-[var(--color-text)]">{deleteConfirm.name}</p>
+              </div>
+              <div className="flex gap-3 px-6 pb-6">
+                <button onClick={() => setDeleteConfirm(null)} className="flex-1 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-muted)] hover:bg-[var(--color-bg-secondary)] transition-colors">{t('catalog.cancelBtn')}</button>
+                <button onClick={handleDeleteCatalog} disabled={submitting === 'deleteCatalog'} className="flex-1 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 disabled:opacity-60 transition-colors">{submitting === 'deleteCatalog' ? t('catalog.deleting') : t('catalog.confirmDelete')}</button>
               </div>
             </div>
           </div>

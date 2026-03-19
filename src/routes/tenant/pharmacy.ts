@@ -903,7 +903,7 @@ pharmacyRoutes.get('/stock', requireRole(...PHARM_READ), async (c) => {
     if (expireAfter) { where += ' AND (s.expiry_date >= ? OR s.expiry_date IS NULL)'; params.push(expireAfter); }
 
     const { results } = await db.$client.prepare(`
-      SELECT s.*, i.name as item_name, g.name as generic_name
+      SELECT s.*, i.name as item_name, i.reorder_level, g.name as generic_name
       FROM pharmacy_stock s
       JOIN pharmacy_items i ON s.item_id = i.id
       LEFT JOIN pharmacy_generics g ON i.generic_id = g.id
