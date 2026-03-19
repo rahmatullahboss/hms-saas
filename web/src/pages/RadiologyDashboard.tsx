@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Scan, FileText, Search, Plus, X, Activity, RefreshCw,
@@ -132,14 +132,14 @@ function statusVariant(s: string): 'info' | 'warning' | 'success' | 'muted' {
   return 'muted';
 }
 
-function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
+function ErrorState({ message, onRetry, retryLabel = 'Retry' }: { message: string; onRetry: () => void; retryLabel?: string }) {
   return (
     <tr>
       <td colSpan={99} className="px-4 py-10 text-center">
         <AlertCircle className="w-8 h-8 text-red-400 mx-auto mb-2" />
         <p className="text-sm text-red-600 mb-3">{message}</p>
         <button onClick={onRetry} className="px-4 py-1.5 text-xs rounded-lg bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 transition-colors">
-          Retry
+          {retryLabel}
         </button>
       </td>
     </tr>
@@ -197,13 +197,19 @@ export default function RadiologyDashboard() {
     report_text: '', indication: '', performer_name: '', order_status: 'final',
   });
 
+  // Double-submit prevention
+  const [submitting, setSubmitting] = useState<string | null>(null);
+
   // ── Loaders ────────────────────────────────────────────────────────────────
 
   const loadStats = useCallback(async () => {
     try {
       const { data } = await axios.get('/api/radiology/stats', { headers: authHeader() });
       setStats(data);
-    } catch { /* silent — KPI is supplementary */ }
+    } catch {
+      // M-5: Show zeroed stats instead of infinite skeleton
+      setStats({ pending: 0, scanned: 0, reported: 0, cancelled: 0, stat_pending: 0 });
+    }
   }, []);
 
   const loadRequisitions = useCallback(async () => {
@@ -245,8 +251,10 @@ export default function RadiologyDashboard() {
       ]);
       setImagingTypes(tRes.data.imaging_types ?? []);
       setImagingItems(iRes.data.imaging_items  ?? []);
-    } catch { /* silent */ }
-  }, []);
+    } catch {
+      toast.error(t('messages.catalogLoadFailed'));
+    }
+  }, [t]);
 
   const loadPacsStudies = useCallback(async () => {
     setLoadingPacs(true);
@@ -287,9 +295,11 @@ export default function RadiologyDashboard() {
   // ── Actions ────────────────────────────────────────────────────────────────
 
   const handleCreateOrder = async () => {
+    if (submitting) return;
     if (!newOrder.patient_id || !newOrder.imaging_type_id || !newOrder.imaging_item_id) {
       toast.error(t('messages.missingFields')); return;
     }
+    setSubmitting('createOrder');
     try {
       await axios.post('/api/radiology/requisitions', {
         patient_id:     Number(newOrder.patient_id),
@@ -307,18 +317,25 @@ export default function RadiologyDashboard() {
     } catch (err) {
       const msg = (err as AxiosError<{ message?: string }>).response?.data?.message;
       toast.error(msg ?? t('messages.orderFailed'));
+    } finally {
+      setSubmitting(null);
     }
   };
 
   const handleScan = async (id: number) => {
+    if (submitting) return;
+    setSubmitting(`scan-${id}`);
     try {
       await axios.patch(`/api/radiology/requisitions/${id}/scan`, {}, { headers: authHeader() });
       toast.success(t('messages.markedScanned'));
       loadRequisitions(); loadStats();
     } catch { toast.error(t('messages.scannedFailed')); }
+    finally { setSubmitting(null); }
   };
 
   const handleUnscan = async (id: number) => {
+    if (submitting) return;
+    setSubmitting(`unscan-${id}`);
     try {
       await axios.patch(`/api/radiology/requisitions/${id}/unscan`, {}, { headers: authHeader() });
       toast.success(t('messages.unscanned'));
@@ -326,11 +343,12 @@ export default function RadiologyDashboard() {
     } catch (err) {
       const msg = (err as AxiosError<{ message?: string }>).response?.data?.message;
       toast.error(msg ?? t('messages.unscanFailed'));
-    }
+    } finally { setSubmitting(null); }
   };
 
   const handleConfirmCancel = async () => {
-    if (!showCancel) return;
+    if (!showCancel || submitting) return;
+    setSubmitting('cancel');
     try {
       await axios.patch(`/api/radiology/requisitions/${showCancel}/cancel`, { cancel_remarks: cancelRemarks || undefined }, { headers: authHeader() });
       toast.success(t('messages.orderCancelled'));
@@ -339,11 +357,12 @@ export default function RadiologyDashboard() {
       loadRequisitions(); loadStats();
     } catch {
       toast.error(t('messages.cancelFailed'));
-    }
+    } finally { setSubmitting(null); }
   };
 
   const handleCreateReport = async (requisitionId: number, patientId: number) => {
-    if (!newReport.report_text) { toast.error(t('messages.missingReportText')); return; }
+    if (!newReport.report_text || submitting) { toast.error(t('messages.missingReportText')); return; }
+    setSubmitting('createReport');
     try {
       const req = requisitions.find(r => r.id === requisitionId);
       await axios.post('/api/radiology/reports', {
@@ -363,15 +382,18 @@ export default function RadiologyDashboard() {
     } catch (err) {
       const msg = (err as AxiosError<{ message?: string }>).response?.data?.message;
       toast.error(msg ?? t('messages.reportFailed'));
-    }
+    } finally { setSubmitting(null); }
   };
 
   const handleFinalizeReport = async (id: number) => {
+    if (submitting) return;
+    setSubmitting(`finalize-${id}`);
     try {
       await axios.patch(`/api/radiology/reports/${id}/finalize`, {}, { headers: authHeader() });
       toast.success(t('messages.reportFinalized'));
       loadReports();
     } catch { toast.error(t('messages.finalizeFailed')); }
+    finally { setSubmitting(null); }
   };
 
   const filteredReqs = requisitions.filter(r =>
@@ -388,6 +410,19 @@ export default function RadiologyDashboard() {
   ] as const;
 
   const inputCls = 'w-full px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] focus:outline-none focus:ring-2 focus:ring-sky-500';
+
+  // M-3: Escape key handler for modals
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (showNewOrder) setShowNewOrder(false);
+      else if (showNewReport !== null) setShowNewReport(null);
+      else if (showCancel !== null) setShowCancel(null);
+      else if (viewReportId !== null) setViewReportId(null);
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [showNewOrder, showNewReport, showCancel, viewReportId]);
 
   return (
     <DashboardLayout role="hospital_admin">
@@ -439,7 +474,7 @@ export default function RadiologyDashboard() {
         {stats && stats.stat_pending > 0 && (
           <div className="flex items-center gap-3 p-3 rounded-lg bg-fuchsia-50 border border-fuchsia-200 text-fuchsia-800 text-sm">
             <AlertTriangle className="w-4 h-4 shrink-0" />
-            <span><strong>{stats.stat_pending} STAT order{stats.stat_pending > 1 ? 's' : ''}</strong> require immediate attention</span>
+            <span>{t('statAlert', { count: stats.stat_pending })}</span>
           </div>
         )}
 
@@ -507,7 +542,7 @@ export default function RadiologyDashboard() {
                   {loadingOrders ? (
                     <TableSkeleton cols={7} />
                   ) : errOrders ? (
-                    <ErrorState message={t('orders.errorLoading')} onRetry={loadRequisitions} />
+                    <ErrorState message={t('orders.errorLoading')} onRetry={loadRequisitions} retryLabel={t('retry')} />
                   ) : filteredReqs.length === 0 ? (
                     <tr><td colSpan={7} className="px-4 py-10 text-center text-[var(--color-text-muted)]">{t('orders.noOrders')}</td></tr>
                   ) : filteredReqs.map(req => (
@@ -525,16 +560,16 @@ export default function RadiologyDashboard() {
                         <div className="flex flex-wrap gap-1.5">
                           {/* Scan */}
                           {req.order_status === 'pending' && !req.is_scanned && (
-                            <button onClick={() => handleScan(req.id)}
-                              className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors">
-                              <Scan className="w-3 h-3" />{t('orders.scan')}
+                            <button onClick={() => handleScan(req.id)} disabled={submitting === `scan-${req.id}`}
+                              className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-50 transition-colors">
+                              <Scan className="w-3 h-3" />{submitting === `scan-${req.id}` ? t('orders.scanning') : t('orders.scan')}
                             </button>
                           )}
                           {/* Un-scan */}
                           {req.order_status === 'scanned' && !req.is_report_saved && (
-                            <button onClick={() => handleUnscan(req.id)}
-                              className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors">
-                              <RotateCcw className="w-3 h-3" />{t('orders.unscan')}
+                            <button onClick={() => handleUnscan(req.id)} disabled={submitting === `unscan-${req.id}`}
+                              className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-amber-50 text-amber-700 hover:bg-amber-100 disabled:opacity-50 transition-colors">
+                              <RotateCcw className="w-3 h-3" />{submitting === `unscan-${req.id}` ? t('orders.unscanning') : t('orders.unscan')}
                             </button>
                           )}
                           {/* Report */}
@@ -591,7 +626,7 @@ export default function RadiologyDashboard() {
                 {loadingReports ? (
                   <TableSkeleton cols={7} />
                 ) : errReports ? (
-                  <ErrorState message={t('reports.errorLoading')} onRetry={loadReports} />
+                  <ErrorState message={t('reports.errorLoading')} onRetry={loadReports} retryLabel={t('retry')} />
                 ) : reports.length === 0 ? (
                   <tr><td colSpan={7} className="px-4 py-10 text-center text-[var(--color-text-muted)]">{t('reports.noReports')}</td></tr>
                 ) : reports.map(r => (
@@ -693,7 +728,7 @@ export default function RadiologyDashboard() {
                 ))}
               </select>
               <span className="ml-auto text-sm text-[var(--color-text-muted)] self-center">
-                {pacsTotal} {pacsTotal === 1 ? 'study' : 'studies'}
+                {pacsTotal === 1 ? t('pacs.studyCount', { count: pacsTotal }) : t('pacs.studyCountPlural', { count: pacsTotal })}
               </span>
             </div>
             <div className="rounded-xl border border-[var(--color-border)] overflow-hidden">
@@ -709,7 +744,7 @@ export default function RadiologyDashboard() {
                   {loadingPacs ? (
                     <TableSkeleton cols={7} />
                   ) : errPacs ? (
-                    <ErrorState message={t('pacs.errorLoading')} onRetry={loadPacsStudies} />
+                    <ErrorState message={t('pacs.errorLoading')} onRetry={loadPacsStudies} retryLabel={t('retry')} />
                   ) : pacsStudies.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="px-4 py-14 text-center">
@@ -728,9 +763,9 @@ export default function RadiologyDashboard() {
                       <td className="px-4 py-3 text-[var(--color-text-muted)]">{s.image_count ?? '—'}</td>
                       <td className="px-4 py-3">
                         {s.is_mapped ? (
-                          <Badge text="Mapped" variant="success" />
+                          <Badge text={t('pacs.mapped')} variant="success" />
                         ) : (
-                          <Badge text="Unlinked" variant="muted" />
+                          <Badge text={t('pacs.unlinked')} variant="muted" />
                         )}
                       </td>
                     </tr>
@@ -743,11 +778,11 @@ export default function RadiologyDashboard() {
 
         {/* ── MODAL: New Order ── */}
         {showNewOrder && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-labelledby="modal-new-order-title" onClick={e => { if (e.target === e.currentTarget) setShowNewOrder(false); }}>
             <div className="bg-[var(--color-bg)] rounded-2xl shadow-2xl w-full max-w-lg">
               <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-border)]">
-                <h2 className="text-lg font-semibold text-[var(--color-text)]">{t('modals.newOrder.title')}</h2>
-                <button onClick={() => setShowNewOrder(false)} className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]"><X className="w-5 h-5" /></button>
+                <h2 id="modal-new-order-title" className="text-lg font-semibold text-[var(--color-text)]">{t('modals.newOrder.title')}</h2>
+                <button onClick={() => setShowNewOrder(false)} className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]" aria-label="Close"><X className="w-5 h-5" /></button>
               </div>
               <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
                 {/* Patient */}
@@ -820,7 +855,7 @@ export default function RadiologyDashboard() {
               </div>
               <div className="flex gap-3 px-6 pb-6">
                 <button onClick={() => setShowNewOrder(false)} className="flex-1 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-muted)] hover:bg-[var(--color-bg-secondary)] transition-colors">{t('modals.newOrder.cancel')}</button>
-                <button onClick={handleCreateOrder} className="flex-1 py-2 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-700 transition-colors">{t('modals.newOrder.submit')}</button>
+                <button onClick={handleCreateOrder} disabled={submitting === 'createOrder'} className="flex-1 py-2 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-700 disabled:opacity-60 transition-colors">{submitting === 'createOrder' ? t('modals.newOrder.submitting') : t('modals.newOrder.submit')}</button>
               </div>
             </div>
           </div>
@@ -831,14 +866,14 @@ export default function RadiologyDashboard() {
           const req = requisitions.find(r => r.id === showNewReport);
           if (!req) return null;
           return (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-labelledby="modal-new-report-title" onClick={e => { if (e.target === e.currentTarget) setShowNewReport(null); }}>
               <div className="bg-[var(--color-bg)] rounded-2xl shadow-2xl w-full max-w-lg">
                 <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-border)]">
                   <div>
-                    <h2 className="text-lg font-semibold text-[var(--color-text)]">{t('modals.newReport.title')}</h2>
+                    <h2 id="modal-new-report-title" className="text-lg font-semibold text-[var(--color-text)]">{t('modals.newReport.title')}</h2>
                     <p className="text-sm text-[var(--color-text-muted)]">{req.imaging_item_name} — {req.patient_name}</p>
                   </div>
-                  <button onClick={() => setShowNewReport(null)} className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]"><X className="w-5 h-5" /></button>
+                  <button onClick={() => setShowNewReport(null)} className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]" aria-label="Close"><X className="w-5 h-5" /></button>
                 </div>
                 <div className="p-6 space-y-4">
                   <div>
@@ -869,7 +904,7 @@ export default function RadiologyDashboard() {
                 </div>
                 <div className="flex gap-3 px-6 pb-6">
                   <button onClick={() => setShowNewReport(null)} className="flex-1 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-muted)] hover:bg-[var(--color-bg-secondary)] transition-colors">{t('modals.newReport.cancel')}</button>
-                  <button onClick={() => handleCreateReport(req.id, req.patient_id)} className="flex-1 py-2 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-700 transition-colors">{t('modals.newReport.submit')}</button>
+                  <button onClick={() => handleCreateReport(req.id, req.patient_id)} disabled={submitting === 'createReport'} className="flex-1 py-2 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-700 disabled:opacity-60 transition-colors">{submitting === 'createReport' ? t('modals.newReport.submitting') : t('modals.newReport.submit')}</button>
                 </div>
               </div>
             </div>
@@ -878,14 +913,14 @@ export default function RadiologyDashboard() {
 
         {/* ── MODAL: Cancel Order ── */}
         {showCancel !== null && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-labelledby="modal-cancel-order-title" onClick={e => { if (e.target === e.currentTarget) setShowCancel(null); }}>
             <div className="bg-[var(--color-bg)] rounded-2xl shadow-2xl w-full max-w-md">
               <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--color-border)]">
                 <div className="flex items-center gap-2">
                   <AlertTriangle className="w-5 h-5 text-red-500" />
-                  <h2 className="text-lg font-semibold text-[var(--color-text)]">{t('modals.cancelOrder.title')}</h2>
+                  <h2 id="modal-cancel-order-title" className="text-lg font-semibold text-[var(--color-text)]">{t('modals.cancelOrder.title')}</h2>
                 </div>
-                <button onClick={() => setShowCancel(null)} className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]"><X className="w-5 h-5" /></button>
+                <button onClick={() => setShowCancel(null)} className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]" aria-label="Close"><X className="w-5 h-5" /></button>
               </div>
               <div className="p-6">
                 <label className="block text-sm font-medium text-[var(--color-text)] mb-1.5">{t('modals.cancelOrder.remarksLabel')}</label>
@@ -895,7 +930,7 @@ export default function RadiologyDashboard() {
               </div>
               <div className="flex gap-3 px-6 pb-6">
                 <button onClick={() => setShowCancel(null)} className="flex-1 py-2 rounded-lg border border-[var(--color-border)] text-sm text-[var(--color-text-muted)] hover:bg-[var(--color-bg-secondary)] transition-colors">{t('modals.cancelOrder.cancel')}</button>
-                <button onClick={handleConfirmCancel} className="flex-1 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition-colors">{t('modals.cancelOrder.submit')}</button>
+                <button onClick={handleConfirmCancel} disabled={submitting === 'cancel'} className="flex-1 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 disabled:opacity-60 transition-colors">{submitting === 'cancel' ? t('modals.cancelOrder.submitting') : t('modals.cancelOrder.submit')}</button>
               </div>
             </div>
           </div>
