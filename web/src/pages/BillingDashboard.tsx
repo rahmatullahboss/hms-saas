@@ -8,6 +8,8 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
 import KPICard from '../components/dashboard/KPICard';
+import HelpButton from '../components/HelpButton';
+import HelpPanel from '../components/HelpPanel';
 import { useTranslation } from 'react-i18next';
 
 /* ─── Types ─────────────────────────────────────────────────────── */
@@ -86,6 +88,7 @@ export default function BillingDashboard({ role = 'hospital_admin' }: { role?: s
   const [page,       setPage]       = useState(1);
   const [meta,       setMeta]       = useState<PaginationMeta>({ page: 1, limit: 20, total: 0, totalPages: 1 });
   const [activeTab,  setActiveTab]  = useState<'bills' | 'dues'>('bills');
+  const [helpOpen,   setHelpOpen]   = useState(false);
 
   // Create Bill modal
   const [showCreate,  setShowCreate]  = useState(false);
@@ -272,6 +275,7 @@ export default function BillingDashboard({ role = 'hospital_admin' }: { role?: s
 
   return (
     <DashboardLayout role={role}>
+      <HelpPanel pageKey="billing" isOpen={helpOpen} onClose={() => setHelpOpen(false)} />
       <div className="space-y-5 max-w-screen-2xl mx-auto">
 
         {/* ── Header ── */}
@@ -281,6 +285,7 @@ export default function BillingDashboard({ role = 'hospital_admin' }: { role?: s
             <p className="section-subtitle mt-1">{t('subtitle', { defaultValue: 'Create bills, collect payments, track outstanding dues' })}</p>
           </div>
           <div className="flex items-center gap-2">
+            <HelpButton onClick={() => setHelpOpen(true)} />
             <button onClick={() => setShowCreate(true)} className="btn-primary">
               <Plus className="w-4 h-4" /> {t('createBill', { defaultValue: 'Create Bill' })}
             </button>

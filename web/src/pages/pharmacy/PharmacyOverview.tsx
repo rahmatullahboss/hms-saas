@@ -2,11 +2,13 @@ import { useState, useEffect, useCallback } from 'react';
 import { Link, useParams } from 'react-router';
 import {
   Pill, ShoppingCart, AlertTriangle, TrendingDown, FileText,
-  Package, ArrowRight, Activity, DollarSign, ClipboardList,
+  Package, ArrowRight, Activity, DollarSign,
 } from 'lucide-react';
 import axios from 'axios';
 import DashboardLayout from '../../components/DashboardLayout';
 import KPICard from '../../components/dashboard/KPICard';
+import HelpButton from '../../components/HelpButton';
+import HelpPanel from '../../components/HelpPanel';
 import { useTranslation } from 'react-i18next';
 
 interface LowStockAlert {
@@ -24,6 +26,7 @@ export default function PharmacyOverview({ role = 'hospital_admin' }: { role?: s
   const base = `/h/${slug}`;
 
   const [loading, setLoading] = useState(true);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [summary, setSummary] = useState({
     totalInvestment: 0, totalIncome: 0, totalCostOfGoodsSold: 0, grossProfit: 0,
   });
@@ -54,6 +57,7 @@ export default function PharmacyOverview({ role = 'hospital_admin' }: { role?: s
 
   return (
     <DashboardLayout role={role}>
+      <HelpPanel pageKey="pharmacy" isOpen={helpOpen} onClose={() => setHelpOpen(false)} />
       <div className="space-y-5 max-w-screen-2xl mx-auto">
         {/* Header */}
         <div className="page-header">
@@ -62,6 +66,7 @@ export default function PharmacyOverview({ role = 'hospital_admin' }: { role?: s
             <p className="section-subtitle mt-1">{t('subtitle', { defaultValue: 'Stock monitoring, dispensing, and procurement' })}</p>
           </div>
           <div className="flex items-center gap-2">
+            <HelpButton onClick={() => setHelpOpen(true)} />
             <Link to={`${base}/pharmacy/invoices/new`}>
               <button className="btn-primary"><Pill className="w-4 h-4 mr-1 inline" /> {t('newInvoice', { defaultValue: 'New Invoice' })}</button>
             </Link>

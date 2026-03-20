@@ -7,6 +7,8 @@ import axios, { AxiosError } from 'axios';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
 import KPICard from '../components/dashboard/KPICard';
+import HelpButton from '../components/HelpButton';
+import HelpPanel from '../components/HelpPanel';
 import { authHeader } from '../utils/auth';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -150,6 +152,7 @@ export default function MedicalRecordsDashboard({ role = 'hospital_admin' }: { r
     referred_to: '', referred_date: '', referred_reason: '', remarks: '',
   });
   const [submitting, setSubmitting] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   // ── New Birth modal
   const [showBirthModal, setShowBirthModal] = useState(false);
@@ -371,6 +374,7 @@ export default function MedicalRecordsDashboard({ role = 'hospital_admin' }: { r
 
   return (
     <DashboardLayout role={role}>
+      <HelpPanel pageKey="medical_records" isOpen={helpOpen} onClose={() => setHelpOpen(false)} />
       <div className="space-y-5 max-w-screen-2xl mx-auto">
 
         {/* ── Header ── */}
@@ -380,6 +384,7 @@ export default function MedicalRecordsDashboard({ role = 'hospital_admin' }: { r
             <p className="section-subtitle mt-1">Patient records, birth/death registration, ICD-10 coding & referrals</p>
           </div>
           <div className="flex gap-2">
+            <HelpButton onClick={() => setHelpOpen(true)} />
             <button onClick={fetchStats} className="btn-secondary" title="Refresh">
               <RefreshCw className="w-4 h-4" />
             </button>

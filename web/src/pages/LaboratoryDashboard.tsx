@@ -4,6 +4,8 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
 import KPICard from '../components/dashboard/KPICard';
+import HelpButton from '../components/HelpButton';
+import HelpPanel from '../components/HelpPanel';
 import { useTranslation } from 'react-i18next';
 
 interface Test {
@@ -24,6 +26,7 @@ export default function LaboratoryDashboard({ role = 'laboratory' }: { role?: st
   const [selectedTest, setSelectedTest] = useState<Test | null>(null);
   const [result,       setResult]       = useState('');
   const [saving,       setSaving]       = useState(false);
+  const [helpOpen,     setHelpOpen]     = useState(false);
   const { t } = useTranslation(['laboratory', 'common']);
 
   useEffect(() => { fetchTests(); }, []);
@@ -115,6 +118,7 @@ export default function LaboratoryDashboard({ role = 'laboratory' }: { role?: st
 
   return (
     <DashboardLayout role={role}>
+      <HelpPanel pageKey="lab" isOpen={helpOpen} onClose={() => setHelpOpen(false)} />
       <div className="space-y-5 max-w-screen-2xl mx-auto">
 
         {/* ── Header ── */}
@@ -124,6 +128,7 @@ export default function LaboratoryDashboard({ role = 'laboratory' }: { role?: st
             <p className="section-subtitle mt-1">{t('manageTests', { defaultValue: 'Manage test requests and results' })}</p>
           </div>
           <div className="flex items-center gap-2">
+            <HelpButton onClick={() => setHelpOpen(true)} />
             <button onClick={fetchTests} className="btn-ghost" title="Refresh"><RefreshCw className="w-4 h-4" /></button>
           </div>
         </div>

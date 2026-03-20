@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { Search, Package, AlertTriangle } from 'lucide-react';
 import axios from 'axios';
 import DashboardLayout from '../../components/DashboardLayout';
+import HelpButton from '../../components/HelpButton';
+import HelpPanel from '../../components/HelpPanel';
 import { useTranslation } from 'react-i18next';
 
 interface Stock {
@@ -24,6 +26,7 @@ export default function PharmacyStockList({ role = 'hospital_admin' }: { role?: 
   const [allStock, setAllStock] = useState<Stock[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [helpOpen, setHelpOpen] = useState(false);
   const [filter, setFilter] = useState<'all' | 'low' | 'expiring'>('all');
 
   const fetchStock = useCallback(async () => {
@@ -62,12 +65,14 @@ export default function PharmacyStockList({ role = 'hospital_admin' }: { role?: 
 
   return (
     <DashboardLayout role={role}>
+      <HelpPanel pageKey="pharmacy_stock" isOpen={helpOpen} onClose={() => setHelpOpen(false)} />
       <div className="space-y-5 max-w-screen-2xl mx-auto">
         <div className="page-header">
           <div>
             <h1 className="page-title">{t('stock', { defaultValue: 'Stock Ledger' })}</h1>
             <p className="section-subtitle mt-1">{t('stockSubtitle', { defaultValue: 'Batch-level inventory — FEFO order' })}</p>
           </div>
+          <HelpButton onClick={() => setHelpOpen(true)} />
         </div>
 
         <div className="card p-4 flex flex-wrap gap-3 items-center">

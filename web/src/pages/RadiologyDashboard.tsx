@@ -11,6 +11,8 @@ import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
 import KPICard from '../components/dashboard/KPICard';
 import ReportDetailModal from '../components/radiology/ReportDetailModal';
+import HelpButton from '../components/HelpButton';
+import HelpPanel from '../components/HelpPanel';
 import { authHeader } from '../utils/auth';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -199,6 +201,7 @@ export default function RadiologyDashboard() {
 
   // Double-submit prevention
   const [submitting, setSubmitting] = useState<string | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   // Catalog CRUD state
   const [editType, setEditType] = useState<{ mode: 'add' | 'edit'; id?: number; name: string; code: string; description: string } | null>(null);
@@ -495,6 +498,7 @@ export default function RadiologyDashboard() {
 
   return (
     <DashboardLayout role="hospital_admin">
+      <HelpPanel pageKey="radiology" isOpen={helpOpen} onClose={() => setHelpOpen(false)} />
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -508,6 +512,7 @@ export default function RadiologyDashboard() {
             </div>
           </div>
           <div className="flex gap-2">
+            <HelpButton onClick={() => setHelpOpen(true)} />
             <button
               onClick={() => { loadStats(); if (tab === 'orders') loadRequisitions(); else if (tab === 'reports') loadReports(); else if (tab === 'pacs') loadPacsStudies(); }}
               className="p-2 rounded-lg border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-secondary)] transition-colors"
