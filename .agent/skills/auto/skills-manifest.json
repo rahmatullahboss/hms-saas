@@ -1,20 +1,20 @@
 {
   "project": {
     "enabled": true,
-    "lastGenerated": "2026-03-21T11:40:12.132Z",
-    "observationCount": 97,
+    "lastGenerated": "2026-03-21T12:09:49.393Z",
+    "observationCount": 157,
     "skillCount": 0,
     "domain": "project",
     "triggerGlobs": [
       "**/*"
     ],
-    "description": "Project for ozzyl-hms. 44 conventions, 5 fixes."
+    "description": "Project for ozzyl-hms. 48 conventions, 5 fixes."
   },
   "convention": {
     "enabled": true,
-    "lastGenerated": "2026-03-21T11:40:12.133Z",
+    "lastGenerated": "2026-03-21T12:09:49.393Z",
     "observationCount": 0,
-    "skillCount": 1,
+    "skillCount": 19,
     "domain": "convention",
     "triggerGlobs": [
       "**/*"
@@ -23,7 +23,7 @@
   },
   "typescript-react": {
     "enabled": true,
-    "lastGenerated": "2026-03-21T11:40:12.133Z",
+    "lastGenerated": "2026-03-21T12:09:49.393Z",
     "observationCount": 2,
     "skillCount": 0,
     "domain": "typescript-react",
@@ -34,7 +34,7 @@
   },
   "typescript": {
     "enabled": true,
-    "lastGenerated": "2026-03-21T11:40:12.133Z",
+    "lastGenerated": "2026-03-21T12:09:49.393Z",
     "observationCount": 5,
     "skillCount": 0,
     "domain": "typescript",
@@ -46,7 +46,7 @@
   },
   "config": {
     "enabled": true,
-    "lastGenerated": "2026-03-21T11:40:12.133Z",
+    "lastGenerated": "2026-03-21T12:09:49.393Z",
     "observationCount": 2,
     "skillCount": 0,
     "domain": "config",
@@ -57,5 +57,16 @@
       "**/*.toml"
     ],
     "description": "Config for ozzyl-hms. 1 conventions."
+  },
+  "how-it-works": {
+    "enabled": true,
+    "lastGenerated": "2026-03-21T12:09:49.393Z",
+    "observationCount": 0,
+    "skillCount": 2,
+    "domain": "how-it-works",
+    "triggerGlobs": [
+      "**/*"
+    ],
+    "description": "How It Works for ozzyl-hms. ."
   }
 }

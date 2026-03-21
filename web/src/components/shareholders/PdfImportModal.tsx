@@ -1,26 +1,23 @@
 /**
  * PDF Import Modal for Shareholder Data
- * 
- * Allows hospital admin to upload PDF forms and import shareholder data
- * Supports Bengali number parsing and multiple form formats
+ *
+ * Uses bundled pdfjs-dist (no CDN dependency) for text-based PDFs.
+ * Falls back to server-side Gemini OCR for scanned/image PDFs.
  */
 
 import { useState, useCallback, useRef } from 'react';
-import { Upload, FileText, Check, X, AlertTriangle, AlertCircle, Loader2, Download, Trash2 } from 'lucide-react';
+import { Upload, FileText, Check, X, AlertTriangle, AlertCircle, Loader2, Download, Trash2, ScanLine } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import * as pdfjsLib from 'pdfjs-dist';
 import { parseShareholderPDF, validateParsedShareholder, previewParsedData, ParsedShareholder } from '../../lib/shareholderPdfParser';
-import { useTranslation } from 'react-i18next';
 
-// PDF.js types
-declare global {
-  interface Window {
-    pdfjsLib: any;
-  }
-}
+// ── Point PDF.js worker to the bundled copy ──────────────────────────────────
+// Vite copies pdfjs-dist workers to /assets during build via explicit glob import
+import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-const PDFJS_LOAD_TIMEOUT = 15000; // 15 seconds
 
 interface PdfImportModalProps {
   isOpen: boolean;
@@ -36,129 +33,140 @@ interface ImportResult {
   name: string;
 }
 
+type Step = 'upload' | 'preview' | 'importing' | 'result';
+
 export default function PdfImportModal({ isOpen, onClose, onImportComplete }: PdfImportModalProps) {
-  const [step, setStep] = useState<'upload' | 'preview' | 'importing' | 'result'>('upload');
+  const [step, setStep] = useState<Step>('upload');
   const [file, setFile] = useState<File | null>(null);
   const [parsedData, setParsedData] = useState<ParsedShareholder[]>([]);
   const [previewRows, setPreviewRows] = useState<ReturnType<typeof previewParsedData>>([]);
   const [importResults, setImportResults] = useState<ImportResult[]>([]);
   const [skipDuplicates, setSkipDuplicates] = useState(true);
   const [importing, setImporting] = useState(false);
-  const [pdfText, setPdfText] = useState<string>('');
+  const [isScannedPdf, setIsScannedPdf] = useState(false);
+  const [ocrLoading, setOcrLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { t } = useTranslation(['accounting', 'common']);
 
-  const loadPdfJs = useCallback(async (): Promise<any> => {
-    if (window.pdfjsLib) return window.pdfjsLib;
-    
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error('PDF.js load timeout — check internet connection'));
-      }, PDFJS_LOAD_TIMEOUT);
-
-      const script = document.createElement('script');
-      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-      
-      script.onload = () => {
-        clearTimeout(timeout);
-        try {
-          window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-          resolve(window.pdfjsLib);
-        } catch (err) {
-          reject(new Error('PDF.js initialization failed'));
-        }
-      };
-      
-      script.onerror = () => {
-        clearTimeout(timeout);
-        reject(new Error('PDF.js download failed — check internet connection'));
-      };
-      
-      document.head.appendChild(script);
-    });
-  }, []);
-
-  const extractTextFromPdf = useCallback(async (file: File): Promise<{ text: string; pageCount: number }> => {
-    const pdfjsLib = await loadPdfJs();
-    const arrayBuffer = await file.arrayBuffer();
+  // ── Extract text from a digital (non-scanned) PDF ──────────────────────────
+  const extractTextFromPdf = useCallback(async (f: File): Promise<{ text: string; pageCount: number }> => {
+    const arrayBuffer = await f.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    
+
     let fullText = '';
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
       const textContent = await page.getTextContent();
-      const pageText = textContent.items.map((item: { str: string }) => item.str).join(' ');
+      const pageText = textContent.items
+        .map((item) => ('str' in item ? item.str : ''))
+        .join(' ');
       fullText += pageText + '\n\n';
     }
-    
+
     return { text: fullText, pageCount: pdf.numPages };
-  }, [loadPdfJs]);
+  }, []);
 
-  const handleFileSelect = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = event.target.files?.[0];
-    if (!selectedFile) return;
+  // ── Send scanned PDF to backend Gemini OCR ─────────────────────────────────
+  const handleOcrUpload = useCallback(async () => {
+    if (!file) return;
+    setOcrLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
 
+      const response = await axios.post<{ shareholders: ParsedShareholder[] }>(
+        '/api/shareholders/ocr-pdf',
+        formData,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+      );
+
+      const shareholders = response.data.shareholders;
+      if (shareholders.length === 0) {
+        toast.error('OCR দিয়েও কোনো ডাটা পাওয়া যায়নি');
+        return;
+      }
+
+      setParsedData(shareholders);
+      setPreviewRows(previewParsedData(shareholders));
+      setIsScannedPdf(false);
+      setStep('preview');
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'OCR ব্যর্থ হয়েছে। আবার চেষ্টা করুন।');
+    } finally {
+      setOcrLoading(false);
+    }
+  }, [file]);
+
+  // ── Handle file selection (click or drag-drop) ─────────────────────────────
+  const processFile = useCallback(async (selectedFile: File) => {
     if (!selectedFile.name.toLowerCase().endsWith('.pdf')) {
-      toast.error('শুধুমাত্র PDF ফাইল আপলোড করুন (Only PDF files are allowed)');
+      toast.error('শুধুমাত্র PDF ফাইল আপলোড করুন');
       return;
     }
-
-    // File size check
     if (selectedFile.size > MAX_FILE_SIZE) {
-      toast.error(`ফাইল সাইজ বেশি (Max ${MAX_FILE_SIZE / 1024 / 1024}MB)`);
+      toast.error(`ফাইল সাইজ বেশি (সর্বোচ্চ ${MAX_FILE_SIZE / 1024 / 1024}MB)`);
       return;
     }
-
     if (selectedFile.size === 0) {
-      toast.error('ফাইলটি খালি (Empty file)');
+      toast.error('ফাইলটি খালি');
       return;
     }
 
     setFile(selectedFile);
+    setIsScannedPdf(false);
     setImporting(true);
 
     try {
       const { text, pageCount } = await extractTextFromPdf(selectedFile);
-      setPdfText(text);
 
-      // Scanned PDF detection — no extractable text
+      // Scanned PDF — no extractable text
       if (!text || text.trim().length < 10) {
-        toast.error(`এই PDF এ ${pageCount}টি page আছে কিন্তু কোনো টেক্সট পাওয়া যায়নি। এটি সম্ভবত স্ক্যান করা PDF। OCR software ব্যবহার করুন।`);
-        setImporting(false);
+        toast(`এই PDF এ ${pageCount}টি page আছে কিন্তু text নেই। নিচের "AI দিয়ে পড়ুন" বাটন ব্যবহার করুন।`, {
+          icon: '📷',
+          duration: 6000,
+        });
+        setIsScannedPdf(true);
         return;
       }
 
-      // Parse the extracted text
       const shareholders = parseShareholderPDF(text);
-      setParsedData(shareholders);
-
       if (shareholders.length === 0) {
         toast.error('PDF থেকে কোনো শেয়ারহোল্ডার ডাটা পাওয়া যায়নি');
-        setImporting(false);
         return;
       }
 
-      // Generate preview
-      const preview = previewParsedData(shareholders);
-      setPreviewRows(preview);
-
+      setParsedData(shareholders);
+      setPreviewRows(previewParsedData(shareholders));
       setStep('preview');
     } catch (error) {
       console.error('PDF parsing error:', error);
-      toast.error(error instanceof Error ? error.message : 'PDF পড়তে সমস্যা হয়েছে (Error reading PDF)');
+      toast.error(error instanceof Error ? error.message : 'PDF পড়তে সমস্যা হয়েছে');
     } finally {
       setImporting(false);
     }
   }, [extractTextFromPdf]);
 
+  const handleFileInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (f) processFile(f);
+  }, [processFile]);
+
+  const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const f = e.dataTransfer.files?.[0];
+    if (f) processFile(f);
+  }, [processFile]);
+
+  const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+  }, []);
+
+  // ── Bulk import to backend ─────────────────────────────────────────────────
   const handleImport = useCallback(async () => {
     if (parsedData.length === 0) return;
-
     setStep('importing');
     setImporting(true);
 
     try {
-      // Prepare data for API
       const shareholdersToImport = parsedData.map(sh => ({
         name: sh.name,
         phone: sh.phone,
@@ -181,16 +189,13 @@ export default function PdfImportModal({ isOpen, onClose, onImportComplete }: Pd
       setImportResults(response.data.results);
       setStep('result');
 
-      const { imported, skipped, failed } = response.data.summary;
+      const { imported, failed } = response.data.summary;
       if (imported > 0) {
         toast.success(`${imported} জন শেয়ারহোল্ডার ইম্পোর্ট হয়েছে`);
         onImportComplete();
       }
-      if (failed > 0) {
-        toast.error(`${failed} জন ইম্পোর্ট হয়নি`);
-      }
+      if (failed > 0) toast.error(`${failed} জন ইম্পোর্ট হয়নি`);
     } catch (error: any) {
-      console.error('Import error:', error);
       toast.error(error.response?.data?.message || 'ইম্পোর্ট করতে সমস্যা হয়েছে');
       setStep('preview');
     } finally {
@@ -203,19 +208,13 @@ export default function PdfImportModal({ isOpen, onClose, onImportComplete }: Pd
     setParsedData([]);
     setPreviewRows([]);
     setImportResults([]);
-    setPdfText('');
+    setIsScannedPdf(false);
     setStep('upload');
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
   }, []);
 
   const handleDownloadSample = useCallback(() => {
-    // Create sample CSV for reference
-    const sampleData = `নাম,ফোন,NID,শেয়ার,টাইপ,ঠিকানা,নমিনী
-মোঃ সিদ্দীকুমার,01774777641,671685583367074,20,investor,"পূর্ববাসন, নারায়ণগঞ্জ",মোঃ সিদ্দীকুমার আব্দুল কাম
-মোঃ করিম উদ্দিন,01812345678,1234567890123,15,owner,"ঢাকা",মোঃ রহিম উদ্দিন`;
-
+    const sampleData = `নাম,ফোন,NID,শেয়ার,টাইপ,ঠিকানা,নমিনী\nমোঃ করিম উদ্দিন,01812345678,1234567890123,15,investor,ঢাকা,মোঃ রহিম উদ্দিন`;
     const blob = new Blob(['\ufeff' + sampleData], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -243,25 +242,64 @@ export default function PdfImportModal({ isOpen, onClose, onImportComplete }: Pd
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-5">
-          {/* Step: Upload */}
+
+          {/* ── Upload Step ── */}
           {step === 'upload' && (
             <div className="space-y-6">
-              {/* Upload Area */}
+              {/* Drop Zone */}
               <div
                 className="border-2 border-dashed border-[var(--color-border)] rounded-xl p-8 text-center hover:border-[var(--color-primary)] transition-colors cursor-pointer"
                 onClick={() => fileInputRef.current?.click()}
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
+                role="button"
+                tabIndex={0}
+                aria-label="PDF আপলোড করুন"
+                onKeyDown={e => e.key === 'Enter' && fileInputRef.current?.click()}
               >
                 <input
                   ref={fileInputRef}
                   type="file"
                   accept=".pdf"
-                  onChange={handleFileSelect}
+                  onChange={handleFileInputChange}
                   className="hidden"
                 />
                 {importing ? (
                   <div className="flex flex-col items-center gap-3">
                     <Loader2 className="w-12 h-12 text-[var(--color-primary)] animate-spin" />
                     <p className="text-[var(--color-text-muted)]">PDF পড়া হচ্ছে...</p>
+                  </div>
+                ) : isScannedPdf ? (
+                  /* Scanned PDF detected — show OCR option */
+                  <div className="flex flex-col items-center gap-4">
+                    <div className="w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                      <ScanLine className="w-8 h-8 text-amber-600 dark:text-amber-400" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-slate-700 dark:text-slate-200">{file?.name}</p>
+                      <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">
+                        স্ক্যান করা PDF — text extract করা সম্ভব হয়নি
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={e => { e.stopPropagation(); handleOcrUpload(); }}
+                      disabled={ocrLoading}
+                      className="btn-primary flex items-center gap-2 px-6"
+                    >
+                      {ocrLoading ? (
+                        <><Loader2 className="w-4 h-4 animate-spin" /> AI দিয়ে পড়া হচ্ছে...</>
+                      ) : (
+                        <><ScanLine className="w-4 h-4" /> AI দিয়ে পড়ুন (OCR)</>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={e => { e.stopPropagation(); handleReset(); }}
+                      className="text-sm text-[var(--color-text-muted)] hover:underline"
+                    >
+                      অন্য ফাইল বেছে নিন
+                    </button>
                   </div>
                 ) : (
                   <div className="flex flex-col items-center gap-3">
@@ -272,21 +310,19 @@ export default function PdfImportModal({ isOpen, onClose, onImportComplete }: Pd
                       <p className="font-medium">PDF ফাইল আপলোড করুন</p>
                       <p className="text-sm text-[var(--color-text-muted)]">অথবা এখানে ড্র্যাগ করুন</p>
                     </div>
-                    <p className="text-xs text-[var(--color-text-muted)]">সমর্থিত: শাহ নেছার হাসপাতাল শেয়ার ফরম</p>
+                    <p className="text-xs text-[var(--color-text-muted)]">সর্বোচ্চ ১০MB · শেয়ার ফরম সাপোর্টেড</p>
                   </div>
                 )}
               </div>
 
-              {/* Sample Format */}
+              {/* Info box */}
               <div className="bg-[var(--color-surface)] rounded-lg p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="font-medium flex items-center gap-2">
-                    <FileText className="w-4 h-4" />
-                    সাপোর্টেড ফরম্যাট
+                    <FileText className="w-4 h-4" /> সাপোর্টেড ফরম্যাট
                   </h4>
                   <button onClick={handleDownloadSample} className="text-sm text-[var(--color-primary)] hover:underline flex items-center gap-1">
-                    <Download className="w-4 h-4" />
-                    Sample CSV
+                    <Download className="w-4 h-4" /> Sample CSV
                   </button>
                 </div>
                 <div className="grid grid-cols-2 gap-4 text-sm">
@@ -294,19 +330,17 @@ export default function PdfImportModal({ isOpen, onClose, onImportComplete }: Pd
                     <p className="font-medium mb-1">✅ পড়তে পারে:</p>
                     <ul className="list-disc list-inside text-[var(--color-text-muted)] space-y-1">
                       <li>অংশীদারকারীর নাম (বাংলা/ইংরেজি)</li>
-                      <li>মোবাইল নম্বর</li>
-                      <li>জাতীয় পরিচয় পত্র (NID)</li>
+                      <li>মোবাইল নম্বর ও NID</li>
                       <li>শেয়ার সংখ্যা ও মূল্য</li>
-                      <li>ঠিকানা</li>
-                      <li>নমিনীর তথ্য</li>
+                      <li>ঠিকানা ও নমিনীর তথ্য</li>
                     </ul>
                   </div>
                   <div>
-                    <p className="font-medium mb-1">⚠️ সতর্কতা:</p>
+                    <p className="font-medium mb-1">📷 স্ক্যান করা PDF:</p>
                     <ul className="list-disc list-inside text-[var(--color-text-muted)] space-y-1">
-                      <li>PDF স্ক্যান করা হলে OCR প্রয়োজন</li>
-                      <li>সুস্পষ্ট টেক্সট থাকতে হবে</li>
-                      <li>একাধিক ফরম একসাথে আপলোড করা যায়</li>
+                      <li>স্বয়ংক্রিয়ভাবে ধরা পড়বে</li>
+                      <li>AI OCR দিয়ে পড়া যাবে</li>
+                      <li>বাংলা text সাপোর্টেড</li>
                     </ul>
                   </div>
                 </div>
@@ -314,18 +348,15 @@ export default function PdfImportModal({ isOpen, onClose, onImportComplete }: Pd
             </div>
           )}
 
-          {/* Step: Preview */}
+          {/* ── Preview Step ── */}
           {step === 'preview' && (
             <div className="space-y-4">
-              {/* File Info */}
               <div className="flex items-center justify-between bg-[var(--color-surface)] rounded-lg p-3">
                 <div className="flex items-center gap-3">
                   <FileText className="w-8 h-8 text-red-500" />
                   <div>
                     <p className="font-medium">{file?.name}</p>
-                    <p className="text-sm text-[var(--color-text-muted)]">
-                      {parsedData.length} জন শেয়ারহোল্ডার পাওয়া গেছে
-                    </p>
+                    <p className="text-sm text-[var(--color-text-muted)]">{parsedData.length} জন শেয়ারহোল্ডার পাওয়া গেছে</p>
                   </div>
                 </div>
                 <button onClick={handleReset} className="btn-ghost text-sm">
@@ -333,20 +364,16 @@ export default function PdfImportModal({ isOpen, onClose, onImportComplete }: Pd
                 </button>
               </div>
 
-              {/* Options */}
-              <div className="flex items-center gap-4">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={skipDuplicates}
-                    onChange={(e) => setSkipDuplicates(e.target.checked)}
-                    className="checkbox"
-                  />
-                  <span className="text-sm">ডুপ্লিকেট বাদ দিন (NID/ফোন মিলে গেলে)</span>
-                </label>
-              </div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={skipDuplicates}
+                  onChange={e => setSkipDuplicates(e.target.checked)}
+                  className="checkbox"
+                />
+                <span className="text-sm">ডুপ্লিকেট বাদ দিন (NID/ফোন মিলে গেলে)</span>
+              </label>
 
-              {/* Preview Table */}
               <div className="overflow-x-auto border border-[var(--color-border)] rounded-lg">
                 <table className="table-base text-sm">
                   <thead>
@@ -363,13 +390,9 @@ export default function PdfImportModal({ isOpen, onClose, onImportComplete }: Pd
                   </thead>
                   <tbody>
                     {previewRows.length === 0 ? (
-                      <tr>
-                        <td colSpan={8} className="text-center py-8 text-[var(--color-text-muted)]">
-                          কোনো ডাটা পাওয়া যায়নি
-                        </td>
-                      </tr>
+                      <tr><td colSpan={8} className="text-center py-8 text-[var(--color-text-muted)]">কোনো ডাটা পাওয়া যায়নি</td></tr>
                     ) : (
-                      previewRows.map((row) => (
+                      previewRows.map(row => (
                         <tr key={row.row} className={row.status === 'error' ? 'bg-red-50 dark:bg-red-900/20' : row.status === 'warning' ? 'bg-amber-50 dark:bg-amber-900/20' : ''}>
                           <td className="text-center text-[var(--color-text-muted)]">{row.row}</td>
                           <td className="font-medium">{row.name}</td>
@@ -390,29 +413,19 @@ export default function PdfImportModal({ isOpen, onClose, onImportComplete }: Pd
                 </table>
               </div>
 
-              {/* Summary */}
               <div className="grid grid-cols-3 gap-4">
-                <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg text-center">
-                  <p className="text-2xl font-bold text-emerald-600">
-                    {previewRows.filter(r => r.status === 'valid').length}
-                  </p>
-                  <p className="text-sm text-[var(--color-text-muted)]">সফল</p>
-                </div>
-                <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg text-center">
-                  <p className="text-2xl font-bold text-amber-600">
-                    {previewRows.filter(r => r.status === 'warning').length}
-                  </p>
-                  <p className="text-sm text-[var(--color-text-muted)]">সতর্কতা</p>
-                </div>
-                <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg text-center">
-                  <p className="text-2xl font-bold text-red-600">
-                    {previewRows.filter(r => r.status === 'error').length}
-                  </p>
-                  <p className="text-sm text-[var(--color-text-muted)]">ত্রুটি</p>
-                </div>
+                {[
+                  { count: previewRows.filter(r => r.status === 'valid').length, label: 'সফল', color: 'emerald' },
+                  { count: previewRows.filter(r => r.status === 'warning').length, label: 'সতর্কতা', color: 'amber' },
+                  { count: previewRows.filter(r => r.status === 'error').length, label: 'ত্রুটি', color: 'red' },
+                ].map(({ count, label, color }) => (
+                  <div key={label} className={`p-3 bg-${color}-50 dark:bg-${color}-900/20 rounded-lg text-center`}>
+                    <p className={`text-2xl font-bold text-${color}-600`}>{count}</p>
+                    <p className="text-sm text-[var(--color-text-muted)]">{label}</p>
+                  </div>
+                ))}
               </div>
 
-              {/* Warnings */}
               {previewRows.some(r => r.messages.length > 0) && (
                 <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4">
                   <p className="font-medium text-amber-700 dark:text-amber-300 mb-2">সতর্কতা:</p>
@@ -429,7 +442,7 @@ export default function PdfImportModal({ isOpen, onClose, onImportComplete }: Pd
             </div>
           )}
 
-          {/* Step: Importing */}
+          {/* ── Importing Step ── */}
           {step === 'importing' && (
             <div className="flex flex-col items-center justify-center py-12">
               <Loader2 className="w-16 h-16 text-[var(--color-primary)] animate-spin mb-4" />
@@ -438,32 +451,22 @@ export default function PdfImportModal({ isOpen, onClose, onImportComplete }: Pd
             </div>
           )}
 
-          {/* Step: Result */}
+          {/* ── Result Step ── */}
           {step === 'result' && (
             <div className="space-y-4">
-              {/* Summary */}
               <div className="grid grid-cols-3 gap-4">
-                <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg text-center">
-                  <p className="text-3xl font-bold text-emerald-600">
-                    {importResults.filter(r => r.status === 'imported').length}
-                  </p>
-                  <p className="text-sm text-[var(--color-text-muted)]">ইম্পোর্ট হয়েছে</p>
-                </div>
-                <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg text-center">
-                  <p className="text-3xl font-bold text-amber-600">
-                    {importResults.filter(r => r.status === 'skipped').length}
-                  </p>
-                  <p className="text-sm text-[var(--color-text-muted)]">বাদ পড়েছে</p>
-                </div>
-                <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg text-center">
-                  <p className="text-3xl font-bold text-red-600">
-                    {importResults.filter(r => r.status === 'failed').length}
-                  </p>
-                  <p className="text-sm text-[var(--color-text-muted)]">ব্যর্থ</p>
-                </div>
+                {[
+                  { count: importResults.filter(r => r.status === 'imported').length, label: 'ইম্পোর্ট হয়েছে', color: 'emerald' },
+                  { count: importResults.filter(r => r.status === 'skipped').length, label: 'বাদ পড়েছে', color: 'amber' },
+                  { count: importResults.filter(r => r.status === 'failed').length, label: 'ব্যর্থ', color: 'red' },
+                ].map(({ count, label, color }) => (
+                  <div key={label} className={`p-4 bg-${color}-50 dark:bg-${color}-900/20 rounded-lg text-center`}>
+                    <p className={`text-3xl font-bold text-${color}-600`}>{count}</p>
+                    <p className="text-sm text-[var(--color-text-muted)]">{label}</p>
+                  </div>
+                ))}
               </div>
 
-              {/* Results Table */}
               <div className="overflow-x-auto border border-[var(--color-border)] rounded-lg max-h-[300px]">
                 <table className="table-base text-sm">
                   <thead className="sticky top-0 bg-[var(--color-surface)]">
@@ -475,30 +478,17 @@ export default function PdfImportModal({ isOpen, onClose, onImportComplete }: Pd
                     </tr>
                   </thead>
                   <tbody>
-                    {importResults.map((result) => (
+                    {importResults.map(result => (
                       <tr key={result.row} className={
-                        result.status === 'imported' ? '' :
                         result.status === 'skipped' ? 'bg-amber-50 dark:bg-amber-900/20' :
-                        'bg-red-50 dark:bg-red-900/20'
+                        result.status === 'failed'  ? 'bg-red-50 dark:bg-red-900/20' : ''
                       }>
                         <td className="text-center text-[var(--color-text-muted)]">{result.row}</td>
                         <td className="font-medium">{result.name}</td>
                         <td>
-                          {result.status === 'imported' && (
-                            <span className="badge badge-success flex items-center gap-1 w-fit">
-                              <Check className="w-3 h-3" /> সফল
-                            </span>
-                          )}
-                          {result.status === 'skipped' && (
-                            <span className="badge badge-warning flex items-center gap-1 w-fit">
-                              <AlertTriangle className="w-3 h-3" /> বাদ
-                            </span>
-                          )}
-                          {result.status === 'failed' && (
-                            <span className="badge badge-error flex items-center gap-1 w-fit">
-                              <AlertCircle className="w-3 h-3" /> ব্যর্থ
-                            </span>
-                          )}
+                          {result.status === 'imported' && <span className="badge badge-success flex items-center gap-1 w-fit"><Check className="w-3 h-3" /> সফল</span>}
+                          {result.status === 'skipped'  && <span className="badge badge-warning flex items-center gap-1 w-fit"><AlertTriangle className="w-3 h-3" /> বাদ</span>}
+                          {result.status === 'failed'   && <span className="badge badge-error flex items-center gap-1 w-fit"><AlertCircle className="w-3 h-3" /> ব্যর্থ</span>}
                         </td>
                         <td className="text-sm text-[var(--color-text-muted)]">{result.message}</td>
                       </tr>

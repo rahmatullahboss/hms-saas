@@ -41,6 +41,7 @@ export interface Env {
   // ─── AI (OpenRouter) ──────────────────────────────────────────────
   OPENROUTER_API_KEY?: string;    // wrangler secret put OPENROUTER_API_KEY
   AI_MODEL?: string;              // optional override, default: openrouter/healer-alpha
+  GEMINI_API_KEY?: string;        // wrangler secret put GEMINI_API_KEY (used for OCR)
   // ─── AI Memory (Vectorize + Workers AI) ───────────────────────────
   VECTORIZE?: Vectorize;          // wrangler.toml [[vectorize]] binding
   AI?: Ai;                        // wrangler.toml [ai] binding — Workers AI for embeddings

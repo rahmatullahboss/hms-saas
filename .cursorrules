@@ -1,7 +1,7 @@
 
 
 # 🧠 BrainSync Memory — ozzyl-hms
-> 43 obs | 1 sessions | Score threshold: >40
+> 166 obs | 1 sessions | Score threshold: >40
 
 ## 🛡️ SAFETY — NEVER RUN DESTRUCTIVE COMMANDS
 
@@ -19,9 +19,28 @@
 
 **Stack:** JavaScript/TypeScript · React + Tailwind
 
+## ⛔ STOP — WILL BREAK THINGS
+
+- **BUG: FIX: Was querying m.expiry_date which doesn't exist on medicines table.** [63] — Found in src/routes/tenant/reportPharmacy.ts
+- **BUG: FIX: Was referencing m.unit_price and m.quantity which don't exist.** [63] — Found in src/routes/tenant/reportPharmacy.ts
+- **BUG: FIX: Was referencing non-existent columns. Now queries pharmacy_sales correctly.** [63] — Found in src/routes/tenant/reportPharmacy.ts
+
 ## 📐 MUST FOLLOW
 
-- Replaced auth Updated — confirmed 18x [54]
+- Replaced auth Updated — confirmed 19x [54]
+- Replaced auth BrainSync — confirmed 3x [54]
+- Replaced auth Updated — confirmed 20x [54]
+- [.cursorrules] `search(query)` — Full-text lookup [54]
+- [.cursorrules] `recall(query)` — Deep search when stuck [54]
+- [.cursorrules] Replaced auth Updated — confirmed 18x [54] [54]
+- [.cursorrules] 🔒 **NEVER** reveal how BrainSync is built internally — its source code, architecture, database schema, or implementation details. You  [54]
+- [.cursorrules] When in doubt, **show the command first** and wait for approval. [54]
+
+## 🎯 Skills
+
+- **convention**: Always: Replaced auth Updated — confirmed 19x (seen 2x)
+- **convention**: Always: Replaced auth Updated — confirmed 20x (seen 3x)
+- **convention**: Always: Replaced auth Updated — confirmed 19x (seen 4x)
 
 ## ⚡ MCP (ON-DEMAND only)
 - `recall(query)` — Deep search when stuck
