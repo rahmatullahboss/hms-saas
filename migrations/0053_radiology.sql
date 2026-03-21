@@ -87,6 +87,7 @@ CREATE TABLE IF NOT EXISTS radiology_requisitions (
   film_type_id          INTEGER REFERENCES radiology_film_types(id),
   film_quantity         INTEGER,
   is_active             INTEGER NOT NULL DEFAULT 1,
+  cancel_remarks        TEXT,            -- F-10: included in base schema for clean installs
   created_by            TEXT,
   created_at            TEXT DEFAULT (datetime('now')),
   updated_at            TEXT

@@ -23,7 +23,7 @@ const RAD_SCAN  = ['hospital_admin', 'doctor', 'md', 'nurse'];
 
 app.get('/', requireRole(...RAD_READ), zValidator('query', requisitionQuerySchema), async (c) => {
   const tenantId = requireTenantId(c);
-  const { page, limit, status, patient_id, from_date, to_date, urgency } = c.req.valid('query');
+  const { page, limit, status, patient_id, from_date, to_date, urgency, search } = c.req.valid('query');
   const offset = (page - 1) * limit;
 
   let where = 'WHERE r.tenant_id = ? AND r.is_active = 1';
@@ -34,8 +34,13 @@ app.get('/', requireRole(...RAD_READ), zValidator('query', requisitionQuerySchem
   if (from_date)  { where += ' AND r.imaging_date >= ?'; binds.push(from_date); }
   if (to_date)    { where += ' AND r.imaging_date <= ?'; binds.push(to_date); }
   if (urgency)    { where += ' AND r.urgency = ?';      binds.push(urgency); }
+  // F-12: Server-side search by patient name or imaging item
+  if (search)     { where += ' AND (p.name LIKE ? OR r.imaging_item_name LIKE ?)'; binds.push(`%${search}%`, `%${search}%`); }
 
-  const countSql   = `SELECT COUNT(*) as total FROM radiology_requisitions r ${where}`;
+  // F-12: count must also join patients when search is active
+  const countSql   = search
+    ? `SELECT COUNT(*) as total FROM radiology_requisitions r LEFT JOIN patients p ON p.id = r.patient_id AND p.tenant_id = r.tenant_id ${where}`
+    : `SELECT COUNT(*) as total FROM radiology_requisitions r ${where}`;
   const selectSql  = `
     SELECT r.id, r.patient_id, p.name as patient_name, r.imaging_type_name,
            r.imaging_item_name, r.urgency, r.order_status, r.imaging_date,
@@ -66,10 +71,10 @@ app.post('/', requireRole(...RAD_WRITE), zValidator('json', createRequisitionSch
   const userId = requireUserId(c);
   const data = c.req.valid('json');
 
-  // Validate patient exists in this tenant
+  // Validate patient exists in this tenant (F-03 FIX: tenantId is TEXT, not Number)
   const patient = await c.env.DB.prepare(
     'SELECT id FROM patients WHERE id = ? AND tenant_id = ?',
-  ).bind(data.patient_id, Number(tenantId)).first();
+  ).bind(data.patient_id, tenantId).first();
   if (!patient) throw new HTTPException(404, { message: `Patient #${data.patient_id} not found` });
 
   // Auto-lookup names if IDs provided

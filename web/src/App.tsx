@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import ImpersonationBanner from './components/ImpersonationBanner';
 import DashboardLayout from './components/DashboardLayout';
 import Login from './pages/Login';
+import AdminLogin from './pages/AdminLogin';
 import HospitalSignup from './pages/HospitalSignup';
 import AcceptInvite from './pages/AcceptInvite';
 import InviteStaff from './pages/InviteStaff';
@@ -172,6 +173,11 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<HospitalSignup />} />
         <Route path="/unauthorized" element={<Unauthorized />} />
+
+        {/* ─── Admin portal shortcut ────────────────────────────────── */}
+        <Route path="/admin" element={<Navigate to="/admin/login" replace />} />
+        <Route path="/admin/login" element={<AdminLogin />} />
+        <Route path="/admin/dashboard" element={<Navigate to="/super-admin/dashboard" replace />} />
 
         {/* ─── Super Admin Dashboard ───────────────────────────── */}
         <Route element={<ProtectedRoute allowedRoles={['super_admin']} />}>

@@ -24,6 +24,9 @@ const RAD_WRITE = ['hospital_admin', 'doctor', 'md'];
 // MASTER DATA (seed clone helper)  F-09: in-process cache
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// F-02: In-memory cache for seed clone status. This is a performance-only optimization;
+// correctness is guaranteed by the DB check in ensureSeedCloned(). Cache may be cleared
+// on Worker eviction (Cloudflare isolate restart), which is harmless — just re-checks DB.
 const seedClonedTenants = new Set<string>();
 
 async function ensureSeedCloned(
@@ -293,20 +296,23 @@ app.post('/film-types', requireRole(...RAD_WRITE), zValidator('json', createFilm
 app.get('/stats', requireRole(...RAD_READ), async (c) => {
   const tenantId = requireTenantId(c);
 
-  const [pending, scanned, reported, cancelled, urgent] = await Promise.all([
-    c.env.DB.prepare(`SELECT COUNT(*) as cnt FROM radiology_requisitions WHERE tenant_id = ? AND order_status = 'pending' AND is_active = 1`).bind(tenantId).first<{ cnt: number }>(),
-    c.env.DB.prepare(`SELECT COUNT(*) as cnt FROM radiology_requisitions WHERE tenant_id = ? AND order_status = 'scanned' AND is_active = 1`).bind(tenantId).first<{ cnt: number }>(),
-    c.env.DB.prepare(`SELECT COUNT(*) as cnt FROM radiology_requisitions WHERE tenant_id = ? AND order_status = 'reported' AND is_active = 1`).bind(tenantId).first<{ cnt: number }>(),
-    c.env.DB.prepare(`SELECT COUNT(*) as cnt FROM radiology_requisitions WHERE tenant_id = ? AND order_status = 'cancelled' AND is_active = 1`).bind(tenantId).first<{ cnt: number }>(),
-    c.env.DB.prepare(`SELECT COUNT(*) as cnt FROM radiology_requisitions WHERE tenant_id = ? AND urgency = 'stat' AND order_status = 'pending' AND is_active = 1`).bind(tenantId).first<{ cnt: number }>(),
+  // F-06 FIX: Single D1 batch instead of 5 parallel queries
+  const results = await c.env.DB.batch([
+    c.env.DB.prepare(`SELECT COUNT(*) as cnt FROM radiology_requisitions WHERE tenant_id = ? AND order_status = 'pending' AND is_active = 1`).bind(tenantId),
+    c.env.DB.prepare(`SELECT COUNT(*) as cnt FROM radiology_requisitions WHERE tenant_id = ? AND order_status = 'scanned' AND is_active = 1`).bind(tenantId),
+    c.env.DB.prepare(`SELECT COUNT(*) as cnt FROM radiology_requisitions WHERE tenant_id = ? AND order_status = 'reported' AND is_active = 1`).bind(tenantId),
+    c.env.DB.prepare(`SELECT COUNT(*) as cnt FROM radiology_requisitions WHERE tenant_id = ? AND order_status = 'cancelled' AND is_active = 1`).bind(tenantId),
+    c.env.DB.prepare(`SELECT COUNT(*) as cnt FROM radiology_requisitions WHERE tenant_id = ? AND urgency = 'stat' AND order_status = 'pending' AND is_active = 1`).bind(tenantId),
   ]);
 
+  const get = (i: number) => (results[i].results?.[0] as { cnt: number } | undefined)?.cnt ?? 0;
+
   return c.json({
-    pending: pending?.cnt ?? 0,
-    scanned: scanned?.cnt ?? 0,
-    reported: reported?.cnt ?? 0,
-    cancelled: cancelled?.cnt ?? 0,
-    stat_pending: urgent?.cnt ?? 0,
+    pending: get(0),
+    scanned: get(1),
+    reported: get(2),
+    cancelled: get(3),
+    stat_pending: get(4),
   });
 });
 

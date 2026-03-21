@@ -25,7 +25,8 @@ export const createImagingItemSchema = z.object({
   is_valid_reporting: z.boolean().optional().default(true),
 });
 
-export const updateImagingItemSchema = createImagingItemSchema.partial();
+// F-04 FIX: Omit imaging_type_id from update — can't change FK after creation
+export const updateImagingItemSchema = createImagingItemSchema.partial().omit({ imaging_type_id: true });
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Report Template
@@ -34,7 +35,8 @@ export const updateImagingItemSchema = createImagingItemSchema.partial();
 export const createReportTemplateSchema = z.object({
   name: z.string().min(1).max(200),
   code: z.string().max(50).optional(),
-  template_html: z.string().optional(),
+  // F-08 FIX: Strip <script> tags from template HTML to prevent stored XSS
+  template_html: z.string().transform(v => v.replace(/<script[\s\S]*?<\/script>/gi, '')).optional(),
   footer_note: z.string().max(500).optional(),
 });
 
@@ -96,6 +98,8 @@ export const requisitionQuerySchema = z.object({
   from_date: z.string().optional(),
   to_date: z.string().optional(),
   urgency: z.enum(['normal', 'urgent', 'stat']).optional(),
+  // F-12: Server-side search support
+  search: z.string().max(200).optional(),
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════

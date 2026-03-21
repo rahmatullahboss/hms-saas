@@ -104,8 +104,9 @@ app.post('/', requireRole(...RAD_SCAN), zValidator('json', createDicomStudySchem
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     if (msg.includes('UNIQUE') || msg.includes('unique')) {
+      // F-09 FIX: Check with tenant_id scoping
       const existing = await c.env.DB.prepare(
-        'SELECT id FROM radiology_dicom_studies WHERE study_instance_uid = ? AND tenant_id = ?',
+        'SELECT id FROM radiology_dicom_studies WHERE study_instance_uid = ? AND tenant_id = ? AND is_active = 1',
       ).bind(data.study_instance_uid, tenantId).first<{ id: number }>();
       return c.json({ id: existing?.id, message: 'Study already registered' }, 200);
     }
@@ -133,16 +134,34 @@ app.delete('/:id', requireRole(...RAD_SCAN), async (c) => {
 // GET R2 UPLOAD URL  (F-05: validated with Zod)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-app.post('/upload-url', requireRole(...RAD_SCAN), zValidator('json', uploadUrlSchema), async (c) => {
-  const body = c.req.valid('json');
-  const fileName = body.file_name ?? `dicom-${crypto.randomUUID()}.dcm`;
-  const key = `dicom/${requireTenantId(c)}/${crypto.randomUUID()}/${fileName}`;
+// F-05 FIX: Actual R2 upload endpoint for DICOM files
+app.put('/upload/:key{.+}', requireRole(...RAD_SCAN), async (c) => {
+  const tenantId = requireTenantId(c);
+  const key = c.req.param('key');
 
-  return c.json({
-    key,
-    message: 'Use this key to upload to R2 via PUT /api/radiology/upload/:key',
-    content_type: body.content_type ?? 'application/dicom',
+  // Security: ensure key belongs to this tenant
+  const expectedPrefix = `dicom/${tenantId}/`;
+  if (!key.startsWith(expectedPrefix)) {
+    throw new HTTPException(403, { message: 'Upload key does not match tenant' });
+  }
+
+  const body = await c.req.arrayBuffer();
+  if (!body || body.byteLength === 0) {
+    throw new HTTPException(400, { message: 'Empty file body' });
+  }
+
+  // Max 50MB for DICOM files
+  if (body.byteLength > 50 * 1024 * 1024) {
+    throw new HTTPException(413, { message: 'File too large (max 50MB)' });
+  }
+
+  const contentType = c.req.header('content-type') ?? 'application/dicom';
+  await c.env.UPLOADS.put(key, body, {
+    httpMetadata: { contentType },
+    customMetadata: { tenant_id: tenantId, uploaded_at: new Date().toISOString() },
   });
+
+  return c.json({ success: true, key, size: body.byteLength });
 });
 
 export default app;

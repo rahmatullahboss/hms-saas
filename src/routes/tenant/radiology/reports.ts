@@ -72,60 +72,74 @@ app.post('/', requireRole(...RAD_REPORT), zValidator('json', createReportSchema)
   if (req.is_report_saved) throw new HTTPException(409, { message: 'Report already exists for this requisition' });
   if (req.order_status === 'cancelled') throw new HTTPException(400, { message: 'Cannot report a cancelled requisition' });
 
-  // F-01: Generate unique radiology number with retry on collision
+  // F-01 FIX: Generate radiology number with retry on UNIQUE collision
   const today = new Date().toISOString().split('T')[0].replace(/-/g, '');
   let radNumber = data.radiology_number;
+  const MAX_RETRIES = 3;
 
-  if (!radNumber) {
-    const countRow = await c.env.DB.prepare(
-      `SELECT COUNT(*) as cnt FROM radiology_reports WHERE tenant_id = ? AND radiology_number LIKE ?`,
-    ).bind(tenantId, `RAD-${today}%`).first<{ cnt: number }>();
-    const seq = (countRow?.cnt ?? 0) + 1;
-    radNumber = `RAD-${today}-${String(seq).padStart(3, '0')}`;
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    if (!radNumber) {
+      const countRow = await c.env.DB.prepare(
+        `SELECT COUNT(*) as cnt FROM radiology_reports WHERE tenant_id = ? AND radiology_number LIKE ?`,
+      ).bind(tenantId, `RAD-${today}%`).first<{ cnt: number }>();
+      const seq = (countRow?.cnt ?? 0) + attempt; // offset by attempt number on retry
+      radNumber = `RAD-${today}-${String(seq).padStart(3, '0')}`;
+    }
+
+    const insertStmt = c.env.DB.prepare(`
+      INSERT INTO radiology_reports
+      (tenant_id, requisition_id, patient_id, visit_id,
+       imaging_type_id, imaging_type_name, imaging_item_id, imaging_item_name,
+       prescriber_id, prescriber_name, performer_id, performer_name,
+       template_id, report_text, indication, radiology_number,
+       image_key, patient_study_id, signatories, order_status, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      tenantId,
+      data.requisition_id,
+      data.patient_id,
+      data.visit_id           ?? null,
+      data.imaging_type_id    ?? null,
+      data.imaging_type_name  ?? null,
+      data.imaging_item_id    ?? null,
+      data.imaging_item_name  ?? null,
+      data.prescriber_id      ?? null,
+      data.prescriber_name    ?? null,
+      data.performer_id       ?? null,
+      data.performer_name     ?? null,
+      data.template_id        ?? null,
+      data.report_text        ?? null,
+      data.indication         ?? null,
+      radNumber,
+      data.image_key          ?? null,
+      data.patient_study_id   ?? null,
+      data.signatories        ?? null,
+      data.order_status       ?? 'pending',
+      userId,
+    );
+
+    const updateReqStmt = c.env.DB.prepare(
+      `UPDATE radiology_requisitions SET is_report_saved = 1, order_status = 'reported', updated_at = datetime('now') WHERE id = ? AND tenant_id = ?`,
+    ).bind(data.requisition_id, tenantId);
+
+    try {
+      // Atomic batch — both succeed or both fail
+      const results = await c.env.DB.batch([insertStmt, updateReqStmt]);
+      const reportId = results[0].meta.last_row_id;
+      return c.json({ id: reportId, radiology_number: radNumber, message: 'Report created' }, 201);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      // Retry on UNIQUE constraint violation (race condition on radiology_number)
+      if ((msg.includes('UNIQUE') || msg.includes('unique')) && attempt < MAX_RETRIES) {
+        radNumber = null as unknown as string; // force re-generation on next attempt
+        continue;
+      }
+      throw err;
+    }
   }
 
-  // F-02: Use D1 batch for atomic report INSERT + requisition UPDATE
-  const insertStmt = c.env.DB.prepare(`
-    INSERT INTO radiology_reports
-    (tenant_id, requisition_id, patient_id, visit_id,
-     imaging_type_id, imaging_type_name, imaging_item_id, imaging_item_name,
-     prescriber_id, prescriber_name, performer_id, performer_name,
-     template_id, report_text, indication, radiology_number,
-     image_key, patient_study_id, signatories, order_status, created_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).bind(
-    tenantId,
-    data.requisition_id,
-    data.patient_id,
-    data.visit_id           ?? null,
-    data.imaging_type_id    ?? null,
-    data.imaging_type_name  ?? null,
-    data.imaging_item_id    ?? null,
-    data.imaging_item_name  ?? null,
-    data.prescriber_id      ?? null,
-    data.prescriber_name    ?? null,
-    data.performer_id       ?? null,
-    data.performer_name     ?? null,
-    data.template_id        ?? null,
-    data.report_text        ?? null,
-    data.indication         ?? null,
-    radNumber,
-    data.image_key          ?? null,
-    data.patient_study_id   ?? null,
-    data.signatories        ?? null,
-    data.order_status       ?? 'pending',
-    userId,
-  );
-
-  const updateReqStmt = c.env.DB.prepare(
-    `UPDATE radiology_requisitions SET is_report_saved = 1, order_status = 'reported', updated_at = datetime('now') WHERE id = ? AND tenant_id = ?`,
-  ).bind(data.requisition_id, tenantId);
-
-  // Atomic batch — both succeed or both fail
-  const results = await c.env.DB.batch([insertStmt, updateReqStmt]);
-  const reportId = results[0].meta.last_row_id;
-
-  return c.json({ id: reportId, radiology_number: radNumber, message: 'Report created' }, 201);
+  // Should never reach here, but satisfy TypeScript
+  throw new HTTPException(500, { message: 'Failed to generate unique radiology number after retries' });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════

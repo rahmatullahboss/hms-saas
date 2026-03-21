@@ -163,6 +163,9 @@ export default function RadiologyDashboard() {
   const [patients, setPatients]         = useState<Patient[]>([]);
   const [pacsStudies, setPacsStudies]   = useState<DicomStudy[]>([]);
   const [pacsTotal, setPacsTotal]       = useState(0);
+  // F-07: Reports pagination state
+  const [repPage, setRepPage]           = useState(1);
+  const [repTotal, setRepTotal]         = useState(0);
 
   // Loading/error per section
   const [loadingOrders,  setLoadingOrders]  = useState(false);
@@ -180,6 +183,10 @@ export default function RadiologyDashboard() {
   const [modalityFilter, setModalityFilter] = useState('');
   const [reqPage,  setReqPage]  = useState(1);
   const [reqTotal, setReqTotal] = useState(0);
+  // F-11: Debounce ref for search
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>();
+  // F-12: Server-side search query (debounced)
+  const [debouncedSearch, setDebouncedSearch] = useState('');
 
   // Modals
   const [showNewOrder,   setShowNewOrder]   = useState(false);
@@ -228,6 +235,8 @@ export default function RadiologyDashboard() {
       if (statusFilter) params.status = statusFilter;
       if (fromDate)     params.from_date = fromDate;
       if (toDate)       params.to_date = toDate;
+      // F-12: Use server-side search
+      if (debouncedSearch) params.search = debouncedSearch;
       const { data } = await axios.get('/api/radiology/requisitions', { headers: authHeader(), params });
       setRequisitions(data.requisitions ?? []);
       setReqTotal(data.meta?.total ?? 0);
@@ -236,20 +245,23 @@ export default function RadiologyDashboard() {
     } finally {
       setLoadingOrders(false);
     }
-  }, [statusFilter, fromDate, toDate, reqPage]);
+  }, [statusFilter, fromDate, toDate, reqPage, debouncedSearch]);
 
   const loadReports = useCallback(async () => {
     setLoadingReports(true);
     setErrReports(false);
     try {
-      const { data } = await axios.get('/api/radiology/reports', { headers: authHeader(), params: { limit: '50' } });
+      // F-07 FIX: Add pagination support for reports
+      const params: Record<string, string> = { page: String(repPage), limit: '20' };
+      const { data } = await axios.get('/api/radiology/reports', { headers: authHeader(), params });
       setReports(data.reports ?? []);
+      setRepTotal(data.meta?.total ?? 0);
     } catch {
       setErrReports(true);
     } finally {
       setLoadingReports(false);
     }
-  }, []);
+  }, [repPage]);
 
   const loadCatalog = useCallback(async () => {
     try {
@@ -286,6 +298,16 @@ export default function RadiologyDashboard() {
       const { data } = await axios.get('/api/patients', { headers: authHeader(), params: { search: q, limit: 10 } });
       setPatients(data.patients ?? data.data ?? []);
     } catch { /* silent */ }
+  }, []);
+
+  // F-11 FIX: Debounce search input — sends to server after 300ms idle
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchQuery(value);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      setDebouncedSearch(value);
+      setReqPage(1);
+    }, 300);
   }, []);
 
   useEffect(() => { loadStats(); loadCatalog(); }, []);
@@ -404,11 +426,8 @@ export default function RadiologyDashboard() {
     finally { setSubmitting(null); }
   };
 
-  const filteredReqs = requisitions.filter(r =>
-    !searchQuery ||
-    r.patient_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    r.imaging_item_name?.toLowerCase().includes(searchQuery.toLowerCase()),
-  );
+  // F-12: Client-side filtering removed — search is now server-side via debouncedSearch
+  const filteredReqs = requisitions;
 
   // ── Catalog CRUD Handlers ─────────────────────────────────────────────────
 
@@ -577,7 +596,7 @@ export default function RadiologyDashboard() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-muted)]" />
                 <input
                   type="text" placeholder={t('orders.searchPlaceholder')}
-                  value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                  value={searchQuery} onChange={e => handleSearchChange(e.target.value)}
                   className="w-full pl-9 pr-4 py-2 text-sm rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] focus:outline-none focus:ring-2 focus:ring-sky-500"
                 />
               </div>
@@ -729,6 +748,16 @@ export default function RadiologyDashboard() {
                 ))}
               </tbody>
             </table>
+            {/* F-07 FIX: Reports pagination controls */}
+            {repTotal > 20 && (
+              <div className="px-4 py-3 border-t border-[var(--color-border)] flex items-center justify-between text-sm text-[var(--color-text-muted)]">
+                <span>{t('orders.showingPage', { page: repPage, total: repTotal })}</span>
+                <div className="flex gap-2">
+                  <button disabled={repPage === 1} onClick={() => setRepPage(p => p - 1)} className="px-3 py-1 rounded border border-[var(--color-border)] disabled:opacity-40">{t('orders.prev')}</button>
+                  <button disabled={repPage * 20 >= repTotal} onClick={() => setRepPage(p => p + 1)} className="px-3 py-1 rounded border border-[var(--color-border)] disabled:opacity-40">{t('orders.next')}</button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

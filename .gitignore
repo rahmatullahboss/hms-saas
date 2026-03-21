@@ -27,3 +27,7 @@ apps/
 coverage/
 web/playwright-report/
 test-results/
+
+AGENT.md
+CLAUDE.md
+.agent-mem/
