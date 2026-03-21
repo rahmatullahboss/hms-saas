@@ -184,7 +184,7 @@ export default function RadiologyDashboard() {
   const [reqPage,  setReqPage]  = useState(1);
   const [reqTotal, setReqTotal] = useState(0);
   // F-11: Debounce ref for search
-  const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   // F-12: Server-side search query (debounced)
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
