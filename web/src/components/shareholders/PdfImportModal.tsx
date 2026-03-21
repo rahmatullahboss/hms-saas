@@ -65,7 +65,7 @@ export default function PdfImportModal({ isOpen, onClose, onImportComplete }: Pd
     return { text: fullText, pageCount: pdf.numPages };
   }, []);
 
-  // ── Send scanned PDF to backend Gemini OCR ─────────────────────────────────
+  // ── Send scanned PDF to backend OCR.space endpoint ────────────────────────
   const handleOcrUpload = useCallback(async () => {
     if (!file) return;
     setOcrLoading(true);
@@ -73,15 +73,22 @@ export default function PdfImportModal({ isOpen, onClose, onImportComplete }: Pd
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await axios.post<{ shareholders: ParsedShareholder[] }>(
+      const response = await axios.post<{ rawText: string; pageCount: number }>(
         '/api/shareholders/ocr-pdf',
         formData,
         { headers: { 'Content-Type': 'multipart/form-data' } }
       );
 
-      const shareholders = response.data.shareholders;
+      const { rawText } = response.data;
+      if (!rawText || rawText.trim().length < 10) {
+        toast.error('OCR দিয়েও text পাওয়া যায়নি। উচ্চ-মানের স্ক্যান ব্যবহার করুন।');
+        return;
+      }
+
+      // Parse the raw OCR text using the same regex parser as digital PDFs
+      const shareholders = parseShareholderPDF(rawText);
       if (shareholders.length === 0) {
-        toast.error('OCR দিয়েও কোনো ডাটা পাওয়া যায়নি');
+        toast.error('OCR text পাওয়া গেছে কিন্তু শেয়ারহোল্ডার ডাটা extract করা যায়নি');
         return;
       }
 
@@ -89,6 +96,7 @@ export default function PdfImportModal({ isOpen, onClose, onImportComplete }: Pd
       setPreviewRows(previewParsedData(shareholders));
       setIsScannedPdf(false);
       setStep('preview');
+      toast.success(`OCR সফল — ${shareholders.length} জন শেয়ারহোল্ডার পাওয়া গেছে`);
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'OCR ব্যর্থ হয়েছে। আবার চেষ্টা করুন।');
     } finally {

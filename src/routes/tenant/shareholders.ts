@@ -815,33 +815,33 @@ shareholderRoutes.get('/my-dividends', async (c) => {
 });
 
 // ============================================================
-// OCR PDF — Gemini Flash extracts shareholder data from scanned PDFs
+// OCR PDF — OCR.space extracts text from scanned PDFs
 // ============================================================
 
 /**
  * POST /api/shareholders/ocr-pdf
- * Accepts multipart/form-data with a PDF file (max 10MB).
- * Sends it to Gemini Flash as base64 and returns structured shareholder JSON.
+ * Accepts multipart/form-data with a scanned PDF file (max 10MB).
+ * Sends it to OCR.space (api.ocr.space) for text extraction,
+ * then runs the existing regex parser to extract shareholder data.
  */
 shareholderRoutes.post('/ocr-pdf', async (c) => {
-  if (!c.env.GEMINI_API_KEY) {
+  if (!c.env.OCR_SPACE_API_KEY) {
     throw new HTTPException(503, {
-      message: 'OCR service not configured. Contact your administrator to set GEMINI_API_KEY.',
+      message: 'OCR service not configured. Contact your administrator.',
     });
   }
 
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Unauthorized' });
 
-  let formData: FormData;
+  let incoming: FormData;
   try {
-    formData = await c.req.formData();
+    incoming = await c.req.formData();
   } catch {
     throw new HTTPException(400, { message: 'Invalid multipart form data' });
   }
 
-  const file = formData.get('file');
-  // Cloudflare Workers FormData returns Blob (with .name property)
+  const file = incoming.get('file');
   if (!file || typeof file !== 'object' || !('size' in file)) {
     throw new HTTPException(400, { message: 'file field is required' });
   }
@@ -856,144 +856,65 @@ shareholderRoutes.post('/ocr-pdf', async (c) => {
     throw new HTTPException(400, { message: 'Only PDF files are accepted' });
   }
 
-  // Convert PDF to base64 for Gemini inline_data
-  const arrayBuffer = await uploadedFile.arrayBuffer();
-  const bytes = new Uint8Array(arrayBuffer);
-  let binary = '';
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  const base64Data = btoa(binary);
+  // ── Send PDF to OCR.space ──────────────────────────────────────────────────
+  const ocrForm = new FormData();
+  ocrForm.append('apikey', c.env.OCR_SPACE_API_KEY);
+  ocrForm.append('language', 'bng');          // Bengali OCR engine
+  ocrForm.append('isOverlayRequired', 'false');
+  ocrForm.append('detectOrientation', 'true');
+  ocrForm.append('scale', 'true');
+  ocrForm.append('OCREngine', '2');            // Engine 2: better for non-Latin scripts
+  ocrForm.append('filetype', 'PDF');
+  // Re-append PDF blob with filename so OCR.space recognises it
+  ocrForm.append('file', uploadedFile, fileName.endsWith('.pdf') ? fileName : 'upload.pdf');
 
-  const prompt = `You are an expert at extracting data from Bengali hospital shareholder registration forms (শেয়ার ফরম).
-
-Extract ALL shareholders from this PDF. For each person return a JSON object with these exact fields:
-- name: string (Bengali name, required)
-- nameEn: string (English name if present)
-- phone: string (Bangladeshi mobile: 01XXXXXXXXX)
-- phone2: string (second phone if any)
-- nid: string (10, 13 or 17-digit NID number, digits only)
-- shareCount: number (integer, default 0)
-- shareValueBdt: number (value per share in BDT, integer)
-- investment: number (total investment = shareCount × shareValueBdt)
-- address: string
-- type: one of ["profit","owner","investor","doctor","shareholder"]
-- nomineeName: string
-- nomineeContact: string
-- fatherName: string
-- motherName: string
-- religion: string
-- nationality: string
-- profession: string
-- dateOfBirth: string
-- bankName: string
-- bankAccountNo: string
-- bankBranch: string
-
-Return ONLY valid JSON in this exact format, no prose:
-{"shareholders": [...]}
-
-If no shareholders found return: {"shareholders": []}`;
-
-  let geminiResponse: Response;
+  let ocrResponse: Response;
   try {
-    geminiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${c.env.GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              { text: prompt },
-              {
-                inline_data: {
-                  mime_type: 'application/pdf',
-                  data: base64Data,
-                },
-              },
-            ],
-          }],
-          generationConfig: {
-            temperature: 0.1,
-            maxOutputTokens: 8192,
-          },
-        }),
-      }
-    );
+    ocrResponse = await fetch('https://api.ocr.space/parse/image', {
+      method: 'POST',
+      body: ocrForm,
+    });
   } catch (err) {
-    console.error('[ocr-pdf] Gemini fetch error:', err);
+    console.error('[ocr-pdf] OCR.space fetch error:', err);
     throw new HTTPException(502, { message: 'OCR service unreachable. Try again later.' });
   }
 
-  if (!geminiResponse.ok) {
-    const errBody = await geminiResponse.text().catch(() => '');
-    console.error('[ocr-pdf] Gemini error:', geminiResponse.status, errBody);
-    throw new HTTPException(502, { message: `OCR service error (HTTP ${geminiResponse.status})` });
+  if (!ocrResponse.ok) {
+    const errText = await ocrResponse.text().catch(() => '');
+    console.error('[ocr-pdf] OCR.space HTTP error:', ocrResponse.status, errText.substring(0, 200));
+    throw new HTTPException(502, { message: `OCR service error (HTTP ${ocrResponse.status})` });
   }
 
-  const geminiData = await geminiResponse.json<{
-    candidates?: Array<{
-      content?: { parts?: Array<{ text?: string }> };
-    }>;
+  const ocrData = await ocrResponse.json<{
+    IsErroredOnProcessing?: boolean;
+    ErrorMessage?: string | string[];
+    ParsedResults?: Array<{ ParsedText?: string }>;
   }>();
 
-  const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-
-  // Extract JSON from response (Gemini may wrap it in markdown code fences)
-  const jsonMatch = rawText.match(/\{[\s\S]*"shareholders"[\s\S]*\}/);
-  if (!jsonMatch) {
-    console.error('[ocr-pdf] No JSON found in Gemini response:', rawText.substring(0, 500));
-    return c.json({ shareholders: [] });
+  if (ocrData.IsErroredOnProcessing) {
+    const msg = Array.isArray(ocrData.ErrorMessage)
+      ? ocrData.ErrorMessage.join('; ')
+      : (ocrData.ErrorMessage ?? 'Unknown OCR error');
+    console.error('[ocr-pdf] OCR.space processing error:', msg);
+    throw new HTTPException(422, { message: `OCR failed: ${msg}` });
   }
 
-  let parsed: { shareholders: unknown[] };
-  try {
-    parsed = JSON.parse(jsonMatch[0]) as { shareholders: unknown[] };
-  } catch {
-    console.error('[ocr-pdf] JSON parse error:', jsonMatch[0].substring(0, 200));
-    return c.json({ shareholders: [] });
+  // Concatenate text from all pages
+  const rawText = (ocrData.ParsedResults ?? [])
+    .map(r => r.ParsedText ?? '')
+    .join('\n\n')
+    .trim();
+
+  if (!rawText || rawText.length < 10) {
+    return c.json({
+      shareholders: [],
+      message: 'OCR could not extract text from this PDF. Try a higher-resolution scan.',
+    });
   }
 
-  // Sanitize & validate each item
-  const typeValues = ['profit', 'owner', 'investor', 'doctor', 'shareholder'] as const;
-  type ShareholderType = typeof typeValues[number];
-
-  const shareholders = (Array.isArray(parsed.shareholders) ? parsed.shareholders : [])
-    .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
-    .map((item) => {
-      const rawType = String(item.type ?? 'investor');
-      const type: ShareholderType = (typeValues as readonly string[]).includes(rawType)
-        ? (rawType as ShareholderType)
-        : 'investor';
-
-      return {
-        name:           String(item.name ?? '').replace(/[<>]/g, '').trim(),
-        nameEn:         item.nameEn  ? String(item.nameEn).trim()  : undefined,
-        phone:          item.phone   ? String(item.phone).replace(/\D/g, '') : undefined,
-        phone2:         item.phone2  ? String(item.phone2).replace(/\D/g, '') : undefined,
-        nid:            item.nid     ? String(item.nid).replace(/\D/g, '')   : undefined,
-        shareCount:     Math.max(0, Math.floor(Number(item.shareCount ?? 0))),
-        shareValueBdt:  item.shareValueBdt ? Math.floor(Number(item.shareValueBdt)) : undefined,
-        investment:     item.investment    ? Math.floor(Number(item.investment))    : undefined,
-        address:        item.address   ? String(item.address).replace(/[<>]/g, '').trim()   : undefined,
-        type,
-        nomineeName:    item.nomineeName  ? String(item.nomineeName).replace(/[<>]/g, '').trim()  : undefined,
-        nomineeContact: item.nomineeContact ? String(item.nomineeContact).replace(/\D/g, '') : undefined,
-        fatherName:     item.fatherName  ? String(item.fatherName).replace(/[<>]/g, '').trim()  : undefined,
-        motherName:     item.motherName  ? String(item.motherName).replace(/[<>]/g, '').trim()  : undefined,
-        religion:       item.religion    ? String(item.religion).trim()    : undefined,
-        nationality:    item.nationality ? String(item.nationality).trim() : undefined,
-        profession:     item.profession  ? String(item.profession).trim()  : undefined,
-        dateOfBirth:    item.dateOfBirth ? String(item.dateOfBirth).trim() : undefined,
-        bankName:       item.bankName        ? String(item.bankName).trim()        : undefined,
-        bankAccountNo:  item.bankAccountNo   ? String(item.bankAccountNo).trim()   : undefined,
-        bankBranch:     item.bankBranch      ? String(item.bankBranch).trim()      : undefined,
-      };
-    })
-    .filter(sh => sh.name.length >= 2); // drop nameless rows
-
-  return c.json({ shareholders });
+  // Return extracted text to frontend — it will run parseShareholderPDF() locally
+  // (the parser lives in web/src/lib and cannot be imported from the backend)
+  return c.json({ rawText, pageCount: ocrData.ParsedResults?.length ?? 0 });
 });
 
 export default shareholderRoutes;

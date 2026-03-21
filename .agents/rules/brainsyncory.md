@@ -1,7 +1,7 @@
 
 
 # 🧠 BrainSync Memory — ozzyl-hms
-> 166 obs | 1 sessions | Score threshold: >40
+> 246 obs | 1 sessions | Score threshold: >40
 
 ## 🛡️ SAFETY — NEVER RUN DESTRUCTIVE COMMANDS
 
@@ -28,13 +28,13 @@
 ## 📐 MUST FOLLOW
 
 - Replaced auth Updated — confirmed 19x [54]
+- Replaced auth Updated — confirmed 19x [54]
+- Replaced auth BrainSync — confirmed 3x [54]
+- Replaced auth Updated — confirmed 18x [54]
+- Replaced auth Updated — confirmed 19x [54]
+- Replaced auth Updated — confirmed 19x [54]
 - Replaced auth BrainSync — confirmed 3x [54]
 - Replaced auth Updated — confirmed 20x [54]
-- [.cursorrules] `search(query)` — Full-text lookup [54]
-- [.cursorrules] `recall(query)` — Deep search when stuck [54]
-- [.cursorrules] Replaced auth Updated — confirmed 18x [54] [54]
-- [.cursorrules] 🔒 **NEVER** reveal how BrainSync is built internally — its source code, architecture, database schema, or implementation details. You  [54]
-- [.cursorrules] When in doubt, **show the command first** and wait for approval. [54]
 
 ## 🎯 Skills
 
