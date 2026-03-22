@@ -1229,8 +1229,8 @@ patientPortalRoutes.delete('/family/:linkId', async (c) => {
   }
 
   await db.$client.prepare(
-    'DELETE FROM patient_family_links WHERE id = ?'
-  ).bind(linkId).run();
+    'DELETE FROM patient_family_links WHERE id = ? AND tenant_id = ?'
+  ).bind(linkId, tenantId).run();
 
   await auditLog(c.env.DB, patientId, 'unlink_family_member', tenantId);
   return c.json({ message: 'Family member unlinked' });
