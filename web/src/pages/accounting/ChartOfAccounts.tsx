@@ -149,8 +149,8 @@ export default function ChartOfAccounts({ role = 'md' }: { role?: string }) {
                           <td><span className={`badge ${a.is_active ? 'badge-success' : 'badge-danger'}`}>{a.is_active ? 'Active' : 'Inactive'}</span></td>
                           <td className="text-right">
                             <div className="flex items-center justify-end gap-2">
-                              <button onClick={() => openEdit(a)} className="btn-ghost p-1.5 text-[var(--color-primary)]"><Pencil className="w-4 h-4" /></button>
-                              <button onClick={() => handleDelete(a.id)} className="btn-ghost p-1.5 text-red-500"><Trash2 className="w-4 h-4" /></button>
+                              <button onClick={() => openEdit(a)} className="btn-ghost p-1.5 text-[var(--color-primary)]" aria-label="Edit account"><Pencil className="w-4 h-4" /></button>
+                              <button onClick={() => handleDelete(a.id)} className="btn-ghost p-1.5 text-red-500" aria-label="Delete account"><Trash2 className="w-4 h-4" /></button>
                             </div>
                           </td>
                         </tr>

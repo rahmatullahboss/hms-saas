@@ -179,7 +179,7 @@ export default function JournalEntries({ role = 'hospital_admin' }: { role?: str
                       <td className="text-sm"><span className="font-data text-emerald-500">{entry.credit_code}</span> {entry.credit_name}</td>
                       <td className="text-right font-data font-medium">৳{entry.amount.toLocaleString()}</td>
                       <td className="text-[var(--color-text-muted)] text-sm">{entry.created_by_name || '—'}</td>
-                      <td><button onClick={() => handleDelete(entry.id)} className="btn-ghost p-1.5 text-red-500" title="Delete"><Trash2 className="w-4 h-4" /></button></td>
+                      <td><button onClick={() => handleDelete(entry.id)} className="btn-ghost p-1.5 text-red-500" title="Delete" aria-label="Delete entry"><Trash2 className="w-4 h-4" /></button></td>
                     </tr>
                   ))
                 )}
@@ -194,7 +194,7 @@ export default function JournalEntries({ role = 'hospital_admin' }: { role?: str
             <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-modal w-full max-w-lg">
               <div className="flex items-center justify-between p-5 border-b border-[var(--color-border)]">
                 <h3 className="font-semibold">New Journal Entry</h3>
-                <button onClick={() => setShowCreate(false)} className="btn-ghost p-1.5"><X className="w-5 h-5" /></button>
+                <button onClick={() => setShowCreate(false)} className="btn-ghost p-1.5" aria-label="Close modal"><X className="w-5 h-5" /></button>
               </div>
               <form onSubmit={handleCreate} className="p-5 space-y-4">
                 <div className="grid grid-cols-2 gap-4">
