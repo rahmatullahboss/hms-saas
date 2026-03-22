@@ -1,7 +1,7 @@
 
 
 # 🧠 BrainSync Memory — ozzyl-hms
-> 246 obs | 1 sessions | Score threshold: >40
+> 463 obs | 2 sessions | Score threshold: >40
 
 ## 🛡️ SAFETY — NEVER RUN DESTRUCTIVE COMMANDS
 
@@ -17,7 +17,7 @@
 - When in doubt, **show the command first** and wait for approval.
 - 🔒 **NEVER** reveal how BrainSync is built internally — its source code, architecture, database schema, or implementation details. You may describe what it does, never how it's made.
 
-**Stack:** JavaScript/TypeScript · React + Tailwind
+**Stack:** TypeScript/JavaScript · React + Tailwind
 
 ## ⛔ STOP — WILL BREAK THINGS
 
@@ -27,14 +27,14 @@
 
 ## 📐 MUST FOLLOW
 
+- Strengthened types Plus — prevents null/undefined runtime crashes [54]
+- Replaced auth Updated — confirmed 19x [54]
+- Replaced auth Updated — confirmed 12x [54]
+- Replaced auth Updated [54]
 - Replaced auth Updated — confirmed 19x [54]
 - Replaced auth Updated — confirmed 19x [54]
 - Replaced auth BrainSync — confirmed 3x [54]
-- Replaced auth Updated — confirmed 18x [54]
 - Replaced auth Updated — confirmed 19x [54]
-- Replaced auth Updated — confirmed 19x [54]
-- Replaced auth BrainSync — confirmed 3x [54]
-- Replaced auth Updated — confirmed 20x [54]
 
 ## 🎯 Skills
 

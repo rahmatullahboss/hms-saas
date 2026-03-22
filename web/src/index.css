@@ -324,14 +324,31 @@
 
   /* ── Page header ── */
   .page-header {
-    @apply flex items-center justify-between mb-6;
+    @apply flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6 gap-3 sm:gap-0;
   }
   .page-title {
-    @apply text-2xl font-bold;
+    @apply text-xl sm:text-2xl font-bold;
     background: linear-gradient(135deg, var(--color-primary-dark) 0%, var(--color-primary) 60%, #22d3ee 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+  }
+
+  /* ── Mobile card list (replaces table on small screens) ── */
+  .mobile-card-item {
+    @apply flex items-center gap-3 p-3 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl;
+    box-shadow: var(--shadow-card);
+  }
+  .mobile-card-avatar {
+    @apply w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0;
+  }
+
+  /* ── Hide secondary columns on small screens ── */
+  .hide-mobile {
+    @apply hidden sm:table-cell;
+  }
+  .show-mobile-only {
+    @apply table-cell sm:hidden;
   }
 
   /* ── Gradient text utility ── */

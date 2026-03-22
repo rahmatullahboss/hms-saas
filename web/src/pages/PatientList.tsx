@@ -75,9 +75,13 @@ export default function PatientList({ role = 'hospital_admin' }: { role?: string
           </div>
           <div className="flex items-center gap-2">
             <button onClick={fetchPatients} className="btn-ghost" title="Refresh"><RefreshCw className="w-4 h-4" /></button>
-            <button className="btn-secondary"><Download className="w-4 h-4" /> {t('export', { ns: 'common', defaultValue: 'Export' })}</button>
+            <button className="btn-secondary">
+              <Download className="w-4 h-4" />
+              <span className="hidden sm:inline">{t('export', { ns: 'common', defaultValue: 'Export' })}</span>
+            </button>
             <button onClick={() => navigate(`${basePath}/patients/new`)} className="btn-primary">
-              <Plus className="w-4 h-4" /> {t('newPatient')}
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">{t('newPatient')}</span>
             </button>
           </div>
         </div>
@@ -109,9 +113,67 @@ export default function PatientList({ role = 'hospital_admin' }: { role?: string
           <button className="btn-secondary"><Filter className="w-4 h-4" /> {t('filter', { ns: 'common', defaultValue: 'Filter' })}</button>
         </div>
 
-        {/* ── Table ── */}
+        {/* ── Table / Card List ── */}
         <div className="card overflow-hidden">
-          <div className="overflow-x-auto">
+
+          {/* Mobile card list — visible on small screens */}
+          <div className="sm:hidden divide-y divide-[var(--color-border)]">
+            {loading
+              ? [...Array(5)].map((_, i) => (
+                  <div key={i} className="flex items-center gap-3 p-4">
+                    <div className="skeleton w-10 h-10 rounded-full shrink-0" />
+                    <div className="flex-1 space-y-2">
+                      <div className="skeleton h-4 w-32" />
+                      <div className="skeleton h-3 w-20" />
+                    </div>
+                    <div className="skeleton h-3 w-14" />
+                  </div>
+                ))
+              : patients.length === 0 ? (
+                  <div className="py-16 flex flex-col items-center gap-3 text-[var(--color-text-muted)]">
+                    <Users className="w-10 h-10 opacity-30" />
+                    <p className="font-medium">{t('noPatients', { defaultValue: 'No patients found' })}</p>
+                    <button onClick={() => navigate(`${basePath}/patients/new`)} className="btn-primary">
+                      <Plus className="w-4 h-4" /> {t('addFirst', { defaultValue: 'Add First Patient' })}
+                    </button>
+                  </div>
+                )
+              : patients.map((p) => (
+                  <div
+                    key={p.id}
+                    className="flex items-center gap-3 p-4 cursor-pointer hover:bg-[var(--color-border-light)] transition-colors"
+                    onClick={() => navigate(`${basePath}/patients/${p.id}`)}
+                  >
+                    <div className={`mobile-card-avatar shrink-0 ${
+                      p.gender === 'Female'
+                        ? 'bg-pink-50 text-pink-600'
+                        : 'bg-blue-50 text-blue-600'
+                    }`}>
+                      {p.name.charAt(0)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{p.name}</p>
+                      <p className="text-xs text-[var(--color-text-muted)] font-data">
+                        P-{String(p.id).padStart(4, '0')}
+                        {p.age ? ` · ${p.age}` : ''}{p.gender ? `/${p.gender[0]}` : ''}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-xs text-[var(--color-text-muted)]">
+                        {new Date(p.created_at).toLocaleDateString('en-GB')}
+                      </p>
+                      <div className="flex gap-1 justify-end mt-1">
+                        <button onClick={(e) => { e.stopPropagation(); navigate(`${basePath}/patients/${p.id}`); }} className="btn-ghost p-1" title="View"><Eye className="w-3.5 h-3.5" /></button>
+                        <button onClick={(e) => { e.stopPropagation(); navigate(`${basePath}/patients/${p.id}/edit`); }} className="btn-ghost p-1" title="Edit"><Pencil className="w-3.5 h-3.5" /></button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+            }
+          </div>
+
+          {/* Desktop table — hidden on mobile */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="table-base">
               <thead>
                 <tr>

@@ -151,7 +151,7 @@ export default function Login() {
   return (
     <div className="min-h-screen flex">
       {/* ── Left Panel: Form ── */}
-      <div className="w-full lg:w-1/2 flex flex-col justify-center px-6 sm:px-12 lg:px-16 xl:px-24 bg-white dark:bg-slate-900 animate-fade-in-up">
+      <div className="w-full lg:w-1/2 flex flex-col justify-center px-6 sm:px-12 lg:px-16 xl:px-24 py-12 bg-white dark:bg-slate-900 animate-fade-in-up">
         {/* Logo */}
         <div className="mb-10">
           <div className="flex items-center gap-2.5">
@@ -166,7 +166,7 @@ export default function Login() {
 
         {/* Heading */}
         <div className="mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white leading-tight">
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white leading-tight">
             {t('loginSubtitle')}
           </h1>
           <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">

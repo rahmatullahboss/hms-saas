@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
 import {
   Users, FlaskConical, Receipt, UserCog,
   TrendingUp, Activity, Clock, AlertCircle,
@@ -44,6 +44,8 @@ export default function HospitalAdminDashboard({ role = 'hospital_admin' }: { ro
   const [revenueData,    setRevenueData]    = useState<RevenueData[]>([]);
   const [loading,        setLoading]        = useState(true);
   const navigate = useNavigate();
+  const { slug } = useParams<{ slug: string }>();
+  const base = `/h/${slug}`;
   const { t } = useTranslation(['dashboard', 'patients', 'common']);
 
   useEffect(() => { fetchData(); }, []);
@@ -139,10 +141,10 @@ export default function HospitalAdminDashboard({ role = 'hospital_admin' }: { ro
   ];
 
   const quickActions = [
-    { label: t('newPatient', { ns: 'patients', defaultValue: 'New Patient' }), icon: <Plus className="w-4 h-4" />,       path: 'patients/new', color: 'btn-primary' },
-    { label: t('labTests', { defaultValue: 'Lab Tests' }),                     icon: <FlaskConical className="w-4 h-4"/>, path: 'tests',       color: 'btn-secondary' },
-    { label: t('newBill', { ns: 'billing', defaultValue: 'New Bill' }),        icon: <Receipt className="w-4 h-4" />,     path: 'billing',      color: 'btn-secondary' },
-    { label: t('staff', { ns: 'staff', defaultValue: 'Add Staff' }),           icon: <UserCog className="w-4 h-4" />,     path: 'staff',        color: 'btn-secondary' },
+    { label: t('newPatient', { ns: 'patients', defaultValue: 'New Patient' }), icon: <Plus className="w-4 h-4" />,       path: `${base}/patients/new`, color: 'btn-primary' },
+    { label: t('labTests', { defaultValue: 'Lab Tests' }),                     icon: <FlaskConical className="w-4 h-4"/>, path: `${base}/tests`,        color: 'btn-secondary' },
+    { label: t('newBill', { ns: 'billing', defaultValue: 'New Bill' }),        icon: <Receipt className="w-4 h-4" />,     path: `${base}/billing`,      color: 'btn-secondary' },
+    { label: t('staff', { ns: 'staff', defaultValue: 'Add Staff' }),           icon: <UserCog className="w-4 h-4" />,     path: `${base}/staff`,        color: 'btn-secondary' },
   ];
 
   return (
@@ -162,8 +164,9 @@ export default function HospitalAdminDashboard({ role = 'hospital_admin' }: { ro
             <button onClick={fetchData} className="btn-ghost" title="Refresh">
               <RefreshCw className="w-4 h-4" />
             </button>
-            <button onClick={() => navigate('patients/new')} className="btn-primary">
-              <Plus className="w-4 h-4" /> {t('newPatient', { ns: 'patients', defaultValue: 'New Patient' })}
+            <button onClick={() => navigate(`${base}/patients/new`)} className="btn-primary">
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">{t('newPatient', { ns: 'patients', defaultValue: 'New Patient' })}</span>
             </button>
           </div>
         </div>
@@ -203,12 +206,12 @@ export default function HospitalAdminDashboard({ role = 'hospital_admin' }: { ro
         <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
 
           {/* Revenue trend — wider */}
-          <div className="card p-6 xl:col-span-3">
-            <div className="flex items-center justify-between mb-5">
+          <div className="card p-4 sm:p-6 xl:col-span-3">
+            <div className="flex items-center justify-between mb-4 sm:mb-5">
               <h3 className="section-title">{t('revenue')}</h3>
               <span className="section-subtitle">{t('last7days', { defaultValue: 'Last 7 days' })}</span>
             </div>
-            <div className="h-56">
+            <div className="h-40 sm:h-56">
               <ResponsiveContainer width="100%" height="100%" minHeight={0} minWidth={0}>
                 <LineChart data={revenueData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
@@ -227,12 +230,12 @@ export default function HospitalAdminDashboard({ role = 'hospital_admin' }: { ro
           </div>
 
           {/* Lab Tests — narrower */}
-          <div className="card p-6 xl:col-span-2">
-            <div className="flex items-center justify-between mb-5">
+          <div className="card p-4 sm:p-6 xl:col-span-2">
+            <div className="flex items-center justify-between mb-4 sm:mb-5">
               <h3 className="section-title">{t('labTests', { defaultValue: 'Lab Tests' })}</h3>
               <span className="section-subtitle">{t('thisWeek', { defaultValue: 'This week' })}</span>
             </div>
-            <div className="h-56">
+            <div className="h-40 sm:h-56">
               <ResponsiveContainer width="100%" height="100%" minHeight={0} minWidth={0}>
                 <BarChart
                   data={[
@@ -259,13 +262,50 @@ export default function HospitalAdminDashboard({ role = 'hospital_admin' }: { ro
 
         {/* ── Recent Patients ── */}
         <div className="card overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)]">
+          <div className="flex items-center justify-between px-4 sm:px-5 py-4 border-b border-[var(--color-border)]">
             <h3 className="section-title">{t('recentActivity')}</h3>
-            <button onClick={() => navigate('patients')} className="text-sm text-[var(--color-primary)] hover:underline font-medium">
+            <button onClick={() => navigate(`${base}/patients`)} className="text-sm text-[var(--color-primary)] hover:underline font-medium">
               {t('view', { ns: 'common' })} →
             </button>
           </div>
-          <div className="overflow-x-auto">
+
+          {/* Mobile card list — visible on small screens only */}
+          <div className="sm:hidden divide-y divide-[var(--color-border)]">
+            {loading
+              ? [...Array(3)].map((_, i) => (
+                  <div key={i} className="flex items-center gap-3 p-4">
+                    <div className="skeleton w-10 h-10 rounded-full shrink-0" />
+                    <div className="flex-1 space-y-2">
+                      <div className="skeleton h-4 w-32" />
+                      <div className="skeleton h-3 w-24" />
+                    </div>
+                  </div>
+                ))
+              : recentPatients.map((p) => (
+                  <div
+                    key={p.id}
+                    className="flex items-center gap-3 p-4 cursor-pointer hover:bg-[var(--color-border-light)] transition-colors"
+                    onClick={() => navigate(`${base}/patients/${p.id}`)}
+                  >
+                    <div className="mobile-card-avatar bg-[var(--color-primary-light)] text-[var(--color-primary-dark)]">
+                      {p.name.charAt(0)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{p.name}</p>
+                      <p className="text-xs text-[var(--color-text-muted)] font-data">
+                        #{p.id} · {new Date(p.created_at).toLocaleDateString('en-GB')}
+                      </p>
+                    </div>
+                    <span className="text-[var(--color-primary)] text-xs font-medium shrink-0">
+                      {t('view', { ns: 'common' })} →
+                    </span>
+                  </div>
+                ))
+            }
+          </div>
+
+          {/* Desktop table — hidden on small screens */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="table-base">
               <thead>
                 <tr>
@@ -293,7 +333,7 @@ export default function HospitalAdminDashboard({ role = 'hospital_admin' }: { ro
                   </tr>
                 ) : (
                   recentPatients.map((p) => (
-                    <tr key={p.id} onClick={() => navigate(`patients/${p.id}`)}>
+                    <tr key={p.id} onClick={() => navigate(`${base}/patients/${p.id}`)}>
                       <td className="font-data text-sm">#{p.id}</td>
                       <td className="font-medium">{p.name}</td>
                       <td className="font-data text-sm text-[var(--color-text-secondary)]">{p.mobile}</td>
@@ -302,7 +342,7 @@ export default function HospitalAdminDashboard({ role = 'hospital_admin' }: { ro
                       </td>
                       <td>
                         <button
-                          onClick={(e) => { e.stopPropagation(); navigate(`patients/${p.id}`); }}
+                          onClick={(e) => { e.stopPropagation(); navigate(`${base}/patients/${p.id}`); }}
                           className="text-[var(--color-primary)] text-sm font-medium hover:underline"
                         >
                           {t('view', { ns: 'common' })}

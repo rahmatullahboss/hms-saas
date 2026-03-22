@@ -356,6 +356,9 @@ function App() {
             <Route path="md/accounts" element={<ChartOfAccounts role="md" />} />
             <Route path="md/reports" element={<Reports role="md" />} />
             <Route path="md/audit" element={<AuditLogs role="md" />} />
+            <Route path="md/staff" element={<StaffPage role="md" />} />
+            <Route path="md/hr" element={<HRDashboard role="md" />} />
+            <Route path="md/help" element={<HelpCenterPage />} />
           </Route>
 
           {/* ─── Director ────────────────────────────────────────────── */}

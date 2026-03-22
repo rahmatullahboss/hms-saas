@@ -1,20 +1,20 @@
 {
   "project": {
     "enabled": true,
-    "lastGenerated": "2026-03-21T12:49:49.450Z",
-    "observationCount": 235,
+    "lastGenerated": "2026-03-22T00:43:32.483Z",
+    "observationCount": 445,
     "skillCount": 0,
     "domain": "project",
     "triggerGlobs": [
       "**/*"
     ],
-    "description": "Project for ozzyl-hms. 53 conventions, 5 fixes."
+    "description": "Project for ozzyl-hms. 70 conventions, 5 fixes."
   },
   "convention": {
     "enabled": true,
-    "lastGenerated": "2026-03-21T12:49:49.451Z",
+    "lastGenerated": "2026-03-22T00:43:32.484Z",
     "observationCount": 0,
-    "skillCount": 24,
+    "skillCount": 39,
     "domain": "convention",
     "triggerGlobs": [
       "**/*"
@@ -23,30 +23,30 @@
   },
   "typescript-react": {
     "enabled": true,
-    "lastGenerated": "2026-03-21T12:49:49.451Z",
-    "observationCount": 3,
+    "lastGenerated": "2026-03-22T00:43:32.483Z",
+    "observationCount": 6,
     "skillCount": 0,
     "domain": "typescript-react",
     "triggerGlobs": [
       "**/*.tsx"
     ],
-    "description": "Typescript React for ozzyl-hms. 1 fixes."
+    "description": "Typescript React for ozzyl-hms. 1 conventions, 1 fixes."
   },
   "typescript": {
     "enabled": true,
-    "lastGenerated": "2026-03-21T12:49:49.450Z",
-    "observationCount": 6,
+    "lastGenerated": "2026-03-22T00:43:32.483Z",
+    "observationCount": 10,
     "skillCount": 0,
     "domain": "typescript",
     "triggerGlobs": [
       "**/*.ts",
       "**/*.tsx"
     ],
-    "description": "Typescript for ozzyl-hms. 3 gotchas, 1 fixes."
+    "description": "Typescript for ozzyl-hms. 3 gotchas, 2 fixes."
   },
   "config": {
     "enabled": true,
-    "lastGenerated": "2026-03-21T12:49:49.451Z",
+    "lastGenerated": "2026-03-22T00:43:32.483Z",
     "observationCount": 2,
     "skillCount": 0,
     "domain": "config",
@@ -60,7 +60,7 @@
   },
   "how-it-works": {
     "enabled": true,
-    "lastGenerated": "2026-03-21T12:49:49.451Z",
+    "lastGenerated": "2026-03-22T00:43:32.484Z",
     "observationCount": 0,
     "skillCount": 2,
     "domain": "how-it-works",

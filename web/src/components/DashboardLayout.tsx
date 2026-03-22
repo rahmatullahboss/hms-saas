@@ -1,5 +1,5 @@
-import { ReactNode, useRef, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router';
+import { ReactNode } from 'react';
+import { useNavigate } from 'react-router';
 import toast from 'react-hot-toast';
 import { useAuth, logout } from '../hooks/useAuth';
 import Sidebar from './dashboard/Sidebar';
@@ -21,14 +21,6 @@ interface DashboardLayoutProps {
 export default function DashboardLayout({ children, role }: DashboardLayoutProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { pathname } = useLocation();
-  const mainRef = useRef<HTMLElement>(null);
-
-  // Scroll the <main> content area to top on every navigation.
-  // This only affects the scrollable <main> — not the window or sidebar.
-  useEffect(() => {
-    mainRef.current?.scrollTo(0, 0);
-  }, [pathname]);
 
   const handleLogout = () => {
     logout();
@@ -47,7 +39,7 @@ export default function DashboardLayout({ children, role }: DashboardLayoutProps
             userRole={user?.role ?? role}
             onLogout={handleLogout}
           />
-          <main ref={mainRef} className="flex-1 overflow-y-auto p-6">
+          <main className="flex-1 overflow-y-auto p-3 sm:p-6">
             {/* Offline / sync indicator — only visible when there's something to report */}
             <div className="mb-4">
               <SyncStatusBar />

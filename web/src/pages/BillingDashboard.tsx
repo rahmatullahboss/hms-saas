@@ -287,7 +287,8 @@ export default function BillingDashboard({ role = 'hospital_admin' }: { role?: s
           <div className="flex items-center gap-2">
             <HelpButton onClick={() => setHelpOpen(true)} />
             <button onClick={() => setShowCreate(true)} className="btn-primary">
-              <Plus className="w-4 h-4" /> {t('createBill', { defaultValue: 'Create Bill' })}
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">{t('createBill', { defaultValue: 'Create Bill' })}</span>
             </button>
           </div>
         </div>
@@ -325,32 +326,141 @@ export default function BillingDashboard({ role = 'hospital_admin' }: { role?: s
 
         {/* ── Search & Filters (All Bills tab only) ── */}
         {activeTab === 'bills' && (
-          <div className="card p-4 flex flex-wrap gap-3 items-center">
-            <div className="relative flex-1 min-w-48">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-muted)]" />
-              <input type="text" placeholder={t('searchPlaceholder', { defaultValue: 'Search invoice, patient name or code…' })}
-                value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
-                className="input pl-9" />
+          <div className="card p-3 sm:p-4">
+            <div className="flex flex-wrap gap-2 items-center">
+              <div className="relative flex-1 min-w-48">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-muted)]" />
+                <input type="text" placeholder={t('searchPlaceholder', { defaultValue: 'Search invoice, patient name or code…' })}
+                  value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
+                  className="input pl-9" />
+              </div>
             </div>
-            <div className="flex border border-[var(--color-border)] rounded-lg overflow-hidden text-sm">
-              {[['', 'All'], ['open', 'Open'], ['partially_paid', 'Partial'], ['paid', 'Paid']].map(([val, label]) => (
-                <button key={val} onClick={() => { setStatusFilter(val); setPage(1); }}
-                  className={`px-3 py-2 font-medium transition-colors ${statusFilter === val ? 'bg-[var(--color-primary)] text-white' : 'bg-[var(--color-surface)] hover:bg-[var(--color-border-light)] text-[var(--color-text-secondary)]'}`}>
-                  {label}
-                </button>
-              ))}
+            {/* Status filter + date — horizontal scroll on mobile */}
+            <div className="flex gap-2 mt-2 overflow-x-auto pb-1 scrollbar-none">
+              <div className="flex border border-[var(--color-border)] rounded-lg overflow-hidden text-sm shrink-0">
+                {[['', 'All'], ['open', 'Open'], ['partially_paid', 'Partial'], ['paid', 'Paid']].map(([val, label]) => (
+                  <button key={val} onClick={() => { setStatusFilter(val); setPage(1); }}
+                    className={`px-3 py-2 font-medium transition-colors whitespace-nowrap ${statusFilter === val ? 'bg-[var(--color-primary)] text-white' : 'bg-[var(--color-surface)] hover:bg-[var(--color-border-light)] text-[var(--color-text-secondary)]'}`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); }}
+                className="input w-36 text-sm shrink-0" placeholder="From" />
+              <input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1); }}
+                className="input w-36 text-sm shrink-0" placeholder="To" />
             </div>
-            <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); }}
-              className="input w-36 text-sm" placeholder="From" />
-            <input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1); }}
-              className="input w-36 text-sm" placeholder="To" />
           </div>
         )}
 
-        {/* ── Table ── */}
+        {/* ── Bills ── */}
         <div className="card overflow-hidden">
-          <div className="overflow-x-auto">
+
+          {/* Mobile card list — visible on small screens */}
+          <div className="sm:hidden divide-y divide-[var(--color-border)]">
+            {loading
+              ? [...Array(4)].map((_, i) => (
+                  <div key={i} className="flex items-center gap-3 p-4">
+                    <div className="flex-1 space-y-2"><div className="skeleton h-4 w-36" /><div className="skeleton h-3 w-24" /></div>
+                    <div className="skeleton h-5 w-14 rounded-full" />
+                  </div>
+                ))
+              : displayedBills.length === 0 ? (
+                  <div className="py-16 flex flex-col items-center gap-2 text-[var(--color-text-muted)]">
+                    <FileText className="w-10 h-10 opacity-30" />
+                    <p>{activeTab === 'dues' ? 'No outstanding dues' : 'No bills found'}</p>
+                  </div>
+                )
+              : displayedBills.map(bill => {
+                  const st = STATUS_BADGE[bill.status] ?? STATUS_BADGE.open;
+                  const outstanding = bill.total_amount - bill.paid_amount;
+                  return (
+                    <div key={bill.id} className="p-4 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-medium text-sm truncate">{bill.patient_name}</p>
+                          <p className="text-xs text-[var(--color-text-muted)] font-data">{bill.invoice_no} · {new Date(bill.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</p>
+                        </div>
+                        <span className={`badge ${st.badge} shrink-0`}>{st.label}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="space-x-3 font-data">
+                          <span>Total: <span className="font-medium">৳{bill.total_amount.toLocaleString()}</span></span>
+                          <span className="text-emerald-600">Paid: ৳{bill.paid_amount.toLocaleString()}</span>
+                          {activeTab === 'dues' && outstanding > 0 && (
+                            <span className="text-red-600 font-semibold">Due: ৳{outstanding.toLocaleString()}</span>
+                          )}
+                        </div>
+                        <div className="flex gap-1">
+                          {bill.status !== 'paid' && (
+                            <button onClick={() => openPayModal(bill)} className="btn-ghost p-1.5 text-emerald-600" title="Pay"><Banknote className="w-4 h-4" /></button>
+                          )}
+                          <button onClick={() => viewBillDetail(bill)} className="btn-ghost p-1.5" title="View"><Eye className="w-4 h-4" /></button>
+                          <button onClick={() => window.open(`/h/${slug}/billing/${bill.id}/print`, '_blank')} className="btn-ghost p-1.5" title="Print"><Printer className="w-4 h-4" /></button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+            }
+          </div>
+
+          {/* Desktop table — hidden on mobile */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="table-base">
+              <thead>
+                <tr>
+                  <th>{t('invoice', { defaultValue: 'Invoice#' })}</th>
+                  <th>{t('patientName', { defaultValue: 'Patient' })}</th>
+                  <th>{t('code', { defaultValue: 'Code' })}</th>
+                  <th>{t('date', { ns: 'common', defaultValue: 'Date' })}</th>
+                  <th>{t('total', { defaultValue: 'Total (৳)' })}</th>
+                  <th>{t('paid', { defaultValue: 'Paid (৳)' })}</th>
+                  {activeTab === 'dues' && <th>{t('outstanding', { defaultValue: 'Due (৳)' })}</th>}
+                  <th>{t('status', { ns: 'common', defaultValue: 'Status' })}</th>
+                  <th>{t('actions', { ns: 'common', defaultValue: 'Actions' })}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  [...Array(6)].map((_, i) => <tr key={i}>{[...Array(activeTab === 'dues' ? 9 : 8)].map((_, j) => <td key={j}><div className="skeleton h-4 w-full rounded" /></td>)}</tr>)
+                ) : displayedBills.length === 0 ? (
+                  <tr><td colSpan={activeTab === 'dues' ? 9 : 8} className="py-16 text-center text-[var(--color-text-muted)]">
+                    <FileText className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                    {activeTab === 'dues' ? 'No outstanding dues' : 'No bills found'}
+                  </td></tr>
+                ) : (
+                  displayedBills.map(bill => {
+                    const st = STATUS_BADGE[bill.status] ?? STATUS_BADGE.open;
+                    const outstanding = bill.total_amount - bill.paid_amount;
+                    return (
+                      <tr key={bill.id}>
+                        <td className="font-medium font-data">{bill.invoice_no}</td>
+                        <td className="font-medium">{bill.patient_name}</td>
+                        <td className="text-[var(--color-text-muted)] font-data">{bill.patient_code}</td>
+                        <td className="text-[var(--color-text-secondary)] font-data">{new Date(bill.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                        <td className="font-data font-medium">৳{(bill.total_amount ?? 0).toLocaleString()}</td>
+                        <td className="font-data text-emerald-600">৳{(bill.paid_amount ?? 0).toLocaleString()}</td>
+                        {activeTab === 'dues' && <td className="font-data text-red-600 font-semibold">৳{outstanding.toLocaleString()}</td>}
+                        <td><span className={`badge ${st.badge}`}>{st.label}</span></td>
+                        <td>
+                          <div className="flex gap-1.5">
+                            {bill.status !== 'paid' && (
+                              <button onClick={() => openPayModal(bill)} className="btn-ghost p-1.5 text-emerald-600" title="Collect Payment">
+                                <Banknote className="w-4 h-4" />
+                              </button>
+                            )}
+                            <button onClick={() => viewBillDetail(bill)} className="btn-ghost p-1.5" title="View"><Eye className="w-4 h-4" /></button>
+                            <button onClick={() => window.open(`/h/${slug}/billing/${bill.id}/print`, '_blank')} className="btn-ghost p-1.5" title="Print"><Printer className="w-4 h-4" /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
               <thead>
                 <tr>
                   <th>{t('invoice', { defaultValue: 'Invoice#' })}</th>

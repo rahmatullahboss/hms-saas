@@ -1,7 +1,7 @@
 # ozzyl-hms — Project Memory
-# Auto-synced by BrainSync | 261 observations
+# Auto-synced by BrainSync | 465 observations
 
-**Stack:** JavaScript/TypeScript · React + Tailwind
+**Stack:** TypeScript/JavaScript · React + Tailwind
 
 # 🛡️ GLOBAL SAFETY RULES
 
@@ -27,4 +27,4 @@
 > ℹ️ DO NOT call get_context() or get_gotchas() at startup — context above IS your context.
 
 ---
-*Auto-synced by BrainSync 🧠 | 2026-03-21*
+*Auto-synced by BrainSync 🧠 | 2026-03-22*

@@ -118,7 +118,7 @@ export default function Sidebar({ role, permissions, onLogout }: SidebarProps) {
         items: [
           { labelKey: 'billing',            path: 'billing',             icon: <Receipt         className="w-4.5 h-4.5" />, requiredPermission: 'billing:read' },
           { labelKey: 'billingMaster',      path: 'billing-master',      icon: <Layers          className="w-4.5 h-4.5" />, requiredPermission: 'billing-master:read' },
-          { labelKey: 'provisionalBilling', path: 'provisional-billing', icon: <FileText        className="w-4.5 h-4.5" />, requiredPermission: 'provisional-billing:read' },
+          { labelKey: 'provisionalBilling', path: 'billing-provisional', icon: <FileText        className="w-4.5 h-4.5" />, requiredPermission: 'provisional-billing:read' },
           { labelKey: 'deposits',           path: 'deposits',            icon: <CreditCard      className="w-4.5 h-4.5" />, requiredPermission: 'deposits:read' },
           { labelKey: 'creditNotes',        path: 'credit-notes',        icon: <FileText        className="w-4.5 h-4.5" />, requiredPermission: 'credit-notes:read' },
           { labelKey: 'billHandover',       path: 'billing-handover',    icon: <ArrowRightLeft  className="w-4.5 h-4.5" />, requiredPermission: 'handover:read' },

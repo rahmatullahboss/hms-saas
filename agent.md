@@ -1,5 +1,5 @@
 # 🧠 Agent Memory — ozzyl-hms
-> 261 observations | 1 sessions | Updated: 3/21/2026
+> 465 observations | 2 sessions | Updated: 3/22/2026
 
 ## 🛡️ GLOBAL SAFETY RULES
 
@@ -9,7 +9,7 @@
 
 ## Quick Reference
 - 🔴 3 critical gotchas → see `.agent-mem/gotchas.md`
-- 📐 54 conventions → see `.agent-mem/patterns.md`
+- 📐 72 conventions → see `.agent-mem/patterns.md`
 - 🗺️ Codebase map → see `.agent-mem/project-brief.md`
 - 🟢 Active work → see `.agent-mem/active-context.md`
 
