@@ -3,6 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { generateToken } from '../middleware/auth';
+import { isStrongPassword } from '../middleware/security';
 import { TRIAL_DAYS } from '../schemas/pricing';
 import type { Env } from '../types';
 import { getDb } from '../db';
@@ -19,7 +20,8 @@ const registerSchema = z.object({
     .regex(/^[a-z0-9][a-z0-9-]*[a-z0-9]$/, 'Slug must be lowercase letters, numbers, or hyphens'),
   adminName: z.string().min(1, 'Admin name required'),
   adminEmail: z.string().email('Valid email required'),
-  adminPassword: z.string().min(8, 'Password must be at least 8 characters'),
+  adminPassword: z.string().min(8, 'Password must be at least 8 characters')
+    .refine(isStrongPassword, 'Password must contain at least 1 uppercase letter, 1 lowercase letter, and 1 number'),
 });
 
 const RESERVED_SLUGS = ['www', 'api', 'admin', 'super', 'mail', 'ftp', 'test', 'dev', 'app', 'dashboard', 'health'];
