@@ -6,6 +6,8 @@ import type { Env, Variables } from '../../types';
 import { requireTenantId } from '../../lib/context-helpers';
 import { createTeleRoomSchema } from '../../schemas/clinical';
 
+const ALLOWED_ROLES = ['doctor', 'md', 'hospital_admin', 'receptionist', 'nurse'];
+
 /**
  * Telemedicine route — manages rooms via KV store.
  * This doesn't use a DB table; rooms are stored in KV with short TTL.
@@ -34,6 +36,11 @@ app.get('/rooms', async (c) => {
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
+  const role = c.get('role');
+  if (!role || !ALLOWED_ROLES.includes(role)) {
+    throw new HTTPException(403, { message: 'Not authorized to list rooms' });
+  }
+
   const listJson = await c.env.KV.get(roomListKey(tenantId));
   const roomIds: string[] = listJson ? JSON.parse(listJson) : [];
 
@@ -51,6 +58,11 @@ app.get('/rooms/:id', async (c) => {
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
+  const role = c.get('role');
+  if (!role || (!ALLOWED_ROLES.includes(role) && role !== 'patient')) {
+    throw new HTTPException(403, { message: 'Not authorized to view room' });
+  }
+
   const id = c.req.param('id');
   const data = await c.env.KV.get(roomKey(tenantId, id));
   if (!data) throw new HTTPException(404, { message: 'Room not found' });
@@ -62,6 +74,11 @@ app.get('/rooms/:id', async (c) => {
 app.post('/rooms', zValidator('json', createTeleRoomSchema), async (c) => {
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
+
+  const role = c.get('role');
+  if (!role || !ALLOWED_ROLES.includes(role)) {
+    throw new HTTPException(403, { message: 'Not authorized to create room' });
+  }
 
   const body = c.req.valid('json');
 
@@ -99,6 +116,11 @@ app.post('/rooms', zValidator('json', createTeleRoomSchema), async (c) => {
 app.post('/rooms/:id/join', async (c) => {
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
+
+  const role = c.get('role');
+  if (!role || (!ALLOWED_ROLES.includes(role) && role !== 'patient')) {
+    throw new HTTPException(403, { message: 'Not authorized to join room' });
+  }
 
   const id = c.req.param('id');
   const data = await c.env.KV.get(roomKey(tenantId, id));
@@ -141,6 +163,11 @@ app.post('/sessions/:sessionId/tracks', async (c) => {
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
 
+  const role = c.get('role');
+  if (!role || (!ALLOWED_ROLES.includes(role) && role !== 'patient')) {
+    throw new HTTPException(403, { message: 'Not authorized' });
+  }
+
   if (!c.env.CF_REALTIME_APP_ID || !c.env.CF_REALTIME_APP_SECRET) {
     throw new HTTPException(503, { message: 'Realtime SFU not configured' });
   }
@@ -175,6 +202,11 @@ app.post('/sessions/:sessionId/tracks', async (c) => {
 app.delete('/rooms/:id', async (c) => {
   const tenantId = requireTenantId(c);
   if (!tenantId) throw new HTTPException(401, { message: 'Tenant required' });
+
+  const role = c.get('role');
+  if (!role || !ALLOWED_ROLES.includes(role)) {
+    throw new HTTPException(403, { message: 'Not authorized to end room' });
+  }
 
   const id = c.req.param('id');
   const data = await c.env.KV.get(roomKey(tenantId, id));
