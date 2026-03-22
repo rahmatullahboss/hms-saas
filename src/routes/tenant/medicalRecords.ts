@@ -893,7 +893,13 @@ app.get('/stats', requireRole(...MR_READ_ROLES), async (c) => {
   const tenantId = requireTenantId(c);
 
   try {
-    const [recordCount, birthCount, deathCount, diagnosisCount, referralCount] = await Promise.all([
+    // ⚡ BOLT OPTIMIZATION:
+    // Replaced Promise.all() with db.batch() for medical record stats.
+    // Why: Promise.all() sends 5 separate HTTP network requests to Cloudflare D1.
+    //      db.batch() sends a single network request containing all 5 queries.
+    // Impact: Eliminates 4 network round-trips, significantly reducing latency and
+    //         making the stats load much faster, while retaining Drizzle ORM type safety.
+    const [recordCount, birthCount, deathCount, diagnosisCount, referralCount] = await db.batch([
       db.select({ cnt: count() }).from(medicalRecords)
         .where(and(eq(medicalRecords.tenantId, tenantId), eq(medicalRecords.isActive, 1))),
       db.select({ cnt: count() }).from(babyBirthDetails)

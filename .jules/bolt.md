@@ -15,3 +15,7 @@
 ## 2024-03-14 - [Fix N+1 query and atomicity issue in Pharmacy sales]
 **Learning:** Executing sequential write queries (`UPDATE`, `INSERT`) inside a loop over a list of items (e.g., in a shopping cart or pharmacy sale) not only causes an N+1 query bottleneck but also loses database atomicity. If a query fails midway, data will be left in an inconsistent state.
 **Action:** Collect all write queries across the entire loop into a single `batchStmts` array and execute them concurrently with `await c.env.DB.batch(batchStmts)` at the end. This guarantees both optimal performance (single round-trip) and transactional atomicity for the entire operation.
+
+## 2024-05-25 - [Convert Promise.all to db.batch in Medical Records Stats]
+**Learning:** In Cloudflare D1, running multiple queries inside `Promise.all` executes them as independent HTTP requests. This increases the total network latency. Using `db.batch()` reduces this into a single network request while preserving Drizzle ORM's type safety.
+**Action:** When performing multiple parallel `.count()` or `.select()` queries, wrap the Drizzle ORM query builders (e.g. `db.select().from(table)`) in `await db.batch([...])` instead of `await Promise.all([...])`. This avoids the need for raw SQL while keeping the database calls optimal.
