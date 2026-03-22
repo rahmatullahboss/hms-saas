@@ -47,9 +47,9 @@ export default function PurchaseOrderList({ role = 'hospital_admin' }: { role?: 
         </div>
 
         <div className="card p-4 flex flex-wrap gap-3 items-center">
-          <div className="flex border border-[var(--color-border)] rounded-lg overflow-hidden text-sm">
+          <div role="tablist" aria-label="Filter Purchase Orders by Status" className="flex border border-[var(--color-border)] rounded-lg overflow-hidden text-sm">
             {(['all', 'pending', 'partial', 'complete', 'cancelled'] as const).map(s => (
-              <button key={s} onClick={() => setStatusFilter(s)}
+              <button key={s} role="tab" aria-selected={statusFilter === s} onClick={() => setStatusFilter(s)}
                 className={`px-3 py-2 font-medium transition-colors capitalize ${statusFilter === s ? 'bg-[var(--color-primary)] text-white' : 'bg-[var(--color-surface)] hover:bg-[var(--color-border-light)] text-[var(--color-text-secondary)]'}`}>{s}</button>
             ))}
           </div>
