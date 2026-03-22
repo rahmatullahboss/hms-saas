@@ -3,6 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { generateToken } from '../../middleware/auth';
+import { isStrongPassword } from '../../middleware/security';
 import type { Env, Variables } from '../../types';
 import { getDb } from '../../db';
 
@@ -20,7 +21,8 @@ const loginSchema = z.object({
 
 const registerSchema = z.object({
   email: z.string().email({ message: 'Valid email required' }),
-  password: z.string().min(8, { message: 'Password must be at least 8 characters' }),
+  password: z.string().min(8, { message: 'Password must be at least 8 characters' })
+    .refine(isStrongPassword, 'Password must contain at least 1 uppercase letter, 1 lowercase letter, and 1 number'),
   name: z.string().min(1, { message: 'Name required' }),
   role: z.enum([
     'hospital_admin', 'laboratory', 'reception', 'md', 'director', 'pharmacist', 'accountant',
