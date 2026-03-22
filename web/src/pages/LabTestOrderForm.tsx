@@ -393,12 +393,15 @@ export default function LabTestOrderForm() {
           <div className="card p-5 space-y-4">
             <h3 className="font-semibold text-sm text-[var(--color-text)]">Collection Details</h3>
             <div className="flex items-center justify-between">
-              <label className="label mb-0">Fasting Required?</label>
+              <label className="label mb-0" id="fasting-label">Fasting Required?</label>
               <button onClick={() => setFasting(f => !f)}
+                aria-labelledby="fasting-label"
+                aria-pressed={fasting}
+                aria-label={fasting ? "Set fasting required to No" : "Set fasting required to Yes"}
                 className="flex items-center gap-1.5 text-sm">
                 {fasting
-                  ? <ToggleRight className="w-8 h-8 text-[var(--color-primary)]" />
-                  : <ToggleLeft className="w-8 h-8 text-gray-300" />}
+                  ? <ToggleRight className="w-8 h-8 text-[var(--color-primary)]" aria-hidden="true" />
+                  : <ToggleLeft className="w-8 h-8 text-gray-300" aria-hidden="true" />}
                 <span className={fasting ? 'text-[var(--color-primary)] font-medium' : 'text-[var(--color-text-muted)]'}>
                   {fasting ? 'Yes' : 'No'}
                 </span>
