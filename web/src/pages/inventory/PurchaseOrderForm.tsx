@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
 import { ShoppingCart, Plus, Trash2, Save } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
@@ -13,6 +13,8 @@ interface POItem { ItemId: number; ItemName: string; Quantity: number; ItemRate:
 export default function PurchaseOrderForm({ role = 'hospital_admin' }: { role?: string }) {
   const { t } = useTranslation(['inventory', 'common']);
   const navigate = useNavigate();
+  const { slug } = useParams<{ slug: string }>();
+  const base = `/h/${slug}`;
   const [saving, setSaving] = useState(false);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [items, setItems] = useState<Item[]>([]);
@@ -59,7 +61,7 @@ export default function PurchaseOrderForm({ role = 'hospital_admin' }: { role?: 
         Items: poItems.map(i => ({ ItemId: i.ItemId, Quantity: i.Quantity, StandardRate: i.ItemRate, VATPercent: i.VATPercent, VATAmount: i.VATAmount, TotalAmount: i.TotalAmount })),
       }, { headers: { Authorization: `Bearer ${token}` } });
       toast.success('Purchase Order created');
-      navigate('/inventory/po');
+      navigate(`${base}/inventory/po`);
     } catch (err: any) { toast.error(err?.response?.data?.error || 'Failed to create Purchase Order'); }
     finally { setSaving(false); }
   };
@@ -118,7 +120,7 @@ export default function PurchaseOrderForm({ role = 'hospital_admin' }: { role?: 
           </div>
 
           <div className="flex justify-end gap-3">
-            <button type="button" onClick={() => navigate('/inventory/po')} className="btn-secondary">Cancel</button>
+            <button type="button" onClick={() => navigate(`${base}/inventory/po`)} className="btn-secondary">Cancel</button>
             <button type="submit" disabled={saving} className="btn-primary"><Save className="w-4 h-4 mr-1 inline" /> {saving ? 'Saving…' : 'Create Purchase Order'}</button>
           </div>
         </form>

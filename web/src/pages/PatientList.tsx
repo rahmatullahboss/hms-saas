@@ -164,7 +164,7 @@ export default function PatientList({ role = 'hospital_admin' }: { role?: string
                       </p>
                       <div className="flex gap-1 justify-end mt-1">
                         <button onClick={(e) => { e.stopPropagation(); navigate(`${basePath}/patients/${p.id}`); }} className="btn-ghost p-1" title="View"><Eye className="w-3.5 h-3.5" /></button>
-                        <button onClick={(e) => { e.stopPropagation(); navigate(`${basePath}/patients/${p.id}/edit`); }} className="btn-ghost p-1" title="Edit"><Pencil className="w-3.5 h-3.5" /></button>
+                        <button onClick={(e) => { e.stopPropagation(); navigate(`${basePath}/patients/new?edit=${p.id}`); }} className="btn-ghost p-1" title="Edit"><Pencil className="w-3.5 h-3.5" /></button>
                       </div>
                     </div>
                   </div>
@@ -227,7 +227,7 @@ export default function PatientList({ role = 'hospital_admin' }: { role?: string
                             className="btn-ghost p-1.5" title="View"
                           ><Eye className="w-4 h-4" /></button>
                           <button
-                            onClick={() => navigate(`${basePath}/patients/${p.id}/edit`)}
+                            onClick={() => navigate(`${basePath}/patients/new?edit=${p.id}`)}
                             className="btn-ghost p-1.5" title="Edit"
                           ><Pencil className="w-4 h-4" /></button>
                         </div>

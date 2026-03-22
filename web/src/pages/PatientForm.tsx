@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router';
+import { useNavigate, Link, useParams } from 'react-router';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
@@ -7,6 +7,8 @@ import { useTranslation } from 'react-i18next';
 
 export default function PatientForm({ role = 'hospital_admin' }: { role?: string }) {
   const navigate = useNavigate();
+  const { slug } = useParams<{ slug: string }>();
+  const base = `/h/${slug}`;
   const { t } = useTranslation(['patients', 'common']);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -29,7 +31,7 @@ export default function PatientForm({ role = 'hospital_admin' }: { role?: string
         headers: { Authorization: `Bearer ${token}` },
       });
       toast.success(`${t('patientRegistered', { defaultValue: 'Patient registered! Serial:' })} ${data.serial}`);
-      navigate('/hospital_admin/patients');
+      navigate(`${base}/patients`);
     } catch (error: any) {
       toast.error(error.response?.data?.error || t('registrationFailed', { defaultValue: 'Failed to register patient' }));
     } finally {
@@ -41,7 +43,7 @@ export default function PatientForm({ role = 'hospital_admin' }: { role?: string
     <DashboardLayout role={role}>
       <div className="max-w-2xl mx-auto">
         <div className="flex items-center gap-4 mb-6">
-          <Link to="/hospital_admin/patients" className="text-gray-600 hover:text-gray-800">
+          <Link to={`${base}/patients`} className="text-gray-600 hover:text-gray-800">
             ← {t('back', { ns: 'common' })}
           </Link>
           <h1 className="text-2xl font-bold">{t('newPatient')}</h1>
@@ -156,7 +158,7 @@ export default function PatientForm({ role = 'hospital_admin' }: { role?: string
               {loading ? t('loading', { ns: 'common' }) : t('registerPatient', { defaultValue: 'Register Patient' })}
             </button>
             <Link
-              to="/hospital_admin/patients"
+              to={`${base}/patients`}
               className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
             >
               {t('cancel', { ns: 'common' })}

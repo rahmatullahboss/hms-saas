@@ -1,7 +1,7 @@
 
 
 # 🧠 BrainSync Memory — ozzyl-hms
-> 524 obs | 2 sessions | Score threshold: >40
+> 544 obs | 2 sessions | Score threshold: >40
 
 ## 🛡️ SAFETY — NEVER RUN DESTRUCTIVE COMMANDS
 
@@ -21,16 +21,20 @@
 
 ## ⛔ STOP — WILL BREAK THINGS
 
+- **⚠️ GOTCHA: Replaced auth Updated** [63] — - > 523 observations | 2 sessions | Updated: 3/22/2026
++ > 525 observa
+- **⚠️ GOTCHA: Replaced auth BrainSync** [63] — + # 🧠 BrainSync Memory — ozzyl-hms
++ > 524 obs | 2 sessions | Score t
 - **⚠️ GOTCHA: Replaced auth Updated** [63] — - > 503 observations | 2 sessions | Updated: 3/22/2026
 + > 505 observa
 - **⚠️ GOTCHA: Replaced auth BrainSync** [63] — + # 🧠 BrainSync Memory — ozzyl-hms
 + > 504 obs | 2 sessions | Score t
 - **BUG: FIX: Was querying m.expiry_date which doesn't exist on medicines table.** [63] — Found in src/routes/tenant/reportPharmacy.ts
 - **BUG: FIX: Was referencing m.unit_price and m.quantity which don't exist.** [63] — Found in src/routes/tenant/reportPharmacy.ts
-- **BUG: FIX: Was referencing non-existent columns. Now queries pharmacy_sales correctly.** [63] — Found in src/routes/tenant/reportPharmacy.ts
 
 ## 📐 MUST FOLLOW
 
+- Replaced auth Updated — confirmed 18x [54]
 - Replaced auth Updated — confirmed 19x [54]
 - Replaced auth Updated — confirmed 18x [54]
 - convention in scratchpad_z4gjhdbm.md [54]
@@ -38,7 +42,6 @@
 - Strengthened types Plus — prevents null/undefined runtime crashes [54]
 - Replaced auth BrainSync — confirmed 3x [54]
 - Replaced auth Updated — confirmed 19x [54]
-- Replaced auth Updated — confirmed 12x [54]
 
 ## 🎯 Skills
 

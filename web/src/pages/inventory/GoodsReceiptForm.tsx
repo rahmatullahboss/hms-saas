@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
 import { ClipboardList, Plus, Trash2, Save } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
@@ -11,6 +11,8 @@ interface GRItem { ItemId: number; BatchNo: string; ExpiryDate: string; Received
 
 export default function GoodsReceiptForm({ role = 'hospital_admin' }: { role?: string }) {
   const navigate = useNavigate();
+  const { slug } = useParams<{ slug: string }>();
+  const base = `/h/${slug}`;
   const [saving, setSaving] = useState(false);
   const [items, setItems] = useState<Item[]>([]);
   const [form, setForm] = useState({ VendorBillNo: '', VendorBillDate: '', PaymentMode: 'credit', Remarks: '' });
@@ -39,7 +41,7 @@ export default function GoodsReceiptForm({ role = 'hospital_admin' }: { role?: s
     try {
       const token = localStorage.getItem('hms_token');
       await axios.post('/api/inventory/goods-receipts', { ...form, TotalAmount: total, Items: grItems }, { headers: { Authorization: `Bearer ${token}` } });
-      toast.success('Goods Receipt created'); navigate('/inventory/gr');
+      toast.success('Goods Receipt created'); navigate(`${base}/inventory/gr`);
     } catch (err: any) { toast.error(err?.response?.data?.error || 'Failed to create GRN'); }
     finally { setSaving(false); }
   };
@@ -71,7 +73,7 @@ export default function GoodsReceiptForm({ role = 'hospital_admin' }: { role?: s
               </tr>))}</tbody></table></div>
             <div className="p-4 border-t border-[var(--color-border)] text-right"><p className="text-lg font-semibold">Total: <span className="font-data text-[var(--color-primary)]">৳{total.toLocaleString()}</span></p></div>
           </div>
-          <div className="flex justify-end gap-3"><button type="button" onClick={() => navigate('/inventory/gr')} className="btn-secondary">Cancel</button><button type="submit" disabled={saving} className="btn-primary"><Save className="w-4 h-4 mr-1 inline" /> {saving ? 'Saving…' : 'Create GRN'}</button></div>
+          <div className="flex justify-end gap-3"><button type="button" onClick={() => navigate(`${base}/inventory/gr`)} className="btn-secondary">Cancel</button><button type="submit" disabled={saving} className="btn-primary"><Save className="w-4 h-4 mr-1 inline" /> {saving ? 'Saving…' : 'Create GRN'}</button></div>
         </form>
       </div>
     </DashboardLayout>

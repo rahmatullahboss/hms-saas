@@ -1,20 +1,20 @@
 {
   "project": {
     "enabled": true,
-    "lastGenerated": "2026-03-22T01:13:32.502Z",
-    "observationCount": 505,
+    "lastGenerated": "2026-03-22T01:23:32.509Z",
+    "observationCount": 525,
     "skillCount": 0,
     "domain": "project",
     "triggerGlobs": [
       "**/*"
     ],
-    "description": "Project for ozzyl-hms. 2 gotchas, 74 conventions, 5 fixes."
+    "description": "Project for ozzyl-hms. 4 gotchas, 75 conventions, 5 fixes."
   },
   "convention": {
     "enabled": true,
-    "lastGenerated": "2026-03-22T01:13:32.503Z",
+    "lastGenerated": "2026-03-22T01:23:32.510Z",
     "observationCount": 0,
-    "skillCount": 42,
+    "skillCount": 43,
     "domain": "convention",
     "triggerGlobs": [
       "**/*"
@@ -23,7 +23,7 @@
   },
   "typescript-react": {
     "enabled": true,
-    "lastGenerated": "2026-03-22T01:13:32.503Z",
+    "lastGenerated": "2026-03-22T01:23:32.509Z",
     "observationCount": 7,
     "skillCount": 0,
     "domain": "typescript-react",
@@ -34,7 +34,7 @@
   },
   "typescript": {
     "enabled": true,
-    "lastGenerated": "2026-03-22T01:13:32.503Z",
+    "lastGenerated": "2026-03-22T01:23:32.509Z",
     "observationCount": 10,
     "skillCount": 0,
     "domain": "typescript",
@@ -46,7 +46,7 @@
   },
   "config": {
     "enabled": true,
-    "lastGenerated": "2026-03-22T01:13:32.503Z",
+    "lastGenerated": "2026-03-22T01:23:32.509Z",
     "observationCount": 2,
     "skillCount": 0,
     "domain": "config",
@@ -60,7 +60,7 @@
   },
   "how-it-works": {
     "enabled": true,
-    "lastGenerated": "2026-03-22T01:13:32.503Z",
+    "lastGenerated": "2026-03-22T01:23:32.510Z",
     "observationCount": 0,
     "skillCount": 2,
     "domain": "how-it-works",
@@ -68,5 +68,16 @@
       "**/*"
     ],
     "description": "How It Works for ozzyl-hms. ."
+  },
+  "gotcha": {
+    "enabled": true,
+    "lastGenerated": "2026-03-22T01:23:32.510Z",
+    "observationCount": 0,
+    "skillCount": 2,
+    "domain": "gotcha",
+    "triggerGlobs": [
+      "**/*"
+    ],
+    "description": "Gotcha for ozzyl-hms. ."
   }
 }

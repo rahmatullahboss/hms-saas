@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
 import { FileText, Plus, Trash2, Save } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
@@ -12,6 +12,8 @@ interface ReqItem { ItemId: number; RequestedQuantity: number; Remarks: string; 
 
 export default function RequisitionForm({ role = 'hospital_admin' }: { role?: string }) {
   const navigate = useNavigate();
+  const { slug } = useParams<{ slug: string }>();
+  const base = `/h/${slug}`;
   const [saving, setSaving] = useState(false);
   const [items, setItems] = useState<Item[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
@@ -34,7 +36,7 @@ export default function RequisitionForm({ role = 'hospital_admin' }: { role?: st
     try {
       const token = localStorage.getItem('hms_token');
       await axios.post('/api/inventory/requisitions', { ...form, RequestingStoreId: Number(form.RequestingStoreId), SourceStoreId: Number(form.SourceStoreId), Items: reqItems }, { headers: { Authorization: `Bearer ${token}` } });
-      toast.success('Requisition created'); navigate('/inventory/requisitions');
+      toast.success('Requisition created'); navigate(`${base}/inventory/requisitions`);
     } catch (err: any) { toast.error(err?.response?.data?.error || 'Failed to create requisition'); }
     finally { setSaving(false); }
   };
@@ -58,7 +60,7 @@ export default function RequisitionForm({ role = 'hospital_admin' }: { role?: st
               <td><input className="input" value={item.Remarks} onChange={e => setReqItems(prev => prev.map((r,i) => i===idx ? {...r, Remarks: e.target.value} : r))} /></td>
               <td>{reqItems.length > 1 && <button type="button" onClick={() => removeRow(idx)} className="btn-ghost p-1 text-red-500"><Trash2 className="w-4 h-4" /></button>}</td></tr>))}</tbody></table></div>
           </div>
-          <div className="flex justify-end gap-3"><button type="button" onClick={() => navigate('/inventory/requisitions')} className="btn-secondary">{t('cancel', { ns: 'common' })}</button><button type="submit" disabled={saving} className="btn-primary"><Save className="w-4 h-4 mr-1 inline" /> {saving ? t('loading', { ns: 'common' }) : t('submit', { ns: 'common' })}</button></div>
+          <div className="flex justify-end gap-3"><button type="button" onClick={() => navigate(`${base}/inventory/requisitions`)} className="btn-secondary">{t('cancel', { ns: 'common' })}</button><button type="submit" disabled={saving} className="btn-primary"><Save className="w-4 h-4 mr-1 inline" /> {saving ? t('loading', { ns: 'common' }) : t('submit', { ns: 'common' })}</button></div>
         </form>
       </div>
     </DashboardLayout>

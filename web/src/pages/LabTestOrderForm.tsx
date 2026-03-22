@@ -185,7 +185,7 @@ export default function LabTestOrderForm() {
       } else {
         toast.success(`Draft ${res.data.orderNo} saved`);
       }
-      navigate(`${basePath}/laboratory`);
+      navigate(`${basePath}/tests`);
     } catch {
       toast.error('Failed to create lab order');
     } finally {
@@ -198,7 +198,7 @@ export default function LabTestOrderForm() {
     if (items.length > 0 || diagnosis || history || notes) {
       if (!window.confirm('You have unsaved changes. Are you sure you want to leave?')) return;
     }
-    navigate(`${basePath}/laboratory`);
+    navigate(`${basePath}/tests`);
   };
 
   const totalCost = items.reduce((s, i) => s + (i.price - i.discount), 0);
@@ -215,7 +215,7 @@ export default function LabTestOrderForm() {
             <div className="text-xs text-[var(--color-text-muted)] flex items-center gap-1 mb-1">
               <Link to={`${basePath}/dashboard`} className="hover:underline">{t('dashboard', { defaultValue: 'Dashboard' })}</Link>
               <ChevronRight className="w-3 h-3" />
-              <Link to={`${basePath}/laboratory`} className="hover:underline">Laboratory</Link>
+              <Link to={`${basePath}/tests`} className="hover:underline">Laboratory</Link>
               <ChevronRight className="w-3 h-3" />
               <span className="text-[var(--color-text)]">New Lab Order</span>
             </div>

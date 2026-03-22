@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
 import { Truck, Plus, Trash2, Save } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
@@ -12,6 +12,8 @@ interface DispItem { ItemId: number; DispatchedQuantity: number; BatchNo: string
 
 export default function DispatchForm({ role = 'hospital_admin' }: { role?: string }) {
   const navigate = useNavigate();
+  const { slug } = useParams<{ slug: string }>();
+  const base = `/h/${slug}`;
   const [saving, setSaving] = useState(false);
   const [stores, setStores] = useState<Store[]>([]);
   const [items, setItems] = useState<Item[]>([]);
@@ -34,7 +36,7 @@ export default function DispatchForm({ role = 'hospital_admin' }: { role?: strin
     try {
       const token = localStorage.getItem('hms_token');
       await axios.post('/api/inventory/dispatches', { ...form, SourceStoreId: Number(form.SourceStoreId), DestinationStoreId: Number(form.DestinationStoreId), Items: dispItems }, { headers: { Authorization: `Bearer ${token}` } });
-      toast.success('Dispatch created'); navigate('/inventory/dispatches');
+      toast.success('Dispatch created'); navigate(`${base}/inventory/dispatches`);
     } catch (err: any) { toast.error(err?.response?.data?.error || 'Failed to create dispatch'); }
     finally { setSaving(false); }
   };
@@ -57,7 +59,7 @@ export default function DispatchForm({ role = 'hospital_admin' }: { role?: strin
               <td><input className="input w-28" value={item.BatchNo} onChange={e => setDispItems(prev => prev.map((d,i) => i===idx ? {...d, BatchNo: e.target.value} : d))} /></td>
               <td>{dispItems.length > 1 && <button type="button" onClick={() => removeRow(idx)} className="btn-ghost p-1 text-red-500"><Trash2 className="w-4 h-4" /></button>}</td></tr>))}</tbody></table></div>
           </div>
-          <div className="flex justify-end gap-3"><button type="button" onClick={() => navigate('/inventory/dispatches')} className="btn-secondary">{t('cancel', { ns: 'common' })}</button><button type="submit" disabled={saving} className="btn-primary"><Save className="w-4 h-4 mr-1 inline" /> {saving ? t('loading', { ns: 'common' }) : t('dispatches', { ns: 'inventory' })}</button></div>
+          <div className="flex justify-end gap-3"><button type="button" onClick={() => navigate(`${base}/inventory/dispatches`)} className="btn-secondary">{t('cancel', { ns: 'common' })}</button><button type="submit" disabled={saving} className="btn-primary"><Save className="w-4 h-4 mr-1 inline" /> {saving ? t('loading', { ns: 'common' }) : t('dispatches', { ns: 'inventory' })}</button></div>
         </form>
       </div>
     </DashboardLayout>
