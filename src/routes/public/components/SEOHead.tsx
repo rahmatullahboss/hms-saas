@@ -1,5 +1,6 @@
 /** @jsxImportSource hono/jsx */
 import type { FC } from 'hono/jsx';
+import { safeJsonStringify } from '../../../lib/security';
 
 interface SEOHeadProps {
   hospitalName: string;
@@ -30,7 +31,7 @@ export const SEOHead: FC<SEOHeadProps> = ({ hospitalName, description, url, doct
   return (
     <script
       type="application/ld+json"
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(orgSchema) }}
+      dangerouslySetInnerHTML={{ __html: safeJsonStringify(orgSchema) }}
     />
   );
 };
