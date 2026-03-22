@@ -258,7 +258,7 @@ export default function AccountingDashboard({ role = 'md' }: { role?: string }) 
             <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-modal w-full max-w-md">
               <div className="flex items-center justify-between p-5 border-b border-[var(--color-border)]">
                 <h3 className="font-semibold">{t('addIncome')}</h3>
-                <button onClick={() => setShowIncome(false)} className="btn-ghost p-1.5"><X className="w-5 h-5"/></button>
+                <button onClick={() => setShowIncome(false)} className="btn-ghost p-1.5" aria-label="Close modal"><X className="w-5 h-5"/></button>
               </div>
               <form onSubmit={handleAddIncome} className="p-5 space-y-4">
                 <div><label className="label">{t('common:date')}</label><input type="date" required className="input" value={incomeForm.date} onChange={e => setIncomeForm({...incomeForm, date: e.target.value})} /></div>
@@ -284,7 +284,7 @@ export default function AccountingDashboard({ role = 'md' }: { role?: string }) 
             <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-modal w-full max-w-md">
               <div className="flex items-center justify-between p-5 border-b border-[var(--color-border)]">
                 <h3 className="font-semibold">{t('addExpense')}</h3>
-                <button onClick={() => setShowExpense(false)} className="btn-ghost p-1.5"><X className="w-5 h-5"/></button>
+                <button onClick={() => setShowExpense(false)} className="btn-ghost p-1.5" aria-label="Close modal"><X className="w-5 h-5"/></button>
               </div>
               <form onSubmit={handleAddExpense} className="p-5 space-y-4">
                 <div><label className="label">{t('common:date')}</label><input type="date" required className="input" value={expenseForm.date} onChange={e => setExpenseForm({...expenseForm, date: e.target.value})} /></div>
