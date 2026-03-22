@@ -255,7 +255,8 @@ export default function EmergencyDashboard({ role = 'hospital_admin' }: { role?:
             </div>
           </div>
           <button onClick={() => setShowRegister(true)} className="btn-primary">
-            <UserPlus className="w-4 h-4" /> {t('registerPatient', { ns: 'emergency' })}
+            <UserPlus className="w-4 h-4" />
+            <span className="hidden sm:inline">{t('registerPatient', { ns: 'emergency' })}</span>
           </button>
         </div>
 
@@ -308,9 +309,66 @@ export default function EmergencyDashboard({ role = 'hospital_admin' }: { role?:
           )}
         </div>
 
-        {/* ER Patient Table */}
+        {/* ER Patient List */}
         <div className="card overflow-hidden">
-          <div className="overflow-x-auto">
+
+          {/* Mobile card list */}
+          <div className="sm:hidden divide-y divide-[var(--color-border)]">
+            {loading
+              ? [...Array(4)].map((_, i) => (
+                  <div key={i} className="flex gap-3 p-4">
+                    <div className="flex-1 space-y-2"><div className="skeleton h-4 w-32" /><div className="skeleton h-3 w-20" /></div>
+                    <div className="skeleton h-5 w-14 rounded-full" />
+                  </div>
+                ))
+              : patients.length === 0
+                ? <div className="py-10 flex flex-col items-center gap-2 text-[var(--color-text-muted)]">
+                    <Siren className="w-8 h-8 opacity-30" />
+                    <p className="text-sm">{t('noERPatients', { ns: 'emergency', defaultValue: 'No ER patients found' })}</p>
+                    <button onClick={() => setShowRegister(true)} className="btn-primary text-sm"><UserPlus className="w-4 h-4" /></button>
+                  </div>
+                : patients.map(p => (
+                    <div key={p.id} className="p-4 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-medium text-sm truncate">{patientFullName(p)}</p>
+                          <p className="text-xs text-[var(--color-text-muted)] font-data">{p.er_patient_number}</p>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {p.triage_code
+                            ? <span className={`badge ${TRIAGE_CONFIG[p.triage_code].cls}`}>{p.triage_code}</span>
+                            : <span className="badge badge-neutral">—</span>
+                          }
+                          <span className={`badge ${
+                            p.er_status === 'new' ? 'badge-info' :
+                            p.er_status === 'triaged' ? 'badge-warning' :
+                            p.finalized_status === 'admitted' ? 'badge-primary' :
+                            p.finalized_status === 'discharged' ? 'badge-success' :
+                            'badge-error'
+                          }`}>
+                            {p.er_status === 'finalized' ? (p.finalized_status ?? 'Finalized') : p.er_status}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {p.er_status !== 'finalized' && (
+                          <button onClick={() => setTriageTarget(p)} className="btn-ghost p-1.5 text-amber-600" title="Triage">
+                            <Tag className="w-4 h-4" />
+                          </button>
+                        )}
+                        {(p.er_status === 'triaged' || p.er_status === 'new') && (
+                          <button onClick={() => { setFinalizeTarget(p); setFinalizeForm({ finalized_status: 'discharged', finalized_remarks: '' }); }} className="btn-ghost p-1.5 text-emerald-600" title="Finalize">
+                            <CheckCircle className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))
+            }
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="table-base">
               <thead>
                 <tr>

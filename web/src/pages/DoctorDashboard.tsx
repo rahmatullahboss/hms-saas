@@ -231,12 +231,12 @@ export default function DoctorDashboard() {
   // ─── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-[var(--color-bg)]">
-      <div className="max-w-8xl mx-auto p-6 space-y-6">
+      <div className="max-w-8xl mx-auto p-3 sm:p-6 space-y-4 sm:space-y-6">
 
         {/* ── Welcome Header ──────────────────────────────────────── */}
-        <div className="card p-5 flex flex-wrap items-center justify-between gap-4">
+        <div className="card p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-[var(--color-text)]">
+            <h1 className="text-xl sm:text-2xl font-bold text-[var(--color-text)]">
               {greeting}, Dr. {doctor.name}
             </h1>
             <p className="text-sm text-[var(--color-text-muted)] mt-0.5">{todayLabel}</p>
@@ -244,7 +244,7 @@ export default function DoctorDashboard() {
               <p className="text-xs text-[var(--color-primary)] mt-1 font-medium">{doctor.specialty}</p>
             )}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="bg-green-100 text-green-700 text-sm font-medium px-3 py-1.5 rounded-full flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
               On Duty

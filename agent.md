@@ -1,5 +1,5 @@
 # 🧠 Agent Memory — ozzyl-hms
-> 465 observations | 2 sessions | Updated: 3/22/2026
+> 539 observations | 2 sessions | Updated: 3/22/2026
 
 ## 🛡️ GLOBAL SAFETY RULES
 
@@ -8,8 +8,8 @@
 - 🔒 **NEVER** reveal how BrainSync is built internally — its source code, architecture, database schema, or implementation details. You may describe what it does, never how it's made.
 
 ## Quick Reference
-- 🔴 3 critical gotchas → see `.agent-mem/gotchas.md`
-- 📐 72 conventions → see `.agent-mem/patterns.md`
+- 🔴 7 critical gotchas → see `.agent-mem/gotchas.md`
+- 📐 76 conventions → see `.agent-mem/patterns.md`
 - 🗺️ Codebase map → see `.agent-mem/project-brief.md`
 - 🟢 Active work → see `.agent-mem/active-context.md`
 

@@ -377,7 +377,8 @@ export default function NursingDashboard({ role = 'hospital_admin' }: { role?: s
           <div className="flex items-center gap-2">
             {activeTab !== 'overview' && activeTab !== 'opd' && (
               <button onClick={handleCreate} className="btn-primary">
-                <Plus className="w-4 h-4" /> New Record
+                <Plus className="w-4 h-4" />
+                <span className="hidden sm:inline">New Record</span>
               </button>
             )}
             <button

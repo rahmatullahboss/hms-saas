@@ -5,6 +5,7 @@ import { useAuth, logout } from '../hooks/useAuth';
 import Sidebar from './dashboard/Sidebar';
 import Header from './dashboard/Header';
 import SyncStatusBar from './SyncStatusBar';
+import MobileBottomNav from './dashboard/MobileBottomNav';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -39,7 +40,8 @@ export default function DashboardLayout({ children, role }: DashboardLayoutProps
             userRole={user?.role ?? role}
             onLogout={handleLogout}
           />
-          <main className="flex-1 overflow-y-auto p-3 sm:p-6">
+          {/* pb-16 on mobile to avoid content hiding behind bottom nav */}
+          <main className="flex-1 overflow-y-auto p-3 sm:p-6 pb-20 sm:pb-6">
             {/* Offline / sync indicator — only visible when there's something to report */}
             <div className="mb-4">
               <SyncStatusBar />
@@ -48,7 +50,8 @@ export default function DashboardLayout({ children, role }: DashboardLayoutProps
           </main>
         </div>
       </div>
+      {/* Mobile bottom navigation — hidden on sm+ */}
+      <MobileBottomNav role={role} />
     </div>
   );
 }
-

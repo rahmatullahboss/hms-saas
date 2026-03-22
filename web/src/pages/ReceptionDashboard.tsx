@@ -131,10 +131,12 @@ export default function ReceptionDashboard({ role = 'reception' }: { role?: stri
           </div>
           <div className="flex items-center gap-2">
             <button onClick={() => navigate(`/h/${slug}/patients/new`)} className="btn-secondary">
-              <Users className="w-4 h-4" /> {t('newPatient', { ns: 'patients', defaultValue: 'New Patient' })}
+              <Users className="w-4 h-4" />
+              <span className="hidden sm:inline">{t('newPatient', { ns: 'patients', defaultValue: 'New Patient' })}</span>
             </button>
             <button onClick={() => setShowModal(true)} className="btn-primary">
-              <Plus className="w-4 h-4" /> {t('newBill')}
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">{t('newBill')}</span>
             </button>
           </div>
         </div>
@@ -147,13 +149,43 @@ export default function ReceptionDashboard({ role = 'reception' }: { role?: stri
           <KPICard title={t('todayRevenue', { defaultValue: "Today's Revenue" })}  value={`৳${totalRevenue.toLocaleString()}`}        loading={loading} icon={<Receipt className="w-5 h-5"/>}     iconBg="bg-blue-50 text-blue-600" />
         </div>
 
-        {/* ── Recent Bills Table ── */}
+        {/* ── Recent Bills List ── */}
         <div className="card overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3.5 border-b border-[var(--color-border)]">
             <h2 className="section-title">{t('billList')}</h2>
             <span className="badge badge-neutral">{bills.length} total</span>
           </div>
-          <div className="overflow-x-auto">
+
+          {/* Mobile card list */}
+          <div className="sm:hidden divide-y divide-[var(--color-border)]">
+            {loading
+              ? [...Array(3)].map((_, i) => (
+                  <div key={i} className="flex gap-3 p-4">
+                    <div className="flex-1 space-y-2"><div className="skeleton h-4 w-32" /><div className="skeleton h-3 w-20" /></div>
+                    <div className="skeleton h-5 w-14 rounded-full" />
+                  </div>
+                ))
+              : bills.length === 0
+                ? <div className="py-10 text-center text-[var(--color-text-muted)] text-sm">No bills yet — create one above</div>
+                : bills.map(bill => (
+                    <div key={bill.id} className="p-4 flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-medium text-sm truncate">{bill.patient_name}</p>
+                        <p className="text-xs text-[var(--color-text-muted)] font-data">INV-{String(bill.id).padStart(4,'0')} · {new Date(bill.created_at).toLocaleDateString('en-GB')}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="font-data font-semibold text-sm">৳{bill.total.toLocaleString()}</span>
+                        <span className={`badge ${bill.status === 'paid' ? 'badge-success' : 'badge-warning'}`}>
+                          {bill.status.charAt(0).toUpperCase() + bill.status.slice(1)}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+            }
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="table-base">
               <thead>
                 <tr>

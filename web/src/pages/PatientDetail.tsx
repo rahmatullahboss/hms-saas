@@ -334,11 +334,13 @@ export default function PatientDetail({
 
             {/* Actions */}
             <div className="flex gap-2 shrink-0">
-              <button onClick={() => navigate(`${basePath}/patients/new?edit=${id}`)} className="btn-ghost" aria-label="Edit patient">
-                <Edit className="w-4 h-4" /> Edit
+              <button onClick={() => navigate(`${basePath}/patients/new?edit=${id}`)} className="btn-ghost">
+                <Edit className="w-4 h-4" />
+                <span className="hidden sm:inline">Edit</span>
               </button>
               <Link to={`${basePath}/prescriptions/new?patient=${id}`} className="btn-primary">
-                <Pill className="w-4 h-4" /> New Rx
+                <Pill className="w-4 h-4" />
+                <span className="hidden sm:inline">New Rx</span>
               </Link>
               <button onClick={handlePrintSummary} className="btn-ghost p-2" aria-label="Print">
                 <Printer className="w-4 h-4" />
@@ -493,7 +495,7 @@ export default function PatientDetail({
 
           {/* ═══ Prescriptions ═══ */}
           {tab === 'prescriptions' && (
-            <div className="card overflow-hidden">
+            <div className="card overflow-hidden overflow-x-auto">
               {prescriptions.length === 0 ? (
                 <div className="p-12 text-center">
                   <Pill className="w-10 h-10 text-[var(--color-text-muted)] mx-auto mb-2 opacity-40" />
@@ -540,7 +542,7 @@ export default function PatientDetail({
 
           {/* ═══ Lab Results ═══ */}
           {tab === 'tests' && (
-            <div className="card overflow-hidden">
+            <div className="card overflow-hidden overflow-x-auto">
               {labOrders.length === 0 ? (
                 <div className="p-12 text-center">
                   <FlaskConical className="w-10 h-10 text-[var(--color-text-muted)] mx-auto mb-2 opacity-40" />
@@ -581,7 +583,7 @@ export default function PatientDetail({
 
           {/* ═══ Appointments ═══ */}
           {tab === 'appointments' && (
-            <div className="card overflow-hidden">
+            <div className="card overflow-hidden overflow-x-auto">
               {appointments.length === 0 ? (
                 <div className="p-12 text-center">
                   <Calendar className="w-10 h-10 text-[var(--color-text-muted)] mx-auto mb-2 opacity-40" />

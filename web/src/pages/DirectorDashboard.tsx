@@ -86,7 +86,8 @@ export default function DirectorDashboard({ role = 'director' }: { role?: string
         <div className="page-header">
           <h1 className="page-title">{t('directorDashboard', { defaultValue: 'Director Dashboard' })}</h1>
           <button onClick={() => setShowAdd(true)} className="btn-primary">
-            <Plus className="w-4 h-4" /> {t('addShareholder', { defaultValue: 'Add Shareholder' })}
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline">{t('addShareholder', { defaultValue: 'Add Shareholder' })}</span>
           </button>
         </div>
 

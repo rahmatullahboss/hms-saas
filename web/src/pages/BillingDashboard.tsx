@@ -461,63 +461,6 @@ export default function BillingDashboard({ role = 'hospital_admin' }: { role?: s
               </tbody>
             </table>
           </div>
-              <thead>
-                <tr>
-                  <th>{t('invoice', { defaultValue: 'Invoice#' })}</th>
-                  <th>{t('patientName', { defaultValue: 'Patient' })}</th>
-                  <th>{t('code', { defaultValue: 'Code' })}</th>
-                  <th>{t('date', { ns: 'common', defaultValue: 'Date' })}</th>
-                  <th>{t('total', { defaultValue: 'Total (৳)' })}</th>
-                  <th>{t('paid', { defaultValue: 'Paid (৳)' })}</th>
-                  {activeTab === 'dues' && <th>{t('outstanding', { defaultValue: 'Due (৳)' })}</th>}
-                  <th>{t('status', { ns: 'common', defaultValue: 'Status' })}</th>
-                  <th>{t('actions', { ns: 'common', defaultValue: 'Actions' })}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  [...Array(6)].map((_, i) => <tr key={i}>{[...Array(activeTab === 'dues' ? 9 : 8)].map((_, j) => <td key={j}><div className="skeleton h-4 w-full rounded" /></td>)}</tr>)
-                ) : displayedBills.length === 0 ? (
-                  <tr><td colSpan={activeTab === 'dues' ? 9 : 8} className="py-16 text-center text-[var(--color-text-muted)]">
-                    <FileText className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                    {activeTab === 'dues' ? 'No outstanding dues' : 'No bills found'}
-                  </td></tr>
-                ) : (
-                  displayedBills.map(bill => {
-                    const st = STATUS_BADGE[bill.status] ?? STATUS_BADGE.open;
-                    const outstanding = bill.total_amount - bill.paid_amount;
-                    return (
-                      <tr key={bill.id}>
-                        <td className="font-medium font-data">{bill.invoice_no}</td>
-                        <td className="font-medium">{bill.patient_name}</td>
-                        <td className="text-[var(--color-text-muted)] font-data">{bill.patient_code}</td>
-                        <td className="text-[var(--color-text-secondary)] font-data">{new Date(bill.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
-                        <td className="font-data font-medium">৳{(bill.total_amount ?? 0).toLocaleString()}</td>
-                        <td className="font-data text-emerald-600">৳{(bill.paid_amount ?? 0).toLocaleString()}</td>
-                        {activeTab === 'dues' && <td className="font-data text-red-600 font-semibold">৳{outstanding.toLocaleString()}</td>}
-                        <td><span className={`badge ${st.badge}`}>{st.label}</span></td>
-                        <td>
-                          <div className="flex gap-1.5">
-                            {bill.status !== 'paid' && (
-                              <button onClick={() => openPayModal(bill)} className="btn-ghost p-1.5 text-emerald-600" title="Collect Payment">
-                                <Banknote className="w-4 h-4" />
-                              </button>
-                            )}
-                            <button onClick={() => viewBillDetail(bill)} className="btn-ghost p-1.5" title="View">
-                              <Eye className="w-4 h-4" />
-                            </button>
-                            <button onClick={() => window.open(`/h/${slug}/billing/${bill.id}/print`, '_blank')} className="btn-ghost p-1.5" title="Print">
-                              <Printer className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
 
           {/* Pagination */}
           {activeTab === 'bills' && meta.totalPages > 1 && (

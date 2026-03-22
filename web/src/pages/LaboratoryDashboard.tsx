@@ -141,8 +141,8 @@ export default function LaboratoryDashboard({ role = 'laboratory' }: { role?: st
         </div>
 
         {/* ── Search + Filter tabs ── */}
-        <div className="card p-4 flex flex-wrap gap-3 items-center">
-          <div className="relative flex-1 min-w-48">
+        <div className="card p-3 sm:p-4">
+          <div className="relative mb-2">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-muted)]" />
             <input
               type="text"
@@ -152,27 +152,63 @@ export default function LaboratoryDashboard({ role = 'laboratory' }: { role?: st
               className="input pl-9"
             />
           </div>
-          <div className="flex border border-[var(--color-border)] rounded-lg overflow-hidden">
-            {(['all', 'pending', 'completed'] as const).map(f => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`px-4 py-2 text-sm font-medium transition-colors ${
-                  filter === f
-                    ? 'bg-[var(--color-primary)] text-white'
-                    : 'bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:bg-[var(--color-border-light)]'
-                }`}
-              >
-                {f === 'all' ? t('all', { ns: 'notifications', defaultValue: 'All' }) : f === 'pending' ? t('pending') : t('completed')}
-                {f === 'pending' && pending > 0 && <span className="ml-1.5 bg-amber-500 text-white text-xs rounded-full px-1.5">{pending}</span>}
-              </button>
-            ))}
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+            <div className="flex border border-[var(--color-border)] rounded-lg overflow-hidden shrink-0">
+              {(['all', 'pending', 'completed'] as const).map(f => (
+                <button
+                  key={f}
+                  onClick={() => setFilter(f)}
+                  className={`px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap ${
+                    filter === f
+                      ? 'bg-[var(--color-primary)] text-white'
+                      : 'bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:bg-[var(--color-border-light)]'
+                  }`}
+                >
+                  {f === 'all' ? t('all', { ns: 'notifications', defaultValue: 'All' }) : f === 'pending' ? t('pending') : t('completed')}
+                  {f === 'pending' && pending > 0 && <span className="ml-1.5 bg-amber-500 text-white text-xs rounded-full px-1.5">{pending}</span>}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
-        {/* ── Table ── */}
+        {/* ── List ── */}
         <div className="card overflow-hidden">
-          <div className="overflow-x-auto">
+
+          {/* Mobile card list */}
+          <div className="sm:hidden divide-y divide-[var(--color-border)]">
+            {loading
+              ? [...Array(4)].map((_, i) => (
+                  <div key={i} className="flex items-center gap-3 p-4">
+                    <div className="flex-1 space-y-2"><div className="skeleton h-4 w-36" /><div className="skeleton h-3 w-24" /></div>
+                    <div className="skeleton h-5 w-14 rounded-full" />
+                  </div>
+                ))
+              : displayed.length === 0
+                ? (<div className="py-12 flex flex-col items-center gap-2 text-[var(--color-text-muted)]"><FlaskConical className="w-8 h-8 opacity-30" /><p>{t('noTests')}</p></div>)
+                : displayed.map(test => (
+                    <div key={test.id} className="p-4 space-y-1.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-medium text-sm truncate">{test.patient_name}</p>
+                          <p className="text-xs text-[var(--color-text-muted)]">{test.test_name}</p>
+                        </div>
+                        {statusBadge(test.status)}
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-[var(--color-text-muted)]">{new Date(test.date).toLocaleDateString('en-GB')}</span>
+                        {test.status === 'pending'
+                          ? <button onClick={() => { setSelectedTest(test); setResult(test.result || ''); }} className="btn-primary text-xs py-1 px-2.5"><Plus className="w-3.5 h-3.5" /></button>
+                          : <button onClick={() => handlePrint(test)} className="btn-secondary text-xs py-1 px-2.5"><Printer className="w-3.5 h-3.5" /></button>
+                        }
+                      </div>
+                    </div>
+                  ))
+            }
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="table-base">
               <thead>
                 <tr>
